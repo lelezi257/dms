@@ -1,0 +1,348 @@
+{
+  "Linux-root": {
+    "status": "PASS",
+    "value": [
+      "Linux",
+      "aarch64",
+      0
+    ]
+  },
+  "new-owned-root": {
+    "status": "PASS",
+    "value": "/opt/afs-managed-workspace-20261007-r2"
+  },
+  "dependencies": {
+    "status": "PASS",
+    "value": {
+      "bash": "/usr/bin/bash",
+      "python3": "/usr/bin/python3",
+      "tar": "/usr/bin/tar",
+      "ldd": "/usr/bin/ldd",
+      "openssl": "/usr/bin/openssl",
+      "findmnt": "/usr/bin/findmnt",
+      "fusermount3": "/usr/bin/fusermount3",
+      "curl": "/usr/bin/curl",
+      "flock": "/usr/bin/flock",
+      "ss": "/usr/bin/ss",
+      "sed": "/usr/bin/sed",
+      "awk": "/usr/bin/awk",
+      "mountpoint": "/usr/bin/mountpoint",
+      "setsid": "/usr/bin/setsid",
+      "nsenter": "/usr/bin/nsenter"
+    }
+  },
+  "fuse": {
+    "status": "PASS",
+    "value": "/dev/fuse"
+  },
+  "ext4": {
+    "status": "PASS",
+    "value": {
+      "filesystems": [
+        {
+          "target": "/",
+          "source": "/dev/vda1",
+          "fstype": "ext4",
+          "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+        }
+      ]
+    }
+  },
+  "capacity": {
+    "status": "PASS",
+    "value": 12272168960
+  },
+  "ports": {
+    "status": "PASS",
+    "value": [
+      24400,
+      24401,
+      24500,
+      24501
+    ]
+  },
+  "package": {
+    "status": "PASS",
+    "value": "77cbae8914715cd08d6ba3771e0219111f18d5cc0475f42661e4913873bfb18b"
+  },
+  "runtime": {
+    "status": "PASS",
+    "value": "d10ecae898361832a059be2089bab92d158aec54661b18ed7346ed79628b46b0"
+  },
+  "one-package": {
+    "status": "PASS",
+    "value": [
+      "/opt/afs-managed-workspace-20261007-r2/package/afs-0.1.0-g2-off-25a8061-linux-aarch64"
+    ]
+  },
+  "source-commit": {
+    "status": "PASS",
+    "value": {
+      "schema": "afs.release-package.v1",
+      "name": "afs",
+      "version": "0.1.0-g2-off-25a8061",
+      "target": "linux-aarch64",
+      "source_commit": "25a8061a82b7a8629c9a06486d712d32507f2ee7",
+      "source_date_epoch": 1791307634,
+      "features": "all",
+      "rust_toolchain": "1.95.0",
+      "binaries": {
+        "afs-meta": {
+          "sha256": "08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8"
+        },
+        "afs-node": {
+          "sha256": "d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8"
+        }
+      },
+      "contains": [
+        "afs-meta",
+        "afs-node",
+        "afs-processctl",
+        "afs-trial-config",
+        "afs-selfcheck",
+        "dep02-smoke.sh",
+        "docs/guides/trial.md"
+      ],
+      "installer": "install.sh",
+      "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+    }
+  },
+  "meta-ELF": {
+    "status": "PASS",
+    "value": "08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8"
+  },
+  "meta-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000f3d28f149000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000f3d28e610000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f3d28e5d0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f3d28e520000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f3d28e360000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f3d28f100000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000f3d28e2b0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000f3d28e260000)\n"
+  },
+  "node-ELF": {
+    "status": "PASS",
+    "value": "d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8"
+  },
+  "node-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000ef543b5be000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000ef543a3d0000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ef543a390000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ef543a2e0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ef543a120000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ef543b570000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000ef543a070000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000ef543a020000)\n"
+  },
+  "input-afs-workspace-probe": {
+    "status": "PASS",
+    "value": {
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+      "bytes": 560000,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-bin/busybox": {
+    "status": "PASS",
+    "value": {
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "bytes": 1914704,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-bin/sh": {
+    "status": "PASS",
+    "value": {
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "bytes": 1914704,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-lib/ld-linux-aarch64.so.1": {
+    "status": "PASS",
+    "value": {
+      "sha256": "393384096ffa869e1be20d2f91fdf08dfadb9f3e531dfe724085d8501d3f85d9",
+      "bytes": 203968,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-lib/aarch64-linux-gnu/libgcc_s.so.1": {
+    "status": "PASS",
+    "value": {
+      "sha256": "f2d3ad2bf0b61f6bc944cc37d7b6ab7f88d2582b41ff989ca164803f56cc5f20",
+      "bytes": 133696,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "input-lib/aarch64-linux-gnu/libc.so.6": {
+    "status": "PASS",
+    "value": {
+      "sha256": "fe5966a43e068ad7cb389c3affa069f4ee6f296e07d7ccc0398a23cfde4f0b7e",
+      "bytes": 1722920,
+      "uid": 0,
+      "mode": "0o755"
+    }
+  },
+  "meta-live-ELF": {
+    "status": "PASS",
+    "value": {
+      "pid": 4701,
+      "starttick": 4543644,
+      "sha256": "08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8",
+      "installed": {
+        "path": "/opt/afs-managed-workspace-20261007-r2/prefix/bin/afs-meta",
+        "device": 64769,
+        "inode": 524576
+      }
+    }
+  },
+  "node-live-ELF": {
+    "status": "PASS",
+    "value": {
+      "pid": 4885,
+      "starttick": 4543660,
+      "sha256": "d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8",
+      "installed": {
+        "path": "/opt/afs-managed-workspace-20261007-r2/prefix/bin/afs-node",
+        "device": 64769,
+        "inode": 524577
+      }
+    }
+  },
+  "OwnerFs-mount": {
+    "status": "PASS",
+    "value": {
+      "filesystems": [
+        {
+          "target": "/opt/afs-managed-workspace-20261007-r2/mount/ownerfs",
+          "source": "afs-ownerfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "id": 61
+        }
+      ]
+    }
+  },
+  "control-mode": {
+    "status": "PASS",
+    "value": "0700/0600"
+  },
+  "initial-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "state": "Idle"
+    }
+  },
+  "initial-idle": {
+    "status": "PASS",
+    "value": "Idle"
+  },
+  "unsafe-path-response": {
+    "status": "PASS",
+    "value": {
+      "active": {
+        "production_ready": false,
+        "state": "Idle"
+      },
+      "error": "Invalid argument (os error 22)",
+      "production_ready": false,
+      "status": "ERROR"
+    }
+  },
+  "absent-root-response": {
+    "status": "PASS",
+    "value": {
+      "active": {
+        "production_ready": false,
+        "state": "Idle"
+      },
+      "error": "0x020b0002 Unavailable: root grant not cached",
+      "production_ready": false,
+      "status": "ERROR"
+    }
+  },
+  "first-response": {
+    "status": "PASS",
+    "value": {
+      "error": "operation id was reused with different input",
+      "production_ready": false,
+      "status": "ERROR"
+    }
+  },
+  "final-verified": {
+    "status": "PASS",
+    "value": {
+      "access_generation": 1,
+      "container": "afs-native-first",
+      "epoch": 1,
+      "home_node": "node-a",
+      "home_session": "d7a64260-6df2-4240-9f44-2a7d5a990941",
+      "production_ready": false,
+      "root": "root-776f726b7370616365",
+      "scope": "single managed experimental container; not READY or revocation ACK",
+      "state": "FinalVerified"
+    }
+  },
+  "start-replay": {
+    "status": "PASS",
+    "value": {
+      "access_generation": 1,
+      "container": "afs-native-first",
+      "epoch": 1,
+      "home_node": "node-a",
+      "home_session": "d7a64260-6df2-4240-9f44-2a7d5a990941",
+      "production_ready": false,
+      "root": "root-776f726b7370616365",
+      "scope": "single managed experimental container; not READY or revocation ACK",
+      "state": "FinalVerified"
+    }
+  },
+  "busy-response": {
+    "status": "PASS",
+    "value": {
+      "active": {
+        "access_generation": 1,
+        "container": "afs-native-first",
+        "epoch": 1,
+        "home_node": "node-a",
+        "home_session": "d7a64260-6df2-4240-9f44-2a7d5a990941",
+        "production_ready": false,
+        "root": "root-776f726b7370616365",
+        "scope": "single managed experimental container; not READY or revocation ACK",
+        "state": "FinalVerified"
+      },
+      "error": "Device or resource busy (os error 16)",
+      "production_ready": false,
+      "status": "ERROR"
+    }
+  },
+  "real-storage-source": {
+    "status": "PASS",
+    "value": [
+      "/opt/afs-managed-workspace-20261007-r2/state/node/ownerfs/root-776f726b7370616365-e1"
+    ]
+  },
+  "work-response": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 140
+    }
+  },
+  "executed": {
+    "status": "PASS",
+    "value": {
+      "production_ready": false,
+      "status": "Executed",
+      "stdout_bytes": 140
+    }
+  },
+  "host-read-full-content": {
+    "status": "PASS",
+    "value": "47ac80e6c3bf536ea0de31a11ff7f6b074ffca87668c6cf3261e5e22d3c7f072"
+  },
+  "workload-owner-mode": {
+    "status": "PASS",
+    "value": [
+      501,
+      501,
+      "0o100600"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+[
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015398989999084733,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  }
+]

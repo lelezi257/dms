@@ -1,0 +1,32 @@
+[
+  {
+    "stage": "setns",
+    "rc": 0,
+    "errno": 0
+  },
+  {
+    "stage": "/proc/thread-self/ns/mnt",
+    "error": "[Errno 2] No such file or directory: '/proc/thread-self/ns/mnt'",
+    "errno": 2
+  },
+  {
+    "stage": "/proc/thread-self/mountinfo",
+    "error": "[Errno 2] No such file or directory: '/proc/thread-self/mountinfo'",
+    "errno": 2
+  },
+  {
+    "stage": "/proc/thread-self/fd/5/workspace",
+    "error": "[Errno 2] No such file or directory: '/proc/thread-self/fd/5/workspace'",
+    "errno": 2
+  },
+  {
+    "stage": "openat-root-workspace",
+    "dev": 64769,
+    "ino": 524666
+  },
+  {
+    "stage": "restore",
+    "rc": 0,
+    "errno": 0
+  }
+]

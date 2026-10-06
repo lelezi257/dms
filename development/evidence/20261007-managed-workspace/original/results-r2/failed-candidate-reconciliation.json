@@ -1,0 +1,114 @@
+{
+  "scope": "admin shutdown/reconcile failed test fixture; not normal clone-detach PASS",
+  "original_result_unchanged": "FAIL/cleanup FAIL",
+  "records": [
+    {
+      "argv": [
+        "/opt/afs-managed-workspace-20261007-r2/prefix/bin/afs-processctl",
+        "--prefix",
+        "/opt/afs-managed-workspace-20261007-r2/prefix",
+        "--config-dir",
+        "/opt/afs-managed-workspace-20261007-r2/etc",
+        "--run-dir",
+        "/opt/afs-managed-workspace-20261007-r2/run",
+        "--log-dir",
+        "/opt/afs-managed-workspace-20261007-r2/logs",
+        "stop",
+        "all"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "node failed exit_code=1; retained identity and lifecycle evidence\n"
+    },
+    {
+      "argv": [
+        "/usr/local/sbin/runc",
+        "--root",
+        "/opt/afs-managed-workspace-20261007-r2/control/runtime-state",
+        "state",
+        "afs-native-first"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"ociVersion\": \"1.3.0\",\n  \"id\": \"afs-native-first\",\n  \"pid\": 0,\n  \"status\": \"stopped\",\n  \"bundle\": \"/opt/afs-managed-workspace-20261007-r2/control/bundle-afs-native-first\",\n  \"rootfs\": \"/opt/afs-managed-workspace-20261007-r2/rootfs\",\n  \"created\": \"2026-10-06T19:26:59.351290504Z\",\n  \"owner\": \"\"\n}",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/usr/local/sbin/runc",
+        "--root",
+        "/opt/afs-managed-workspace-20261007-r2/control/runtime-state",
+        "delete",
+        "afs-native-first"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/usr/local/sbin/runc",
+        "--root",
+        "/opt/afs-managed-workspace-20261007-r2/control/runtime-state",
+        "list",
+        "--format",
+        "json"
+      ],
+      "exit": 0,
+      "stdout": "null\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ps",
+        "-C",
+        "afs-node,afs-meta,afs-workspace-probe,runc",
+        "-o",
+        "pid,comm,args"
+      ],
+      "exit": 0,
+      "stdout": "    PID COMMAND         COMMAND\n   4701 afs-meta        /opt/afs-managed-workspace-20261007-r2/prefix/bin/afs-meta --config /opt/afs-managed-workspace-20261007-r2/etc/meta.toml\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-rn",
+        "--mountpoint",
+        "/opt/afs-managed-workspace-20261007-r2/mount/ownerfs"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/opt/afs-managed-workspace-20261007-r2/prefix/bin/afs-processctl",
+        "--prefix",
+        "/opt/afs-managed-workspace-20261007-r2/prefix",
+        "--config-dir",
+        "/opt/afs-managed-workspace-20261007-r2/etc",
+        "--run-dir",
+        "/opt/afs-managed-workspace-20261007-r2/run",
+        "--log-dir",
+        "/opt/afs-managed-workspace-20261007-r2/logs",
+        "stop",
+        "meta"
+      ],
+      "exit": 0,
+      "stdout": "meta stopped exit_code=0\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ps",
+        "-C",
+        "afs-node,afs-meta,afs-workspace-probe,runc",
+        "-o",
+        "pid,comm,args"
+      ],
+      "exit": 1,
+      "stdout": "    PID COMMAND         COMMAND\n",
+      "stderr": ""
+    }
+  ]
+}

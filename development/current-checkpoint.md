@@ -1,3 +1,5 @@
+**新增实际功能出口（2026-10-07）：** main6d51aeb/map66dbbe3e的实验受管OwnerFs单容器最终namespace/source/unique mount核验、64MiB全内容/权限及停止→Idle/正常卸载删除/Node和Meta退出清理PASS。[证据与原失败](evidence/20261007-managed-workspace/README.md)。仅G2.12基础生命周期分项；必要跨路径锁、append/SEEK_CUR、混合mmap/watch及权限错误随后检查，G2.12完整/生产READY/G2.13性能仍未通过，G1历史8/8和G2计数不变。下方旧候选记录保留原版本，未变标准/OFF结果限定复用。
+
 **新增环境出口（2026-10-07）：** 用户授权后在隔离afs-g2-micro安装固定官方runc v1.5.2，SHA/资产digest/GPG及真实非root容器创建/执行/正常停止删除PASS。[证据](evidence/20261007-runc-runtime/README.md)。仅运行时准入；产品map8ef8b788/ELF未变，G2.12/13未闭合，G1和G2计数不变。下一项实际OwnerFs受管容器，使用干净受信rootfs，不重跑未变标准/普通性能。
 
 **最新源码切片（2026-10-07）：** 默认OFF的受管单容器workspace实验接线，157编译输入map8ef8b788；Linux562库/4实际native挂载/8实际FUSE/接口、严格lint/build及helperTERM通过，复用未变的r3结果。[证据及失败记录](evidence/20261007-native-workspace/README.md)。[官方runc安装/运行时准入已通过](evidence/20261007-runc-runtime/README.md)，容器OwnerFs ON功能/性能仍未资格化，不继承旧标准PASS。

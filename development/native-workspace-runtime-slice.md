@@ -9,3 +9,5 @@ Predeclared cases: initial Idle; reject path traversal/absent Home; create works
 An actual environment prerequisite failure is BLOCKED, preserve it and stop the affected run for help. A product failure is FAIL, preserve it and inspect the narrow source path; never force/lazy-delete an uncertain claim. Exceptions/cleanup failure cannot yield PASS. No crash/revocation/restart, classic locks, append/SEEK_CUR or mixed mmap/watch qualification is implied. These necessary semantic boundaries still precede usable ON qualification and the selected paired performance exit. Ordinary timings/FAIL remain unchanged.
 
 Result publication follows each actual bounded run; a successful basic lifecycle does not close all G2.12. Targeted evidence guard tests reject wrong identity, missing restrictive flags, short or corrupted payload; all Python runtime/tests execute only on Linux.
+
+**Actual fixed candidate:** [r4 bounded lifecycle and cleanup PASS](evidence/20261007-managed-workspace/README.md); original stop failure and rejected invocations retained. Cross-path semantic checks and paired performance are the next independent outputs.

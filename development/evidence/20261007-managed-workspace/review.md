@@ -1,0 +1,5 @@
+# Independent bounded evidence review
+
+2026-10-07; native Codex read-only reviewer e2e_standard_entry: APPROVE, no blocking issue. Reviewed source6d51aeb/map66dbbe3e, original failures and exact payload/seed identity, final r4 mount/controller/runtime receipts, error paths and docs boundaries. Original driver reversible delta restores its pinned hash. Successful Stop requires normal final-clone umount2(flags0), normal runc delete and export detach; each runtime command and process exit is retained. This is not syscall trace, production drain or full G2.12/13.
+
+Reviewer initially checked333 hashed files, found README hash stale during editing; refreshed before final audit. Work output link corrected to raw control/command-0006.stdout. Subsequently added exact outer driver argv and independent postcheck (no product/runtime process and selected host mount). Final checksum list includes these additions and this review; counts may exceed the review's initial inventory. No runtime/Binary/private key/full Python evidence snapshot added.

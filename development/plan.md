@@ -1,3 +1,5 @@
+**新增实际功能出口（2026-10-07）：** main6d51aeb/map66dbbe3e的实验受管OwnerFs单容器最终namespace/source/unique mount核验、64MiB全内容/权限及停止→Idle/正常卸载删除/Node和Meta退出清理PASS。[证据与原失败](evidence/20261007-managed-workspace/README.md)。仅G2.12基础生命周期分项；必要跨路径锁、append/SEEK_CUR、混合mmap/watch及权限错误随后检查，G2.12完整/生产READY/G2.13性能仍未通过，G1历史8/8和G2计数不变。下方旧候选记录保留原版本，未变标准/OFF结果限定复用。
+
 **Latest functional output (2026-10-07):** local R1 DFS statfs and affected fixed standards now pass on map6161e25b release, with normal cleanup; [evidence](evidence/20261007-dfs-statfs/README.md). Do not repeat unchanged suites. [Managed container workspace source adapter](native-workspace-slice.md) now exists as a default-OFF partial experiment; [official runc installation/runtime-only admission passed](evidence/20261007-runc-runtime/README.md) after human authorization; actual managed OwnerFs lifecycle remains pending. Source gates do not qualify container lifecycle/performance. Ordinary performance tuning stays deferred.
 
 # Delivery task map

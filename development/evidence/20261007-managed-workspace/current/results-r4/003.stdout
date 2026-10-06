@@ -1,0 +1,24 @@
+./DEPENDENCIES.md: OK
+./bin/afs-meta: OK
+./bin/afs-node: OK
+./bin/afs-processctl: OK
+./bin/afs-selfcheck: OK
+./bin/afs-trial-config: OK
+./bin/dep02-smoke.sh: OK
+./docs/guides/trial.md: OK
+./install.sh: OK
+./ldd.txt: OK
+./manifest.json: OK
+./templates/meta.toml: OK
+./templates/node-dfs.toml: OK
+./templates/node-ownerfs.toml: OK
+./templates/node.toml: OK
+created local TLS bootstrap files: /opt/afs-managed-workspace-20261007-r4/etc/tls
+created config: /opt/afs-managed-workspace-20261007-r4/etc/meta.toml
+created config: /opt/afs-managed-workspace-20261007-r4/etc/node.toml
+created compatibility config: /opt/afs-managed-workspace-20261007-r4/etc/node-dfs.toml -> node.toml
+created compatibility config: /opt/afs-managed-workspace-20261007-r4/etc/node-ownerfs.toml -> node.toml
+installed AFS package under /opt/afs-managed-workspace-20261007-r4/prefix
+config: /opt/afs-managed-workspace-20261007-r4/etc
+state:  /opt/afs-managed-workspace-20261007-r4/state
+mount:  /opt/afs-managed-workspace-20261007-r4/mount

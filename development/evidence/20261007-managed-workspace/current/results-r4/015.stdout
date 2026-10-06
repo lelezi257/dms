@@ -1,0 +1,19 @@
+{
+  "request_id": "busy",
+  "response": {
+    "active": {
+      "access_generation": 1,
+      "container": "afs-native-first",
+      "epoch": 1,
+      "home_node": "node-a",
+      "home_session": "2790006a-5df8-4ac3-8e1b-1dbddc8163f7",
+      "production_ready": false,
+      "root": "root-776f726b7370616365",
+      "scope": "single managed experimental container; not READY or revocation ACK",
+      "state": "FinalVerified"
+    },
+    "error": "Device or resource busy (os error 16)",
+    "production_ready": false,
+    "status": "ERROR"
+  }
+}

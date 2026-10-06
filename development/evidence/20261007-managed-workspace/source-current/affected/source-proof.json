@@ -1,0 +1,56 @@
+{
+  "source_base": "381b158c66bab461ce602d88f37e8bde9f6ce975",
+  "map_sha256": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+  "status": "PASS",
+  "selected_gates": [
+    "fmt",
+    "native-control",
+    "physical-build",
+    "physical-native"
+  ],
+  "commands": [
+    {
+      "label": "fmt",
+      "returncode": 0,
+      "elapsed_seconds": 1.0105495780007914,
+      "minimum_free_bytes": 4233039872,
+      "stop_reason": null
+    },
+    {
+      "label": "native-control",
+      "returncode": 0,
+      "elapsed_seconds": 60.06983522299561,
+      "minimum_free_bytes": 4186578944,
+      "stop_reason": null
+    },
+    {
+      "label": "physical-build",
+      "returncode": 0,
+      "elapsed_seconds": 1.003412803998799,
+      "minimum_free_bytes": 4232028160,
+      "stop_reason": null
+    },
+    {
+      "label": "physical-native",
+      "returncode": 0,
+      "elapsed_seconds": 1.002002689987421,
+      "minimum_free_bytes": 4231774208,
+      "stop_reason": null
+    }
+  ],
+  "inputs_unchanged": true,
+  "binaries": {
+    "afs-meta": {
+      "sha256": "08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8",
+      "bytes": 15795096
+    },
+    "afs-node": {
+      "sha256": "d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8",
+      "bytes": 25966344
+    },
+    "afs-workspace-probe": {
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+      "bytes": 560000
+    }
+  }
+}

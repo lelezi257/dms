@@ -1,0 +1,7 @@
+{
+  "status": "PASS",
+  "f_flag": 4102,
+  "ST_NOSUID": 2,
+  "ST_NODEV": 4,
+  "both": true
+}

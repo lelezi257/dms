@@ -1,0 +1,2 @@
+/opt/afs-managed-workspace-20261007-r1/prefix/bin/afs-processctl: line 140: /proc/4297/cmdline: No such file or directory
+node exited during startup; see /opt/afs-managed-workspace-20261007-r1/logs/node.log

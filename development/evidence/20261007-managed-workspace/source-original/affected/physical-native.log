@@ -1,0 +1,20 @@
+
+running 4 tests
+test node::native_workspace::mount::linux::tests::attaches_and_detaches_in_private_mount_namespace ... ok
+test node::native_workspace::mount::linux::tests::detach_of_unactivated_prepare_rejects_foreign_mount ... ok
+test node::native_workspace::mount::linux::tests::detach_rejects_identity_drift_and_retains_claim ... ok
+test node::native_workspace::mount::linux::tests::final_clone_detach_rejects_wrong_identity_and_flags_with_proc_hidden ... 
+thread 'node::native_workspace::mount::linux::tests::final_clone_detach_rejects_wrong_identity_and_flags_with_proc_hidden' (107630) panicked at src/node/native_workspace/mount.rs:737:13:
+assertion `left == right` failed
+  left: DirectoryIdentity { device: 64769, inode: 2 }
+ right: DirectoryIdentity { device: 64769, inode: 1117694 }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    node::native_workspace::mount::linux::tests::final_clone_detach_rejects_wrong_identity_and_flags_with_proc_hidden
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 574 filtered out; finished in 0.00s
+

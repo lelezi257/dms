@@ -1,3 +1,5 @@
+**最新源码切片（2026-10-07）：** 默认OFF的受管单容器workspace实验接线，157编译输入map8ef8b788；Linux562库/4实际native挂载/8实际FUSE/接口、严格lint/build及helperTERM通过，复用未变的r3结果。[证据及失败记录](evidence/20261007-native-workspace/README.md)。实际runc运行准入BLOCKED，容器ON功能/性能仍未资格化，不继承旧标准PASS。
+
 **最新源码增量（2026-10-07）：** 基于2b5d35c的四文件DFS statfs修复，154编译输入map6161e25b；Linux库553/实际FUSE8/feature/lint/build及新ELF DFS本地R1 pjdfstest236/8819、固定LTP6/6、正常关闭通过。[独立回执](evidence/20261007-dfs-statfs/README.md)。未继承新ELF Owner标准、多节点恢复或性能资格。
 
 # 2026-10-06 代码与目标检查点
@@ -64,7 +66,7 @@ fd2dbca678dcba28ec07665ddf7d9bcf3e98636af6842a58ca435cfb4ce02c5b  parent-fd-pair
 
 [Issue42](https://github.com/lelezi257/dms/issues/42)及[PR43](https://github.com/lelezi257/dms/pull/43)已纳入G2.12/13。既有交接读取head `80b0bca3d9d86a1357aa745bb65abfb567f5623f`，该交接对应草稿未合并分支，不把实验比值当主线生产资格；移植须检查与当前主线重叠的权限/写入/索引改动。
 
-**事实/待验证：** 主线生产native入口仍禁用；本次不提供可用的公开ON配置。将来要求显式开关、默认OFF，OFF FUSE独立回归，ON经过最终namespace/Root/epoch/Home核验、启动/停止、真正引用排空和重启对账。append/SEEK_CUR、经典kernel POSIX锁、watch/混合mmap、export detach后容器clone仍写等已知缺口必须在ON前闭合；不能用mutex/OFD/lazy detach代替证明。基础模块和测试存在不等于READY或物理排空ACK已完成。
+**事实/待验证：** 主线生产native入口仍禁用；已新增管理员实验ON配置及受管接线，尚非可用生产ON；[切片边界](native-workspace-slice.md)。将来要求显式开关、默认OFF，OFF FUSE独立回归，ON经过最终namespace/Root/epoch/Home核验、启动/停止、真正引用排空和重启对账。append/SEEK_CUR、经典kernel POSIX锁、watch/混合mmap、export detach后容器clone仍写等已知缺口必须在ON前闭合；不能用mutex/OFD/lazy detach代替证明。基础模块和测试存在不等于READY或物理排空ACK已完成。
 
 ## capacity
 

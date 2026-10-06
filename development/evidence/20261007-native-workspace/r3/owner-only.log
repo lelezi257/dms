@@ -1,0 +1,47 @@
+    Checking afs v0.1.0 (/var/tmp/afs-native-workspace-20261007-r1/source)
+warning: method `read_ranges_at_uncommitted` is never used
+   --> src/node/chunk.rs:187:19
+    |
+168 | impl PinnedChunkReader {
+    | ---------------------- method in this implementation
+...
+187 |     pub(crate) fn read_ranges_at_uncommitted(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `quarantined_chunks` is never used
+   --> src/node/chunk.rs:625:19
+    |
+293 | impl LocalChunkStore {
+    | -------------------- method in this implementation
+...
+625 |     pub(crate) fn quarantined_chunks(&self) -> Result<Vec<LocalChunkRecord>> {
+    |                   ^^^^^^^^^^^^^^^^^^
+
+warning: `afs` (lib) generated 2 warnings
+warning: direct cast of function item into an integer
+  --> src/bin/afs-workspace-probe.rs:31:45
+   |
+31 |         if libc::signal(libc::SIGTERM, stop as libc::sighandler_t) == libc::SIG_ERR
+   |                                             ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(function_casts_as_integer)]` on by default
+help: first cast to a pointer `as *const ()`
+   |
+31 |         if libc::signal(libc::SIGTERM, stop as *const () as libc::sighandler_t) == libc::SIG_ERR
+   |                                             ++++++++++++
+
+warning: direct cast of function item into an integer
+  --> src/bin/afs-workspace-probe.rs:32:48
+   |
+32 |             || libc::signal(libc::SIGINT, stop as libc::sighandler_t) == libc::SIG_ERR
+   |                                                ^^^^^^^^^^^^^^^^^^^^^
+   |
+help: first cast to a pointer `as *const ()`
+   |
+32 |             || libc::signal(libc::SIGINT, stop as *const () as libc::sighandler_t) == libc::SIG_ERR
+   |                                                ++++++++++++
+
+warning: `afs` (bin "afs-workspace-probe") generated 2 warnings (run `cargo fix --bin "afs-workspace-probe" -p afs` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 2.53s

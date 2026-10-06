@@ -1,0 +1,8 @@
+{
+  "files": {
+    "development/acceptance/source-slice-linux.py": "730f8d8dbc086bb7eb28d72e0b235acaf9bb1e3c3270eb4ee03726c11faf378a",
+    "scripts/ownerfs/native-workspace-control.py": "11b32a45f5e24801260acddfc47e3a4e7e16385c3f0a2af08e0dba9a9573217b",
+    "scripts/ownerfs/test_native_workspace_control.py": "6032ce6fc875e92925ec83b12c2f933053a4c1af96428f5c5cdae2896b1b9627"
+  },
+  "scope": "r3 client/protocol tests; final r4 source-gate driver with selected-gate support"
+}

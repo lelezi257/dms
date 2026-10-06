@@ -1,0 +1,56 @@
+{
+  "source_base": "0891cbfe558cdda7c8d780b7fa9e8f97329e2554",
+  "map_sha256": "8ef8b7882381b80445ce13576a6b6c41b1a054fd5a101a5143d77b32c14ea267",
+  "status": "PASS",
+  "selected_gates": [
+    "fmt",
+    "clippy",
+    "build",
+    "helper-idle"
+  ],
+  "commands": [
+    {
+      "label": "fmt",
+      "returncode": 0,
+      "elapsed_seconds": 1.0011893769988092,
+      "minimum_free_bytes": 4277895168,
+      "stop_reason": null
+    },
+    {
+      "label": "clippy",
+      "returncode": 0,
+      "elapsed_seconds": 1.0013678029936273,
+      "minimum_free_bytes": 4277878784,
+      "stop_reason": null
+    },
+    {
+      "label": "build",
+      "returncode": 0,
+      "elapsed_seconds": 66.07636891500442,
+      "minimum_free_bytes": 4277776384,
+      "stop_reason": null
+    },
+    {
+      "label": "helper-idle",
+      "returncode": 0,
+      "elapsed_seconds": 1.0021202029893175,
+      "minimum_free_bytes": 4273102848,
+      "stop_reason": null
+    }
+  ],
+  "inputs_unchanged": true,
+  "binaries": {
+    "afs-meta": {
+      "sha256": "08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8",
+      "bytes": 15795096
+    },
+    "afs-node": {
+      "sha256": "d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8",
+      "bytes": 25966344
+    },
+    "afs-workspace-probe": {
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+      "bytes": 560000
+    }
+  }
+}

@@ -1,10 +1,21 @@
 use super::*;
-use std::os::unix::fs::MetadataExt;
+use std::os::{fd::AsRawFd, unix::fs::MetadataExt};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::node::vfs::ownerfs::root::{
     OwnerRootInventory, PresentedRootAccess, RootLocation, RootMeta, RootReservation,
 };
+
+struct RejectRemoteFactory;
+
+impl RemoteFilesFactory for RejectRemoteFactory {
+    fn connect(&self, _: &str) -> Result<Arc<dyn remote::RemoteFiles>> {
+        Err(Error::coded(
+            afs_error::NODE_VFS_UNIMPLEMENTED,
+            "native home test does not connect remote files",
+        ))
+    }
+}
 
 struct NativeHomeMeta {
     node_id: String,
@@ -147,6 +158,29 @@ pub(super) fn fixture(
     (temp, fs, ctx, disk)
 }
 
+fn fixture_native_home_eligible_with_remote() -> (tempfile::TempDir, OwnerFs, RequestContext) {
+    let temp = tempfile::tempdir().unwrap();
+    let disk = Arc::new(LocalFs::open(temp.path()).unwrap());
+    let meta = Arc::new(NativeHomeMeta::new());
+    let roots = Arc::new(RootManager::new(
+        "node-a".into(),
+        "session-a".into(),
+        meta,
+        disk.clone(),
+    ));
+    let metadata = fs::metadata(temp.path()).unwrap();
+    let ctx = RequestContext {
+        uid: metadata.uid(),
+        gid: metadata.gid(),
+        pid: 42,
+        umask: 0,
+        supplementary_gids: Vec::new(),
+    };
+    let fs =
+        OwnerFs::new_local_native_eligible_with_remote(roots, disk, Arc::new(RejectRemoteFactory));
+    (temp, fs, ctx)
+}
+
 pub(super) fn mkdir_root(fs: &OwnerFs, ctx: &RequestContext, name: &str) -> Entry {
     Backend::mkdir(fs, ctx, fs.root_inode(), OsStr::new(name), 0o755).unwrap()
 }
@@ -182,9 +216,67 @@ fn native_home_eligible_instance_uses_zero_ttl_from_first_reply() {
         assert!(!private);
     });
 
+    let authority: HomeExportAuthority = fs
+        .native_home_export_for_current_namespace(OsStr::new("native"))
+        .unwrap();
+    authority.verify_current(&fs).unwrap();
+}
+
+#[test]
+fn native_home_explicit_remote_constructor_is_eligible() {
+    let (_temp, fs, ctx) = fixture_native_home_eligible_with_remote();
+    let root = mkdir_root(&fs, &ctx, "native");
+
+    fs.with_fuse_cache_policy(root.inode, |ttl, private| {
+        assert_eq!(ttl, Duration::ZERO);
+        assert!(!private);
+    });
+
+    fs.native_home_export_for_current_namespace(OsStr::new("native"))
+        .unwrap()
+        .verify_current(&fs)
+        .unwrap();
+}
+
+#[test]
+fn native_home_authority_exports_thread_namespace_and_cloned_source_descriptor() {
+    let (_temp, fs, ctx, _disk) = fixture(true);
+    mkdir_root(&fs, &ctx, "native");
+
     let authority = fs
         .native_home_export_for_current_namespace(OsStr::new("native"))
         .unwrap();
+    assert_eq!(authority.name(), OsStr::new("native"));
+    assert_eq!(authority.grant().home_node_id, "node-a");
+    assert_eq!(authority.grant().holder_node_id, "node-a");
+    assert_eq!(authority.grant().home_session_id, "session-a");
+    assert_eq!(authority.grant().session_id, "session-a");
+    assert_eq!(authority.grant().access_generation, authority.grant().epoch);
+    for right in [RootRight::Lookup, RootRight::Read, RootRight::Write] {
+        assert!(authority.grant().rights.contains(&right));
+    }
+
+    let expected_namespace = fs::metadata("/proc/thread-self/ns/mnt").unwrap();
+    assert_eq!(
+        authority.namespace(),
+        NativeHomeNamespaceIdentity {
+            dev: expected_namespace.dev(),
+            ino: expected_namespace.ino(),
+        }
+    );
+
+    let first = authority.source_descriptor().unwrap();
+    let second = authority.source_descriptor().unwrap();
+    assert_ne!(first.as_raw_fd(), second.as_raw_fd());
+    let metadata = first.metadata().unwrap();
+    assert!(metadata.is_dir());
+    assert_eq!(
+        authority.source_identity(),
+        NativeHomeDirectoryIdentity {
+            dev: metadata.dev(),
+            ino: metadata.ino(),
+        }
+    );
     authority.verify_current(&fs).unwrap();
 }
 

@@ -134,3 +134,25 @@ Local chunk directories contain staged and finalized objects. Staged objects are
 ## Spill
 
 External spill is outside the compute-cluster storage pool. Operators should monitor external write failures, orphan temporary objects and recall latency separately from local disk pressure.
+
+## Experimental container workspace
+
+For an admitted isolated Linux lab only, the Node-owned controller accepts
+administrator commands through `scripts/ownerfs/native-workspace-control.py`:
+
+```sh
+sudo python3 scripts/ownerfs/native-workspace-control.py --socket /var/lib/afs-native/control/control.sock start WORKSPACE
+sudo python3 scripts/ownerfs/native-workspace-control.py --socket /var/lib/afs-native/control/control.sock status
+sudo python3 scripts/ownerfs/native-workspace-control.py --socket /var/lib/afs-native/control/control.sock exec -- /absolute/workload COMMAND_ARGUMENT
+sudo python3 scripts/ownerfs/native-workspace-control.py --socket /var/lib/afs-native/control/control.sock stop
+```
+
+Create the workspace through the ordinary OwnerFs mount before `start`. The
+client reports controller errors with a nonzero exit; partial/unknown cleanup
+is not a successful stop. Same-ID identical workload requests replay their
+recorded result; status is a fresh read and does not consume the bounded
+operation ledger. Source and container identity come from Node, never a request
+source path. This tool/helper is not part of the historical trial package.
+[Configuration and unresolved qualification gates](configuration.md#ownerfs-native-bind-mount)
+must be checked before running it. Do not erase Unknown/stale control or runtime
+state to restart; preserve receipts and resolve ownership first.

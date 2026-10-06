@@ -48,6 +48,11 @@ mod native_home;
 pub mod remote;
 pub mod root;
 
+pub(crate) use native_home::{
+    DirectoryIdentity as NativeHomeDirectoryIdentity, HomeExportAuthority,
+    NamespaceIdentity as NativeHomeNamespaceIdentity,
+};
+
 #[cfg(test)]
 mod identity_index_perf;
 #[cfg(test)]
@@ -122,16 +127,7 @@ impl OwnerFs {
     /// RootManager, and file operations receive only short-lived `RootUse`s.
     #[must_use]
     pub fn new_local(roots: Arc<RootManager>, disk: Arc<LocalFs>) -> Self {
-        let private_cache = Arc::new(Mutex::new(PrivateFuseCache::new()));
-        Self {
-            local: Some(Arc::new(LocalOwnerFs::new(
-                roots,
-                disk,
-                None,
-                private_cache.clone(),
-            ))),
-            private_cache,
-        }
+        Self::new_local_with_native_home_eligibility(roots, disk, None, false)
     }
 
     /// Construct OwnerFs with B-side remote dispatch enabled.
@@ -141,12 +137,36 @@ impl OwnerFs {
         disk: Arc<LocalFs>,
         remote_factory: Arc<dyn RemoteFilesFactory>,
     ) -> Self {
-        let private_cache = Arc::new(Mutex::new(PrivateFuseCache::new()));
+        Self::new_local_with_native_home_eligibility(roots, disk, Some(remote_factory), false)
+    }
+
+    /// Construct an explicitly native-Home-eligible OwnerFs with remote dispatch.
+    ///
+    /// This is a bounded experimental admission path for the managed container
+    /// workspace caller. Ordinary constructors remain native-ineligible.
+    #[must_use]
+    pub(crate) fn new_local_native_eligible_with_remote(
+        roots: Arc<RootManager>,
+        disk: Arc<LocalFs>,
+        remote_factory: Arc<dyn RemoteFilesFactory>,
+    ) -> Self {
+        Self::new_local_with_native_home_eligibility(roots, disk, Some(remote_factory), true)
+    }
+
+    fn new_local_with_native_home_eligibility(
+        roots: Arc<RootManager>,
+        disk: Arc<LocalFs>,
+        remote_factory: Option<Arc<dyn RemoteFilesFactory>>,
+        native_home_eligible: bool,
+    ) -> Self {
+        let private_cache = Arc::new(Mutex::new(PrivateFuseCache::with_native_home_eligibility(
+            native_home_eligible,
+        )));
         Self {
             local: Some(Arc::new(LocalOwnerFs::new(
                 roots,
                 disk,
-                Some(remote_factory),
+                remote_factory,
                 private_cache.clone(),
             ))),
             private_cache,
@@ -155,18 +175,7 @@ impl OwnerFs {
 
     #[cfg(test)]
     fn new_local_native_home_for_tests(roots: Arc<RootManager>, disk: Arc<LocalFs>) -> Self {
-        let private_cache = Arc::new(Mutex::new(PrivateFuseCache::with_native_home_eligibility(
-            true,
-        )));
-        Self {
-            local: Some(Arc::new(LocalOwnerFs::new(
-                roots,
-                disk,
-                None,
-                private_cache.clone(),
-            ))),
-            private_cache,
-        }
+        Self::new_local_with_native_home_eligibility(roots, disk, None, true)
     }
 
     /// The mount owns the notifier. Register it before the peer service starts

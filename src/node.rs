@@ -16,6 +16,8 @@ pub mod chunk;
 #[cfg(feature = "dfs")]
 pub mod dfs_read;
 pub mod fuse;
+#[cfg(feature = "ownerfs")]
+mod native_workspace;
 #[cfg(feature = "dfs")]
 pub mod replication;
 pub mod rpc;
@@ -1091,11 +1093,16 @@ async fn run_node(
             })
             .await??,
         );
-        Some(Arc::new(vfs::ownerfs::OwnerFs::new_local_with_remote(
-            roots,
-            disk,
-            remote_factory,
-        )))
+        let owner = if cfg.experimental_native_workspace {
+            vfs::ownerfs::OwnerFs::new_local_native_eligible_with_remote(
+                roots,
+                disk,
+                remote_factory,
+            )
+        } else {
+            vfs::ownerfs::OwnerFs::new_local_with_remote(roots, disk, remote_factory)
+        };
+        Some(Arc::new(owner))
     } else {
         None
     };
@@ -1652,8 +1659,9 @@ async fn run_node(
     #[cfg(feature = "dfs")]
     let dfs_for_drain = state.dfs.clone();
     let stop = services.stop.subscribe();
+    let rest_state = state.clone();
     services.spawn(async move {
-        axum::serve(rest, api::rest::router(state))
+        axum::serve(rest, api::rest::router(rest_state))
             .with_graceful_shutdown(cancelled(stop))
             .await
             .map_err(Into::into)
@@ -1676,6 +1684,39 @@ async fn run_node(
         }
         Ok(())
     });
+    #[cfg(feature = "ownerfs")]
+    if cfg.experimental_native_workspace {
+        let owner = state
+            .ownerfs
+            .clone()
+            .expect("native config requires OwnerFs");
+        let mount = cfg
+            .ownerfs_mount
+            .clone()
+            .expect("native config requires mount");
+        let native = cfg
+            .native_workspace
+            .clone()
+            .expect("native config requires settings");
+        let worker = tokio::task::spawn_blocking(move || {
+            native_workspace::NativeWorkspace::start(owner, mount, native)
+        })
+        .await??;
+        let stop = services.stop.subscribe();
+        services.spawn(async move {
+            let shutdown = cancelled(stop);
+            tokio::pin!(shutdown);
+            let mut tick = tokio::time::interval(Duration::from_millis(100));
+            loop {
+                tokio::select! {
+                    _ = &mut shutdown => break,
+                    _ = tick.tick() => if worker.is_finished() { break; },
+                }
+            }
+            tokio::task::spawn_blocking(move || worker.shutdown()).await??;
+            Ok(())
+        });
+    }
     afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"dfs"=>cfg.dfs);
     let mut shutdown_error = services.run_with_shutdown(on_shutdown).await.err();
     // Stop FUSE admission and observe its thread cleanup before the final dirty drain.

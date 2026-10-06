@@ -37,15 +37,39 @@ candidate.
 
 ## OwnerFs Native Bind Mount
 
-The native bind mount proposal is not a public production configuration switch
-in this checkpoint. The accepted product behavior remains the FUSE OwnerFs path
-unless a later candidate explicitly qualifies a default-off switch.
+Default is `experimental_native_workspace = false`. Ordinary OwnerFs/FUSE
+remains the accepted trial path. An administrator-only experimental single
+managed container adapter now exists; its runtime lifecycle and performance
+are **not qualified**. See the [source slice and remaining gates](../../development/native-workspace-slice.md).
 
-Native bind has two independent G2 gates: function and performance. Function
-must prove default-off behavior, managed mount lifecycle, fallback to FUSE,
-cache/lock/mmap/permission boundaries, restart reconciliation and safe refusal
-of unsupported configurations. Performance must then compare the same candidate
-with OFF, ON and ext4. Passing one gate does not pass the other.
+For an admitted isolated Linux lab, ON requires OwnerFs plus its FUSE mount and
+this TOML section (all values are explicit; no paths are created automatically):
+
+```toml
+experimental_native_workspace = true
+[native_workspace]
+control_dir = "/var/lib/afs-native/control"
+runtime = "/usr/bin/runc"
+rootfs = "/var/lib/afs-native/rootfs"
+workload_uid = 501
+workload_gid = 501
+```
+
+The control directory must be root-owned mode0700. Runtime/rootfs and their
+ancestors must be root-owned, without symlinks or group/other writes. Rootfs is
+a small read-only fixture with the exact built `/afs-workspace-probe`, its
+resolved library dependencies, empty `proc`/`workspace` directories and any
+selected workload binaries. Control/rootfs/runtime must be outside OwnerFs
+mount and data directories; control and rootfs must be disjoint. Stale controller
+artifacts or nonempty runtime state refuse startup pending reconciliation.
+An explicit `--experimental-native-workspace false` overrides TOML. This is a
+startup-only switch. It does not bypass ordinary grant/permission/error gates.
+
+Bind has separate G2 function and performance exits. Function must prove the
+managed lifecycle, ordinary OFF regression and required permissions, cache,
+lock, mmap, revocation/drain and restart semantics. Performance then compares
+the same candidate's OFF, ON and ext4. Neither configuration acceptance nor a
+source build closes either exit.
 
 ## Storage Policy
 

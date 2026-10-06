@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "scripts/ownerfs",
+    "-p",
+    "test_native_workspace_control.py",
+    "-v"
+  ],
+  "cwd": "/var/tmp/afs-native-workspace-20261007-r1/source",
+  "target": "/var/tmp/afs-e2e-release-20261006-r1/target",
+  "timeout_seconds": 60
+}

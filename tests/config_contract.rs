@@ -126,3 +126,70 @@ fn volatile_meta_policy_defaults_to_false_and_cli_overrides_toml() {
     .unwrap();
     assert!(!cli.allow_volatile_meta);
 }
+
+#[test]
+fn native_workspace_is_default_off_and_refuses_incomplete_or_wrong_backend() {
+    let cfg = Config::resolve(Role::Node, Cli::parse_from(["afs-node"])).unwrap();
+    assert!(!cfg.experimental_native_workspace);
+    assert!(cfg.native_workspace.is_none());
+    for (role, argv) in [
+        (
+            Role::Node,
+            vec!["afs-node", "--experimental-native-workspace", "true"],
+        ),
+        (
+            Role::Meta,
+            vec!["afs-meta", "--experimental-native-workspace", "true"],
+        ),
+    ] {
+        assert!(Config::resolve(role, Cli::parse_from(argv)).is_err());
+    }
+}
+
+#[cfg(feature = "ownerfs")]
+#[test]
+fn native_workspace_validates_admin_paths_and_explicit_off_override() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("node.toml");
+    let base = "fs='ownerfs'\nownerfs_mount='/tmp/owner'\nexperimental_native_workspace=true\n[native_workspace]\ncontrol_dir='/tmp/native-control'\nruntime='/usr/bin/runc'\nrootfs='/tmp/native-rootfs'\nworkload_uid=501\nworkload_gid=501\n";
+    std::fs::write(&path, base).unwrap();
+    let cfg = Config::resolve(
+        Role::Node,
+        Cli::parse_from(["afs-node", "--config", path.to_str().unwrap()]),
+    )
+    .unwrap();
+    assert!(cfg.experimental_native_workspace);
+    for invalid in [
+        base.replace("'/usr/bin/runc'", "'relative/runc'"),
+        base.replace("'/tmp/native-rootfs'", "'/tmp/native-control/rootfs'"),
+        base.replace("'/tmp/native-rootfs'", "'/tmp/../rootfs'"),
+        base.replace("workload_uid=501", "workload_uid=0"),
+        base.replace("'/tmp/native-control'", "'/tmp/owner/control'"),
+        base.replace("'/tmp/native-rootfs'", "'/tmp/owner/rootfs'"),
+        base.replace("workload_gid=501", "workload_gid=0"),
+        base.replace("fs='ownerfs'", "fs='dfs'"),
+    ] {
+        std::fs::write(&path, invalid).unwrap();
+        assert!(
+            Config::resolve(
+                Role::Node,
+                Cli::parse_from(["afs-node", "--config", path.to_str().unwrap(),])
+            )
+            .is_err()
+        );
+    }
+    std::fs::write(&path, base).unwrap();
+    let cfg = Config::resolve(
+        Role::Node,
+        Cli::parse_from([
+            "afs-node",
+            "--config",
+            path.to_str().unwrap(),
+            "--experimental-native-workspace",
+            "false",
+        ]),
+    )
+    .unwrap();
+    assert!(!cfg.experimental_native_workspace);
+    assert!(cfg.native_workspace.is_some());
+}

@@ -1,0 +1,17 @@
+{
+  "reviewer": "/root/e2e_standard_entry",
+  "verdict": "Bounded APPROVE",
+  "scope": "final source/evidence accounting for default-OFF partial publication",
+  "pre_audit_record_sha_entries": 113,
+  "compiler_inputs": 157,
+  "tools": 3,
+  "checks": [
+    "all checksums and source/tool maps match",
+    "r3-to-r4 only two signal function-to-pointer casts; reverse hash matches old helper",
+    "r4 exactly fmt/clippy/build/helperTERM",
+    "raw exits/closure accounting agree; initial failures preserved",
+    "local links valid; no vendor edits or Python snapshots",
+    "runtime/performance/new-ELF standard qualification explicitly excluded; G1/G2 counts retained"
+  ],
+  "not_claimed": "actual runc container/lifecycle/performance, production readiness or standard certification"
+}

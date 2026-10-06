@@ -1,0 +1,47 @@
+    Checking afs v0.1.0 (/var/tmp/afs-native-workspace-20261007-r1/source)
+warning: field `fallback` is never read
+   --> src/node/rpc/peer.rs:336:5
+    |
+333 | pub struct RdmaReplicaDataPlane {
+    |            -------------------- field in this struct
+...
+336 |     fallback: Option<GrpcReplicaDataPlane>,
+    |     ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `fallback` is never read
+    --> src/node/rpc/peer.rs:1229:5
+     |
+1225 | pub struct RdmaChunkTransfer {
+     |            ----------------- field in this struct
+...
+1229 |     fallback: Option<GrpcChunkTransfer>,
+     |     ^^^^^^^^
+
+warning: `afs` (lib) generated 2 warnings
+warning: direct cast of function item into an integer
+  --> src/bin/afs-workspace-probe.rs:31:45
+   |
+31 |         if libc::signal(libc::SIGTERM, stop as libc::sighandler_t) == libc::SIG_ERR
+   |                                             ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(function_casts_as_integer)]` on by default
+help: first cast to a pointer `as *const ()`
+   |
+31 |         if libc::signal(libc::SIGTERM, stop as *const () as libc::sighandler_t) == libc::SIG_ERR
+   |                                             ++++++++++++
+
+warning: direct cast of function item into an integer
+  --> src/bin/afs-workspace-probe.rs:32:48
+   |
+32 |             || libc::signal(libc::SIGINT, stop as libc::sighandler_t) == libc::SIG_ERR
+   |                                                ^^^^^^^^^^^^^^^^^^^^^
+   |
+help: first cast to a pointer `as *const ()`
+   |
+32 |             || libc::signal(libc::SIGINT, stop as *const () as libc::sighandler_t) == libc::SIG_ERR
+   |                                                ++++++++++++
+
+warning: `afs` (bin "afs-workspace-probe") generated 2 warnings (run `cargo fix --bin "afs-workspace-probe" -p afs` to apply 2 suggestions)
+    Finished `release` profile [optimized] target(s) in 2.54s

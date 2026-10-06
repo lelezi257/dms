@@ -1,0 +1,27 @@
+    Checking afs v0.1.0 (/var/tmp/afs-native-workspace-20261007-r1/source)
+error: direct cast of function item into an integer
+  --> src/bin/afs-workspace-probe.rs:31:45
+   |
+31 |         if libc::signal(libc::SIGTERM, stop as libc::sighandler_t) == libc::SIG_ERR
+   |                                             ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `-D function-casts-as-integer` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(function_casts_as_integer)]`
+help: first cast to a pointer `as *const ()`
+   |
+31 |         if libc::signal(libc::SIGTERM, stop as *const () as libc::sighandler_t) == libc::SIG_ERR
+   |                                             ++++++++++++
+
+error: direct cast of function item into an integer
+  --> src/bin/afs-workspace-probe.rs:32:48
+   |
+32 |             || libc::signal(libc::SIGINT, stop as libc::sighandler_t) == libc::SIG_ERR
+   |                                                ^^^^^^^^^^^^^^^^^^^^^
+   |
+help: first cast to a pointer `as *const ()`
+   |
+32 |             || libc::signal(libc::SIGINT, stop as *const () as libc::sighandler_t) == libc::SIG_ERR
+   |                                                ++++++++++++
+
+error: could not compile `afs` (bin "afs-workspace-probe" test) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

@@ -1,0 +1,21 @@
+
+running 8 tests
+test fuse_direct_io_open_allows_basic_shared_mmap ... fusermount3: failed to unmount /tmp/.tmpEhXdAk/mnt: Invalid argument
+ok
+test fuse_ftruncate_on_same_handle_waits_for_prior_write ... fusermount3: failed to unmount /tmp/.tmpYj6cZH/mnt: Invalid argument
+ok
+test fuse_mount_binds_backend_at_mount_root ... fusermount3: failed to unmount /tmp/.tmpBlctCQ/mnt: Invalid argument
+ok
+test fuse_mount_dispatches_real_backend_and_preserves_open_handle_identity ... fusermount3: failed to unmount /tmp/.tmpCoh766/mnt: Invalid argument
+ok
+test fuse_mount_does_not_invent_backend_namespace_directories ... fusermount3: failed to unmount /tmp/.tmpmyKs5v/mnt: Invalid argument
+ok
+test fuse_mount_rejects_existing_live_mount ... fusermount3: failed to unmount /tmp/.tmpjOO47C/mnt: Invalid argument
+ok
+test fuse_statfs_returns_backend_capacity_fields_to_kernel_stat ... fusermount3: failed to unmount /tmp/.tmpc81EwD/mnt: Invalid argument
+ok
+test fuse_statfs_unsupported_backend_fails_instead_of_zero_success ... fusermount3: failed to unmount /tmp/.tmpNbgvW7/mnt: Invalid argument
+ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.16s
+

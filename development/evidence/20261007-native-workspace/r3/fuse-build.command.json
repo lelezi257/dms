@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "cargo",
+    "test",
+    "--release",
+    "--locked",
+    "--offline",
+    "--all-features",
+    "-p",
+    "afs",
+    "--test",
+    "fuse_contract",
+    "--no-run",
+    "--message-format=json"
+  ],
+  "cwd": "/var/tmp/afs-native-workspace-20261007-r1/source",
+  "target": "/var/tmp/afs-e2e-release-20261006-r1/target",
+  "timeout_seconds": 300
+}

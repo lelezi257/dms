@@ -1,0 +1,1073 @@
+//! Explicit administrator-only experiment for one managed Owner workspace container.
+//! The dedicated mount thread owns runc and final-view cleanup. This is not the
+//! production Agent READY/revocation/restart-reconciliation protocol.
+mod mount;
+
+use crate::{
+    config::NativeWorkspaceConfig,
+    node::vfs::ownerfs::{HomeExportAuthority, OwnerFs},
+};
+use mount::{DirectoryIdentity, ManagedExport, detach_final_clone, inspect_final_clone};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
+use std::{
+    collections::HashMap,
+    ffi::{CString, OsStr},
+    fs::{self, File, OpenOptions},
+    io::{self, BufRead, BufReader, Write},
+    os::unix::{
+        fs::{MetadataExt, OpenOptionsExt, PermissionsExt},
+        net::{UnixListener, UnixStream},
+    },
+    path::{Component, Path, PathBuf},
+    process::{Command, Stdio},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
+    thread,
+    time::{Duration, Instant},
+};
+
+const MAX_REQUEST: u64 = 8192;
+const MAX_OPERATIONS: usize = 64;
+const PROBE: &str = "/afs-workspace-probe";
+
+pub(super) struct NativeWorkspace {
+    stop: Arc<AtomicBool>,
+    worker: Option<thread::JoinHandle<io::Result<()>>>,
+}
+
+impl NativeWorkspace {
+    pub(super) fn start(
+        owner: Arc<OwnerFs>,
+        mount: PathBuf,
+        cfg: NativeWorkspaceConfig,
+    ) -> io::Result<Self> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let worker_stop = stop.clone();
+        let (ready_tx, ready_rx) = mpsc::sync_channel(1);
+        let worker = thread::Builder::new()
+            .name("afs-native-workspace".into())
+            .spawn(move || {
+                let mut driver = match Driver::new(owner, mount, cfg, worker_stop) {
+                    Ok(driver) => {
+                        let _ = ready_tx.send(Ok(()));
+                        driver
+                    }
+                    Err(error) => {
+                        let _ = ready_tx.send(Err(io::Error::other(error.to_string())));
+                        return Err(error);
+                    }
+                };
+                driver.serve()
+            })?;
+        match ready_rx.recv() {
+            Ok(Ok(())) => Ok(Self {
+                stop,
+                worker: Some(worker),
+            }),
+            Ok(Err(error)) => {
+                stop.store(true, Ordering::Release);
+                let _ = worker.join();
+                Err(error)
+            }
+            Err(error) => {
+                stop.store(true, Ordering::Release);
+                let _ = worker.join();
+                Err(io::Error::other(error))
+            }
+        }
+    }
+
+    pub(super) fn is_finished(&self) -> bool {
+        self.worker
+            .as_ref()
+            .is_none_or(|worker| worker.is_finished())
+    }
+
+    pub(super) fn shutdown(mut self) -> io::Result<()> {
+        self.stop.store(true, Ordering::Release);
+        self.worker
+            .take()
+            .expect("owned worker")
+            .join()
+            .map_err(|_| io::Error::other("native workspace thread panicked"))?
+    }
+}
+
+impl Drop for NativeWorkspace {
+    fn drop(&mut self) {
+        // An aborted supervisor still cancels its owned thread. Only the
+        // explicit shutdown join can report cleanup success.
+        self.stop.store(true, Ordering::Release);
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "operation", rename_all = "kebab-case", deny_unknown_fields)]
+enum Request {
+    Start { id: String, workspace: String },
+    Exec { id: String, argv: Vec<String> },
+    Stop { id: String },
+    Status { id: String },
+}
+impl Request {
+    fn id(&self) -> &str {
+        match self {
+            Self::Start { id, .. }
+            | Self::Exec { id, .. }
+            | Self::Stop { id }
+            | Self::Status { id } => id,
+        }
+    }
+}
+
+struct Active {
+    permit: HomeExportAuthority,
+    export: ManagedExport,
+    container: String,
+    // Holding the final namespace/root allows normal clone unmount after all
+    // managed processes have stopped. These are dropped only after that proof.
+    final_namespace: Option<File>,
+    final_root: Option<File>,
+    final_unique: Option<u64>,
+    pid: Option<ProcessIdentity>,
+    verified: bool,
+    container_attempted: bool,
+}
+struct ProcessIdentity {
+    pid: u32,
+    start: String,
+}
+struct Driver {
+    owner: Arc<OwnerFs>,
+    mount: PathBuf,
+    cfg: NativeWorkspaceConfig,
+    stop: Arc<AtomicBool>,
+    listener: UnixListener,
+    lock: File,
+    active: Option<Active>,
+    responses: HashMap<String, (Value, Value)>,
+    sequence: u64,
+}
+
+impl Driver {
+    fn new(
+        owner: Arc<OwnerFs>,
+        mount: PathBuf,
+        cfg: NativeWorkspaceConfig,
+        stop: Arc<AtomicBool>,
+    ) -> io::Result<Self> {
+        require_root()?;
+        trusted_path(&cfg.control_dir, true)?;
+        if fs::metadata(&cfg.control_dir)?.permissions().mode() & 0o077 != 0 {
+            return Err(io::Error::other(
+                "native control directory must be administrator-owned mode0700",
+            ));
+        }
+        trusted_path(&cfg.runtime, false)?;
+        trusted_tree(&cfg.rootfs)?;
+        trusted_path(&cfg.rootfs.join(PROBE.trim_start_matches('/')), false)?;
+        if !cfg.rootfs.join("workspace").is_dir() || !cfg.rootfs.join("proc").is_dir() {
+            return Err(io::Error::other(
+                "native rootfs needs empty workspace and proc directories",
+            ));
+        }
+        for directory in [cfg.rootfs.join("workspace"), cfg.rootfs.join("proc")] {
+            if fs::read_dir(directory)?.next().is_some() {
+                return Err(io::Error::other(
+                    "native rootfs mount targets must be empty",
+                ));
+            }
+        }
+        for executable in [
+            &cfg.runtime,
+            &cfg.rootfs.join(PROBE.trim_start_matches('/')),
+        ] {
+            if fs::metadata(executable)?.permissions().mode() & 0o111 == 0 {
+                return Err(io::Error::other(
+                    "native runtime and probe must be executable",
+                ));
+            }
+        }
+        let state = cfg.control_dir.join("runtime-state");
+        if state.exists() {
+            trusted_path(&state, true)?;
+            if fs::read_dir(&state)?.next().is_some() {
+                return Err(io::Error::other(
+                    "native runtime state is nonempty; reconciliation is required",
+                ));
+            }
+        } else {
+            fs::create_dir(&state)?;
+            fs::set_permissions(&state, fs::Permissions::from_mode(0o700))?;
+        }
+        isolate_mount_namespace()?;
+        let lock_path = cfg.control_dir.join("controller.lock");
+        let socket_path = cfg.control_dir.join("control.sock");
+        let lock = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&lock_path)?;
+        let listener = match UnixListener::bind(&socket_path) {
+            Ok(listener) => listener,
+            Err(error) => {
+                let _ = fs::remove_file(&lock_path);
+                return Err(error);
+            }
+        };
+        if let Err(error) = listener
+            .set_nonblocking(true)
+            .and_then(|_| fs::set_permissions(&socket_path, fs::Permissions::from_mode(0o600)))
+        {
+            let _ = fs::remove_file(&socket_path);
+            let _ = fs::remove_file(&lock_path);
+            return Err(error);
+        }
+        Ok(Self {
+            owner,
+            mount,
+            cfg,
+            stop,
+            listener,
+            lock,
+            active: None,
+            responses: HashMap::new(),
+            sequence: 0,
+        })
+    }
+
+    fn serve(&mut self) -> io::Result<()> {
+        while !self.stop.load(Ordering::Acquire) {
+            match self.listener.accept() {
+                Ok((mut stream, _)) => {
+                    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+                    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
+                    let response = self.receive(&stream).and_then(|request| self.handle(request))
+                        .unwrap_or_else(|error| json!({"status":"ERROR","error":error.to_string(),"production_ready":false}));
+                    let _ = writeln!(stream, "{response}");
+                }
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(50))
+                }
+                Err(error) => {
+                    let cleanup = self.cleanup();
+                    return cleanup.and(Err(error));
+                }
+            }
+        }
+        self.cleanup()?;
+        fs::remove_file(self.cfg.control_dir.join("control.sock"))?;
+        self.lock.sync_all()?;
+        fs::remove_file(self.cfg.control_dir.join("controller.lock"))?;
+        Ok(())
+    }
+
+    fn receive(&self, stream: &UnixStream) -> io::Result<Request> {
+        use std::io::Read;
+        let mut line = String::new();
+        BufReader::new(stream.take(MAX_REQUEST + 1)).read_line(&mut line)?;
+        if line.len() as u64 > MAX_REQUEST || !line.ends_with('\n') {
+            return Err(io::Error::other(
+                "native command must be one bounded JSON line",
+            ));
+        }
+        serde_json::from_str(&line).map_err(io::Error::other)
+    }
+
+    fn handle(&mut self, request: Request) -> io::Result<Value> {
+        check_id(request.id())?;
+        let id = request.id().to_owned();
+        let fingerprint = serde_json::to_value(&request).map_err(io::Error::other)?;
+        if let Some((original, old)) = self.responses.get(&id) {
+            if original != &fingerprint {
+                return Err(io::Error::other(
+                    "operation id was reused with different input",
+                ));
+            }
+            return Ok(old.clone());
+        }
+        // Read-only status never consumes the bounded operation ledger. Keep
+        // cleanup available even after workload operation admission is full.
+        if matches!(request, Request::Status { .. }) {
+            return Ok(self.status());
+        }
+        if self.responses.len() >= MAX_OPERATIONS && !matches!(request, Request::Stop { .. }) {
+            return Err(io::Error::from_raw_os_error(libc::ENOSPC));
+        }
+        let result = match request {
+            Request::Start { id, workspace } => self.start(&id, &workspace),
+            Request::Exec { argv, .. } => match self.exec(&argv) {
+                Ok(value) => Ok(value),
+                Err(error) => match self.cleanup() {
+                    Ok(()) => Err(error),
+                    Err(cleanup) => Err(io::Error::other(format!(
+                        "{error}; cleanup unresolved: {cleanup}"
+                    ))),
+                },
+            },
+            Request::Stop { .. } => self
+                .cleanup()
+                .map(|_| json!({"status":"Stopped","production_ready":false})),
+            Request::Status { .. } => Ok(self.status()),
+        };
+        let response = result.unwrap_or_else(|error| json!({"status":"ERROR","error":error.to_string(),"active":self.status(),"production_ready":false}));
+        if self.responses.len() <= MAX_OPERATIONS {
+            self.responses.insert(id, (fingerprint, response.clone()));
+        }
+        Ok(response)
+    }
+
+    fn status(&self) -> Value {
+        match &self.active {
+            Some(active) => {
+                let grant = active.permit.grant();
+                json!({"state":if active.verified {"FinalVerified"} else {"Unknown"},
+                    "container":active.container,"root":grant.id.0,"epoch":grant.epoch,
+                    "home_node":grant.home_node_id,"home_session":grant.home_session_id,
+                    "access_generation":grant.access_generation,"production_ready":false,
+                    "scope":"single managed experimental container; not READY or revocation ACK"})
+            }
+            None => json!({"state":"Idle","production_ready":false}),
+        }
+    }
+
+    fn start(&mut self, id: &str, workspace: &str) -> io::Result<Value> {
+        if self.active.is_some() {
+            return Err(io::Error::from_raw_os_error(libc::EBUSY));
+        }
+        check_component(workspace)?;
+        let permit = self
+            .owner
+            .native_home_export_for_current_namespace(OsStr::new(workspace))
+            .map_err(io::Error::other)?;
+        permit
+            .verify_current(&self.owner)
+            .map_err(io::Error::other)?;
+        let source: crate::node::vfs::ownerfs::NativeHomeDirectoryIdentity =
+            permit.source_identity();
+        let namespace: crate::node::vfs::ownerfs::NativeHomeNamespaceIdentity = permit.namespace();
+        let actual_ns = File::open("/proc/thread-self/ns/mnt")?.metadata()?;
+        if (namespace.dev, namespace.ino) != (actual_ns.dev(), actual_ns.ino()) {
+            return Err(io::Error::from_raw_os_error(libc::ESTALE));
+        }
+        let export = ManagedExport::prepare(
+            permit.source_descriptor().map_err(io::Error::other)?,
+            File::open(&self.mount)?,
+            permit.name(),
+        )?;
+        self.active = Some(Active {
+            permit,
+            export,
+            container: format!("afs-native-{id}"),
+            final_namespace: None,
+            final_root: None,
+            final_unique: None,
+            pid: None,
+            verified: false,
+            container_attempted: false,
+        });
+        let result = (|| {
+            let active = self.active.as_mut().expect("retained permit and export");
+            active.export.activate()?;
+            let claim = active.export.mount_identity()?;
+            if (
+                active.export.source_identity().device,
+                active.export.source_identity().inode,
+            ) != (source.dev, source.ino)
+                || (claim.namespace.device, claim.namespace.inode) != (namespace.dev, namespace.ino)
+            {
+                return Err(io::Error::from_raw_os_error(libc::ESTALE));
+            }
+            active
+                .permit
+                .verify_current(&self.owner)
+                .map_err(io::Error::other)?;
+            self.start_container(workspace, source.dev, source.ino)
+        })();
+        if let Err(error) = result {
+            let detail = error.to_string();
+            return match self.cleanup() {
+                Ok(()) => Err(io::Error::other(detail)),
+                Err(cleanup) => Err(io::Error::other(format!(
+                    "{detail}; cleanup unresolved: {cleanup}"
+                ))),
+            };
+        }
+        Ok(self.status())
+    }
+
+    fn start_container(&mut self, workspace: &str, dev: u64, ino: u64) -> io::Result<()> {
+        let container = self
+            .active
+            .as_ref()
+            .expect("active export")
+            .container
+            .clone();
+        let bundle = self.cfg.control_dir.join(format!("bundle-{container}"));
+        fs::create_dir(&bundle)?;
+        let source = self.mount.join(workspace);
+        let spec = container_spec(&self.cfg, &source);
+        fs::write(
+            bundle.join("config.json"),
+            serde_json::to_vec_pretty(&spec)?,
+        )?;
+        self.active
+            .as_mut()
+            .expect("retained export")
+            .container_attempted = true;
+        self.run_runtime(
+            &["create", "--bundle", path_str(&bundle)?, &container],
+            Duration::from_secs(5),
+            true,
+        )?;
+        self.run_runtime(&["start", &container], Duration::from_secs(5), true)?;
+        let state = self.runtime_state(&container)?;
+        let pid = state["pid"]
+            .as_u64()
+            .filter(|pid| *pid > 0 && *pid <= u32::MAX as u64)
+            .ok_or_else(|| io::Error::other("runc did not report a live container pid"))?
+            as u32;
+        if state["status"] != "running" || state["id"] != container {
+            return Err(io::Error::from_raw_os_error(libc::ESTALE));
+        }
+        let process = process_identity(pid)?;
+        let final_ns = File::open(format!("/proc/{pid}/ns/mnt"))?;
+        let final_root = File::open(format!("/proc/{pid}/root"))?;
+        let ns_metadata = final_ns.metadata()?;
+        let current_ns = File::open("/proc/thread-self/ns/mnt")?.metadata()?;
+        if (ns_metadata.dev(), ns_metadata.ino()) == (current_ns.dev(), current_ns.ino()) {
+            return Err(io::Error::other(
+                "container did not create a distinct mount namespace",
+            ));
+        }
+        let active = self.active.as_mut().expect("active export");
+        active.final_namespace = Some(final_ns);
+        active.final_root = Some(final_root);
+        active.pid = Some(process);
+        let probe = self.run_runtime(
+            &["exec", &container, PROBE, "identity"],
+            Duration::from_secs(5),
+            true,
+        )?;
+        let observed: Value = serde_json::from_slice(&probe).map_err(io::Error::other)?;
+        verify_final(
+            &observed,
+            (dev, ino),
+            (ns_metadata.dev(), ns_metadata.ino()),
+        )?;
+        if !same_process(
+            self.active
+                .as_ref()
+                .expect("active export")
+                .pid
+                .as_ref()
+                .expect("registered process"),
+        )? {
+            return Err(io::Error::from_raw_os_error(libc::ESTALE));
+        }
+        let active = self.active.as_mut().expect("active export");
+        active
+            .permit
+            .verify_current(&self.owner)
+            .map_err(io::Error::other)?;
+        active.final_unique = observed["unique_mount_id"].as_u64();
+        active.verified = true;
+        Ok(())
+    }
+
+    fn exec(&mut self, argv: &[String]) -> io::Result<Value> {
+        check_exec(argv)?;
+        let active = self
+            .active
+            .as_ref()
+            .ok_or_else(|| io::Error::from_raw_os_error(libc::ENOENT))?;
+        if !active.verified {
+            return Err(io::Error::other("container final view is not verified"));
+        }
+        active
+            .permit
+            .verify_current(&self.owner)
+            .map_err(io::Error::other)?;
+        if !same_process(active.pid.as_ref().expect("verified process"))? {
+            return Err(io::Error::from_raw_os_error(libc::ESTALE));
+        }
+        let container = active.container.clone();
+        let source = active.permit.source_identity();
+        let namespace = active
+            .final_namespace
+            .as_ref()
+            .expect("verified namespace")
+            .metadata()?;
+        let unique = active.final_unique.expect("verified unique mount");
+        let observed: Value = serde_json::from_slice(&self.run_runtime(
+            &["exec", &container, PROBE, "identity"],
+            Duration::from_secs(5),
+            true,
+        )?)
+        .map_err(io::Error::other)?;
+        verify_final(
+            &observed,
+            (source.dev, source.ino),
+            (namespace.dev(), namespace.ino()),
+        )?;
+        if observed["unique_mount_id"].as_u64() != Some(unique) {
+            return Err(io::Error::from_raw_os_error(libc::ESTALE));
+        }
+        let mut command = vec!["exec".to_owned(), container];
+        command.extend_from_slice(argv);
+        let args: Vec<_> = command.iter().map(String::as_str).collect();
+        let output = self.run_runtime(&args, Duration::from_secs(120), true)?;
+        // Avoid reflecting arbitrary workload output through the bounded control
+        // socket. Full output and exit records are retained in the control dir.
+        Ok(json!({"status":"Executed","stdout_bytes":output.len(),"production_ready":false}))
+    }
+
+    fn runtime_state(&mut self, container: &str) -> io::Result<Value> {
+        serde_json::from_slice(&self.run_runtime(
+            &["state", container],
+            Duration::from_secs(1),
+            false,
+        )?)
+        .map_err(io::Error::other)
+    }
+
+    fn cleanup(&mut self) -> io::Result<()> {
+        let Some(active) = self.active.as_mut() else {
+            return Ok(());
+        };
+        active.verified = false;
+        let container = active.container.clone();
+        if !active.container_attempted {
+            active.export.detach()?;
+            self.active = None;
+            return Ok(());
+        }
+        // Recover an exact physical claim if the in-container observer failed.
+        // Captured handles remain owned until normal clone detach is proved.
+        if let Some(active) = self.active.as_ref()
+            && active.final_namespace.is_some()
+            && active.final_unique.is_none()
+        {
+            let namespace = active.final_namespace.as_ref().expect("captured namespace");
+            let root = active.final_root.as_ref().expect("captured root");
+            let (observed_ns, observed_source, unique) = inspect_final_clone(namespace, root)?;
+            let expected_ns = namespace.metadata()?;
+            let expected_source = active.permit.source_identity();
+            if (observed_ns.device, observed_ns.inode) != (expected_ns.dev(), expected_ns.ino())
+                || (observed_source.device, observed_source.inode)
+                    != (expected_source.dev, expected_source.ino)
+                || unique == 0
+            {
+                return Err(io::Error::from_raw_os_error(libc::ESTALE));
+            }
+            self.active
+                .as_mut()
+                .expect("owned active claim")
+                .final_unique = Some(unique);
+        }
+        // A missing state after a failed create is distinct from an observed
+        // running container. Do not turn an unrecognized failure into drain.
+        let state = self.runtime_state(&container);
+        match state {
+            Ok(state) => {
+                if state["id"] != container {
+                    return Err(io::Error::from_raw_os_error(libc::ESTALE));
+                }
+                if state["status"] == "running" || state["status"] == "created" {
+                    self.run_runtime(
+                        &["kill", "--all", &container, "KILL"],
+                        Duration::from_secs(1),
+                        false,
+                    )?;
+                }
+                let until = Instant::now() + Duration::from_secs(2);
+                loop {
+                    let state = self.runtime_state(&container)?;
+                    if state["status"] == "stopped" {
+                        break;
+                    }
+                    if Instant::now() >= until {
+                        return Err(io::Error::from_raw_os_error(libc::EBUSY));
+                    }
+                    thread::sleep(Duration::from_millis(50));
+                }
+            }
+            Err(error) => {
+                return Err(io::Error::other(format!(
+                    "container state unknown: {error}"
+                )));
+            }
+        }
+        if let Some(process) = &self.active.as_ref().expect("active").pid
+            && same_process(process)?
+        {
+            return Err(io::Error::from_raw_os_error(libc::EBUSY));
+        }
+        let active = self.active.as_ref().expect("active");
+        if active.final_namespace.is_some() && active.final_unique.is_none() {
+            return Err(io::Error::other(
+                "final clone identity remains unverified; retain claim for reconciliation",
+            ));
+        }
+        if let (Some(namespace), Some(root), Some(unique)) = (
+            &active.final_namespace,
+            &active.final_root,
+            active.final_unique,
+        ) {
+            let source = active.permit.source_identity();
+            let covered = fs::metadata(self.cfg.rootfs.join("workspace"))?;
+            detach_final_clone(
+                namespace,
+                root,
+                DirectoryIdentity {
+                    device: source.dev,
+                    inode: source.ino,
+                },
+                unique,
+                DirectoryIdentity {
+                    device: covered.dev(),
+                    inode: covered.ino(),
+                },
+            )?;
+        }
+        self.run_runtime(&["delete", &container], Duration::from_secs(1), false)?;
+        let active = self.active.as_mut().expect("active");
+        active.final_root = None;
+        active.final_namespace = None;
+        active.export.detach()?;
+        self.active = None;
+        Ok(())
+    }
+
+    fn run_runtime(
+        &mut self,
+        args: &[&str],
+        timeout: Duration,
+        cancel: bool,
+    ) -> io::Result<Vec<u8>> {
+        let runtime = self.cfg.runtime.clone();
+        let root = self.cfg.control_dir.join("runtime-state");
+        let mut all = vec!["--root", path_str(&root)?];
+        all.extend_from_slice(args);
+        self.run_external(&runtime, &all, timeout, cancel)
+    }
+    fn run_external(
+        &mut self,
+        binary: &Path,
+        args: &[&str],
+        timeout: Duration,
+        cancel: bool,
+    ) -> io::Result<Vec<u8>> {
+        self.sequence += 1;
+        let stem = self
+            .cfg
+            .control_dir
+            .join(format!("command-{:04}", self.sequence));
+        let mut command = Command::new(binary);
+        command.args(args);
+        run_recorded(
+            &mut command,
+            &stem,
+            timeout,
+            if cancel { Some(&self.stop) } else { None },
+        )
+    }
+}
+
+fn container_spec(cfg: &NativeWorkspaceConfig, source: &Path) -> Value {
+    json!({"ociVersion":"1.0.2","root":{"path":cfg.rootfs,"readonly":true},
+        "hostname":"afs-native-workspace","process":{"terminal":false,"cwd":"/",
+            "args":[PROBE,"idle"],"user":{"uid":cfg.workload_uid,"gid":cfg.workload_gid},
+            "env":["PATH=/bin:/usr/bin"],"noNewPrivileges":true,
+            "capabilities":{"bounding":[],"effective":[],"inheritable":[],"permitted":[],"ambient":[]},
+            "rlimits":[{"type":"RLIMIT_NOFILE","hard":256,"soft":256}]},
+        "mounts":[{"destination":"/proc","type":"proc","source":"proc","options":["nosuid","nodev","noexec"]},
+            {"destination":"/workspace","type":"bind","source":source,"options":["bind","rw","nosuid","nodev"]}],
+        "linux":{"namespaces":[{"type":"mount"},{"type":"pid"},{"type":"network"},{"type":"ipc"},{"type":"uts"},{"type":"cgroup"}]}})
+}
+
+fn verify_final(value: &Value, source: (u64, u64), namespace: (u64, u64)) -> io::Result<()> {
+    if value["source"]["dev"].as_u64() != Some(source.0)
+        || value["source"]["ino"].as_u64() != Some(source.1)
+        || value["namespace"]["dev"].as_u64() != Some(namespace.0)
+        || value["namespace"]["ino"].as_u64() != Some(namespace.1)
+        || value["unique_mount_id"].as_u64().is_none_or(|id| id == 0)
+    {
+        return Err(io::Error::from_raw_os_error(libc::ESTALE));
+    }
+    let flags = value["flags"]
+        .as_array()
+        .ok_or_else(|| io::Error::from_raw_os_error(libc::EPERM))?;
+    if !flags.iter().any(|f| f == "nosuid") || !flags.iter().any(|f| f == "nodev") {
+        return Err(io::Error::from_raw_os_error(libc::EPERM));
+    }
+    Ok(())
+}
+
+fn check_id(id: &str) -> io::Result<()> {
+    if id.is_empty()
+        || id.len() > 64
+        || !id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
+        return Err(io::Error::from_raw_os_error(libc::EINVAL));
+    }
+    Ok(())
+}
+fn check_component(name: &str) -> io::Result<()> {
+    if name.is_empty()
+        || name.len() > 255
+        || name == "."
+        || name == ".."
+        || name.contains('/')
+        || name.contains('\0')
+    {
+        return Err(io::Error::from_raw_os_error(libc::EINVAL));
+    }
+    Ok(())
+}
+fn check_exec(argv: &[String]) -> io::Result<()> {
+    if argv.is_empty()
+        || argv.len() > 64
+        || !Path::new(&argv[0]).is_absolute()
+        || argv.iter().any(|s| s.contains('\0') || s.len() > 4096)
+    {
+        return Err(io::Error::from_raw_os_error(libc::EINVAL));
+    }
+    Ok(())
+}
+fn path_str(path: &Path) -> io::Result<&str> {
+    path.to_str()
+        .ok_or_else(|| io::Error::from_raw_os_error(libc::EINVAL))
+}
+fn trusted_path(path: &Path, directory: bool) -> io::Result<()> {
+    if !path.is_absolute() {
+        return Err(io::Error::from_raw_os_error(libc::EINVAL));
+    }
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        if matches!(component, Component::ParentDir | Component::CurDir) {
+            return Err(io::Error::from_raw_os_error(libc::EINVAL));
+        }
+        current.push(component);
+        let meta = fs::symlink_metadata(&current)?;
+        if meta.file_type().is_symlink()
+            || meta.uid() != 0
+            || meta.permissions().mode() & 0o022 != 0
+        {
+            return Err(io::Error::from_raw_os_error(libc::EPERM));
+        }
+    }
+    let metadata = fs::metadata(path)?;
+    if metadata.is_dir() != directory || (!directory && !metadata.is_file()) {
+        return Err(io::Error::from_raw_os_error(libc::EINVAL));
+    }
+    Ok(())
+}
+fn trusted_tree(root: &Path) -> io::Result<()> {
+    trusted_path(root, true)?;
+    let mut stack = vec![root.to_owned()];
+    let mut count = 0;
+    while let Some(directory) = stack.pop() {
+        for entry in fs::read_dir(directory)? {
+            count += 1;
+            if count > 256 {
+                return Err(io::Error::from_raw_os_error(libc::E2BIG));
+            }
+            let path = entry?.path();
+            let metadata = fs::symlink_metadata(&path)?;
+            if metadata.file_type().is_symlink()
+                || metadata.uid() != 0
+                || metadata.permissions().mode() & 0o022 != 0
+                || (!metadata.is_dir() && !metadata.is_file())
+            {
+                return Err(io::Error::from_raw_os_error(libc::EPERM));
+            }
+            if metadata.is_dir() {
+                stack.push(path);
+            }
+        }
+    }
+    Ok(())
+}
+fn process_identity(pid: u32) -> io::Result<ProcessIdentity> {
+    let stat = fs::read_to_string(format!("/proc/{pid}/stat"))?;
+    let fields = stat
+        .rsplit_once(") ")
+        .ok_or_else(|| io::Error::other("invalid process stat"))?
+        .1
+        .split_whitespace()
+        .collect::<Vec<_>>();
+    Ok(ProcessIdentity {
+        pid,
+        start: fields
+            .get(19)
+            .ok_or_else(|| io::Error::other("missing process start"))?
+            .to_string(),
+    })
+}
+fn same_process(expected: &ProcessIdentity) -> io::Result<bool> {
+    match process_identity(expected.pid) {
+        Ok(actual) => Ok(actual.start == expected.start),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error),
+    }
+}
+fn run_recorded(
+    command: &mut Command,
+    stem: &Path,
+    timeout: Duration,
+    stop: Option<&AtomicBool>,
+) -> io::Result<Vec<u8>> {
+    let stdout = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(stem.with_extension("stdout"))?;
+    let stderr = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(stem.with_extension("stderr"))?;
+    fs::write(
+        stem.with_extension("command.json"),
+        serde_json::to_vec(
+            &json!({"program":command.get_program().to_string_lossy(),"argv":command.get_args().map(|a|a.to_string_lossy()).collect::<Vec<_>>(),"timeout_ms":timeout.as_millis()}),
+        )?,
+    )?;
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(stdout)
+        .stderr(stderr)
+        .spawn()?;
+    let deadline = Instant::now() + timeout;
+    let (exit, reason) = loop {
+        if let Some(status) = child.try_wait()? {
+            break (status, None);
+        }
+        let output_limit = fs::metadata(stem.with_extension("stdout"))?.len()
+            + fs::metadata(stem.with_extension("stderr"))?.len()
+            > 2 * 1024 * 1024;
+        if Instant::now() >= deadline
+            || stop.is_some_and(|stop| stop.load(Ordering::Acquire))
+            || output_limit
+        {
+            child.kill()?;
+            let status = child.wait()?;
+            break (
+                status,
+                Some(if output_limit {
+                    "output limit"
+                } else {
+                    "deadline or controller shutdown"
+                }),
+            );
+        }
+        thread::sleep(Duration::from_millis(10));
+    };
+    fs::write(
+        stem.with_extension("exit.json"),
+        serde_json::to_vec(&json!({"code":exit.code(),"success":exit.success(),"reason":reason}))?,
+    )?;
+    if !exit.success() || reason.is_some() {
+        return Err(io::Error::other(format!(
+            "command failed; see {}",
+            stem.display()
+        )));
+    }
+    let metadata = fs::metadata(stem.with_extension("stdout"))?;
+    if metadata.len() > 1024 * 1024 {
+        return Err(io::Error::from_raw_os_error(libc::EFBIG));
+    }
+    fs::read(stem.with_extension("stdout"))
+}
+#[allow(unsafe_code)]
+fn require_root() -> io::Result<()> {
+    // SAFETY: geteuid has no arguments and no mutable process effects.
+    if unsafe { libc::geteuid() } != 0 {
+        return Err(io::Error::from_raw_os_error(libc::EPERM));
+    }
+    Ok(())
+}
+#[allow(unsafe_code)]
+fn isolate_mount_namespace() -> io::Result<()> {
+    // SAFETY: called once on the owned dedicated thread before accepting any
+    // request. It changes this thread's namespace, never an async task's scope.
+    if unsafe { libc::unshare(libc::CLONE_NEWNS) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let root = CString::new("/").expect("fixed root");
+    // SAFETY: fixed live NUL-terminated root, null pointers ignored for PRIVATE.
+    if unsafe {
+        libc::mount(
+            std::ptr::null(),
+            root.as_ptr(),
+            std::ptr::null(),
+            libc::MS_REC | libc::MS_PRIVATE,
+            std::ptr::null(),
+        )
+    } != 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn native_control_replay_preserves_failure_and_capacity_never_blocks_stop() {
+        let temp = tempfile::tempdir().unwrap();
+        let cfg = NativeWorkspaceConfig {
+            control_dir: temp.path().into(),
+            runtime: "/not-admitted".into(),
+            rootfs: temp.path().join("rootfs"),
+            workload_uid: 501,
+            workload_gid: 501,
+        };
+        // Controller admission is deliberately not bypassed in product code;
+        // this in-process fixture exercises only request ledger behavior.
+        let mut driver = Driver {
+            owner: Arc::new(OwnerFs::new()),
+            mount: temp.path().into(),
+            cfg,
+            stop: Arc::new(AtomicBool::new(false)),
+            listener: UnixListener::bind(temp.path().join("test.sock")).unwrap(),
+            lock: File::create(temp.path().join("test.lock")).unwrap(),
+            active: None,
+            responses: HashMap::new(),
+            sequence: 0,
+        };
+        let first = driver
+            .handle(Request::Start {
+                id: "replay".into(),
+                workspace: "root".into(),
+            })
+            .unwrap();
+        assert_eq!(first["status"], "ERROR");
+        assert_eq!(
+            driver
+                .handle(Request::Start {
+                    id: "replay".into(),
+                    workspace: "root".into()
+                })
+                .unwrap(),
+            first
+        );
+        assert!(
+            driver
+                .handle(Request::Start {
+                    id: "replay".into(),
+                    workspace: "other".into()
+                })
+                .is_err()
+        );
+        for i in 1..MAX_OPERATIONS {
+            assert_eq!(
+                driver
+                    .handle(Request::Exec {
+                        id: format!("exec-{i}"),
+                        argv: vec!["/bin/true".into()]
+                    })
+                    .unwrap()["status"],
+                "ERROR"
+            );
+        }
+        assert_eq!(driver.responses.len(), MAX_OPERATIONS);
+        assert!(
+            driver
+                .handle(Request::Start {
+                    id: "full".into(),
+                    workspace: "root".into()
+                })
+                .is_err()
+        );
+        for i in 0..100 {
+            assert_eq!(
+                driver
+                    .handle(Request::Status {
+                        id: format!("status-{i}")
+                    })
+                    .unwrap()["state"],
+                "Idle"
+            );
+            assert_eq!(
+                driver
+                    .handle(Request::Stop {
+                        id: format!("stop-{i}")
+                    })
+                    .unwrap()["status"],
+                "Stopped"
+            );
+        }
+        assert_eq!(driver.responses.len(), MAX_OPERATIONS + 1);
+    }
+    #[test]
+    fn native_control_rejects_source_injection_and_bad_identifiers() {
+        assert!(
+            serde_json::from_str::<Request>(
+                r#"{"operation":"start","id":"a","workspace":"root","source":"/etc"}"#
+            )
+            .is_err()
+        );
+        for name in ["", ".", "..", "a/b", "a\0b"] {
+            assert!(check_component(name).is_err());
+        }
+        for id in ["", "../x", "a b", "a\nb"] {
+            assert!(check_id(id).is_err());
+        }
+        assert!(check_exec(&[]).is_err());
+        assert!(check_exec(&["relative".into()]).is_err());
+    }
+    #[test]
+    fn native_final_view_rejects_wrong_source_namespace_mount_and_policy() {
+        let valid = json!({"source":{"dev":1,"ino":2},"namespace":{"dev":3,"ino":4},"unique_mount_id":5,"flags":["rw","nosuid","nodev"]});
+        verify_final(&valid, (1, 2), (3, 4)).unwrap();
+        assert!(verify_final(&valid, (1, 8), (3, 4)).is_err());
+        assert!(verify_final(&valid, (1, 2), (3, 9)).is_err());
+        let mut wrong = valid.clone();
+        wrong["unique_mount_id"] = json!(0);
+        assert!(verify_final(&wrong, (1, 2), (3, 4)).is_err());
+        let mut wrong = valid;
+        wrong["flags"] = json!(["rw", "nosuid"]);
+        assert!(verify_final(&wrong, (1, 2), (3, 4)).is_err());
+    }
+    #[test]
+    fn native_container_has_only_workspace_and_drops_capabilities() {
+        let cfg = NativeWorkspaceConfig {
+            control_dir: "/var/native".into(),
+            runtime: "/usr/bin/runc".into(),
+            rootfs: "/var/rootfs".into(),
+            workload_uid: 501,
+            workload_gid: 501,
+        };
+        let spec = container_spec(&cfg, Path::new("/afs/root"));
+        assert_eq!(spec["root"]["readonly"], true);
+        assert_eq!(spec["process"]["noNewPrivileges"], true);
+        assert_eq!(spec["process"]["capabilities"]["permitted"], json!([]));
+        let mounts = spec["mounts"].as_array().unwrap();
+        assert_eq!(mounts.len(), 2);
+        assert_eq!(mounts[1]["destination"], "/workspace");
+        assert_eq!(mounts[1]["source"], "/afs/root");
+        assert_eq!(spec["linux"]["namespaces"].as_array().unwrap().len(), 6);
+    }
+    #[test]
+    fn native_command_cancellation_retains_failure_receipt_and_reaps_child() {
+        let temp = tempfile::tempdir().unwrap();
+        let stem = temp.path().join("cancel");
+        let stop = AtomicBool::new(true);
+        let mut command = Command::new("/bin/sleep");
+        command.arg("5");
+        assert!(run_recorded(&mut command, &stem, Duration::from_secs(1), Some(&stop)).is_err());
+        let receipt: Value =
+            serde_json::from_slice(&fs::read(stem.with_extension("exit.json")).unwrap()).unwrap();
+        assert_eq!(receipt["success"], false);
+        assert!(receipt["reason"].is_string());
+    }
+}

@@ -1,0 +1,8 @@
+test_fragmented_failure_response_preserves_error_and_request (test_native_workspace_control.ControlProtocolTests.test_fragmented_failure_response_preserves_error_and_request) ... ok
+test_incomplete_response_cannot_be_a_success (test_native_workspace_control.ControlProtocolTests.test_incomplete_response_cannot_be_a_success) ... ok
+test_oversized_request_rejected_before_connection (test_native_workspace_control.ControlProtocolTests.test_oversized_request_rejected_before_connection) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+OK

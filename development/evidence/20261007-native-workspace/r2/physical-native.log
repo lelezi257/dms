@@ -1,0 +1,9 @@
+
+running 4 tests
+test node::native_workspace::mount::linux::tests::attaches_and_detaches_in_private_mount_namespace ... ok
+test node::native_workspace::mount::linux::tests::detach_of_unactivated_prepare_rejects_foreign_mount ... ok
+test node::native_workspace::mount::linux::tests::detach_rejects_identity_drift_and_retains_claim ... ok
+test node::native_workspace::mount::linux::tests::final_clone_detach_rejects_wrong_identity_then_cleans_normally ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 573 filtered out; finished in 0.00s
+

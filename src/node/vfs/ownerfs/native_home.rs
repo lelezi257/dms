@@ -1,17 +1,18 @@
-use std::{ffi::OsStr, fs, os::unix::fs::MetadataExt, sync::Weak};
+use std::{
+    ffi::{OsStr, OsString},
+    fs,
+    os::unix::fs::MetadataExt,
+    sync::{Arc, Weak},
+};
 
 use super::*;
 
-#[cfg(not(test))]
-pub(super) type NativeRootRef = Weak<RootAnchor>;
-
-#[cfg(test)]
 pub(super) struct NativeRootRef {
     anchor: Weak<RootAnchor>,
+    #[cfg(test)]
     binding: root::PrivateRootBinding,
 }
 
-#[cfg(test)]
 impl NativeRootRef {
     fn upgrade(&self) -> Option<Arc<RootAnchor>> {
         self.anchor.upgrade()
@@ -22,18 +23,16 @@ impl NativeRootRef {
     fn new(anchor: &Arc<RootAnchor>) -> Self {
         Self {
             anchor: Arc::downgrade(anchor),
+            #[cfg(test)]
             binding: root::PrivateRootBinding::from_grant(&anchor.grant),
         }
     }
 }
 
-#[cfg(test)]
-use std::{ffi::OsString, sync::Arc};
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct DirectoryIdentity {
-    dev: u64,
-    ino: u64,
+pub(crate) struct DirectoryIdentity {
+    pub(crate) dev: u64,
+    pub(crate) ino: u64,
 }
 
 impl DirectoryIdentity {
@@ -48,17 +47,15 @@ impl DirectoryIdentity {
     }
 }
 
-#[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct NamespaceIdentity {
-    dev: u64,
-    ino: u64,
+pub(crate) struct NamespaceIdentity {
+    pub(crate) dev: u64,
+    pub(crate) ino: u64,
 }
 
-#[cfg(test)]
 impl NamespaceIdentity {
     fn current() -> Result<Self> {
-        let metadata = fs::metadata("/proc/self/ns/mnt").map_err(Error::from)?;
+        let metadata = fs::metadata("/proc/thread-self/ns/mnt").map_err(Error::from)?;
         Ok(Self {
             dev: metadata.dev(),
             ino: metadata.ino(),
@@ -67,13 +64,9 @@ impl NamespaceIdentity {
 }
 
 pub(super) struct RootAnchor {
-    #[cfg(test)]
     name: OsString,
-    #[cfg(test)]
     grant: RootGrant,
-    #[cfg(test)]
     data_dir: StoragePath,
-    #[cfg(test)]
     namespace: NamespaceIdentity,
     inode: BackendInode,
     source_identity: DirectoryIdentity,
@@ -95,8 +88,7 @@ impl RootAnchor {
     }
 }
 
-#[cfg(test)]
-pub(super) struct HomeExportAuthority {
+pub(crate) struct HomeExportAuthority {
     owner: Weak<LocalOwnerFs>,
     grant: RootGrant,
     name: OsString,
@@ -106,9 +98,8 @@ pub(super) struct HomeExportAuthority {
     anchor: Arc<RootAnchor>,
 }
 
-#[cfg(test)]
 impl HomeExportAuthority {
-    pub(super) fn verify_current(&self, owner: &OwnerFs) -> Result<()> {
+    pub(crate) fn verify_current(&self, owner: &OwnerFs) -> Result<()> {
         let local = owner.require_native_home_owner()?;
         let held = self
             .owner
@@ -147,6 +138,26 @@ impl HomeExportAuthority {
         Ok(())
     }
 
+    pub(crate) fn source_descriptor(&self) -> Result<fs::File> {
+        self.anchor.source.try_clone().map_err(Error::from)
+    }
+
+    pub(crate) fn grant(&self) -> &RootGrant {
+        &self.grant
+    }
+
+    pub(crate) fn name(&self) -> &OsStr {
+        &self.name
+    }
+
+    pub(crate) fn source_identity(&self) -> DirectoryIdentity {
+        self.source_identity
+    }
+
+    pub(crate) fn namespace(&self) -> NamespaceIdentity {
+        self.namespace
+    }
+
     #[cfg(test)]
     pub(super) fn data_dir(&self) -> &StoragePath {
         &self.data_dir
@@ -159,7 +170,6 @@ impl HomeExportAuthority {
 }
 
 impl OwnerFs {
-    #[cfg(test)]
     fn require_native_home_owner(&self) -> Result<&Arc<LocalOwnerFs>> {
         let cache = self
             .private_cache
@@ -176,15 +186,13 @@ impl OwnerFs {
             .ok_or_else(|| native_home_invalid("OwnerFs has no local Home authority"))
     }
 
-    #[cfg(test)]
-    pub(super) fn native_home_export_for_current_namespace(
+    pub(crate) fn native_home_export_for_current_namespace(
         &self,
         name: &OsStr,
     ) -> Result<HomeExportAuthority> {
         self.create_native_home_export(name)
     }
 
-    #[cfg(test)]
     fn create_native_home_export(&self, name: &OsStr) -> Result<HomeExportAuthority> {
         let local = self.require_native_home_owner()?;
         let root_id = root::root_id_from_name(name)?;
@@ -309,7 +317,6 @@ impl OwnerFs {
     }
 }
 
-#[cfg(test)]
 fn check_native_home_grant(grant: &RootGrant) -> Result<()> {
     if grant.home_node_id != grant.holder_node_id || grant.home_session_id != grant.session_id {
         return Err(native_home_invalid(

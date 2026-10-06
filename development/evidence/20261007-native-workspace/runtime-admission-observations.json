@@ -1,0 +1,65 @@
+{
+  "status": "BLOCKED_CONTAINER_RUNTIME_ONLY",
+  "capture": "Command/output observations transcribed from tool responses; combined stdout/stderr where tool returned a combined stream",
+  "scope": "Runtime availability check, not full container preflight",
+  "observations": [
+    {
+      "vm": "afs-build",
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-build",
+        "bash",
+        "-lc",
+        "uname -sm; for task_tool in runc nsenter unshare findmnt stat sha256sum python3; do command -v \"$task_tool\" || true; done; test ! -e /dev/fuse || ls -l /dev/fuse; df -B1 -T /var/tmp; runc --version"
+      ],
+      "exit": 127,
+      "stdout": "Linux aarch64\n/usr/bin/nsenter\n/usr/bin/unshare\n/usr/bin/findmnt\n/usr/bin/stat\n/usr/bin/sha256sum\n/usr/bin/python3\ncrw-rw-rw- 1 root root 10, 229 Oct  6 01:33 /dev/fuse\nFilesystem     Type   1B-blocks        Used  Available Use% Mounted on\n/dev/vda1      ext4 90407686144 86080753664 4310155264  96% /\n",
+      "stderr": "bash: line 1: cd: /Users/lzc/workspace/code/agentruntime: No such file or directory\nbash: line 1: cd: /Users/lzc: No such file or directory\nbash: line 1: runc: command not found\n"
+    },
+    {
+      "vm": "afs-accept-a",
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-accept-a",
+        "bash",
+        "-lc",
+        "uname -sm; command -v runc; runc --version; df -B1 -T /mnt/afsdata; command -v nsenter; sudo -n true"
+      ],
+      "exit": 0,
+      "combined_output": "Linux aarch64\nbash: line 1: runc: command not found\ndf: /mnt/afsdata: No such file or directory\n/usr/bin/nsenter\n"
+    },
+    {
+      "vm": "afs-g1-clean",
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-g1-clean",
+        "bash",
+        "-lc",
+        "uname -sm; command -v runc; command -v crun; command -v docker; command -v podman; df -B1 -T /var/tmp; sudo -n true"
+      ],
+      "exit": 0,
+      "combined_output": "Linux aarch64\nFilesystem     Type   1B-blocks       Used  Available Use% Mounted on\n/dev/vda1      ext4 15523123200 9031172096 6475173888  59% /\n"
+    },
+    {
+      "vm": "afs-g2-micro",
+      "argv": [
+        "limactl",
+        "shell",
+        "afs-g2-micro",
+        "bash",
+        "-lc",
+        "uname -sm; command -v runc; command -v crun; command -v docker; command -v podman; df -B1 -T /var/tmp; sudo -n true"
+      ],
+      "exit": 0,
+      "combined_output": "bash: line 1: cd: /Users/lzc/workspace/code/agentruntime: No such file or directory\nbash: line 1: cd: /Users/lzc: No such file or directory\nLinux aarch64\nFilesystem     Type   1B-blocks       Used   Available Use% Mounted on\n/dev/vda1      ext4 15523123200 3101147136 12405198848  20% /\n"
+    }
+  ],
+  "not_performed": [
+    "No installation, VM rebuild, disk expansion, service changes or container workload",
+    "No complete dependency/kernel/cgroup/rootfs qualification"
+  ],
+  "reason": "runc absent in checked build and runtime VMs; no alternate runtime found on clean/micro; PR43 original runtime was a different Windows/Ubuntu lab"
+}

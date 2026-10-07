@@ -1,0 +1,6 @@
+test_shared_final_archiver_is_used_by_every_native_mode_and_rejects_unknown_links_devices (test_native_orderly_recovery.OrderlyGuards.test_shared_final_archiver_is_used_by_every_native_mode_and_rejects_unknown_links_devices) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.015s
+
+OK

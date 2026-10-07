@@ -1,0 +1,75 @@
+Diff in /workspace/dms/source/src/node/native_workspace.rs:1044:
+         let c_path = CString::new(path_str(path).unwrap()).unwrap();
+         // SAFETY: test fixture creates one owned device node under a temporary
+         // runtime rootfs to mirror runc-owned /dev artifacts.
+-        let rc = unsafe {
+-            libc::mknod(
+-                c_path.as_ptr(),
+-                libc::S_IFCHR | 0o600,
+-                libc::makedev(1, 3),
+-            )
+-        };
++        let rc =
++            unsafe { libc::mknod(c_path.as_ptr(), libc::S_IFCHR | 0o600, libc::makedev(1, 3)) };
+         assert_eq!(rc, 0, "mknod failed: {}", io::Error::last_os_error());
+     }
+ 
+Diff in /workspace/dms/source/src/node/native_workspace.rs:1180:
+             workload_uid: 501,
+             workload_gid: 501,
+         };
+-        let spec = container_spec(&cfg, Path::new("/var/native/bundle/rootfs"), Path::new("/afs/root"));
++        let spec = container_spec(
++            &cfg,
++            Path::new("/var/native/bundle/rootfs"),
++            Path::new("/afs/root"),
++        );
+         assert_eq!(spec["root"]["readonly"], true);
+         assert_eq!(spec["root"]["path"], "/var/native/bundle/rootfs");
+         assert_ne!(spec["root"]["path"], cfg.rootfs.to_string_lossy().as_ref());
+Diff in /workspace/dms/source/src/node/native_workspace.rs:1203:
+         let before = tree_fingerprint(&template);
+         let first = temp.path().join("bundle-a/rootfs");
+         fs::create_dir(temp.path().join("bundle-a")).unwrap();
+-        fs::set_permissions(temp.path().join("bundle-a"), fs::Permissions::from_mode(0o700))
+-            .unwrap();
++        fs::set_permissions(
++            temp.path().join("bundle-a"),
++            fs::Permissions::from_mode(0o700),
++        )
++        .unwrap();
+         prepare_runtime_rootfs(&template, &first).unwrap();
+         symlink("pts/ptmx", first.join("dev/ptmx")).unwrap();
+         create_char_device(&first.join("dev/null"));
+Diff in /workspace/dms/source/src/node/native_workspace.rs:1212:
+ 
+         let second = temp.path().join("bundle-b/rootfs");
+         fs::create_dir(temp.path().join("bundle-b")).unwrap();
+-        fs::set_permissions(temp.path().join("bundle-b"), fs::Permissions::from_mode(0o700))
+-            .unwrap();
++        fs::set_permissions(
++            temp.path().join("bundle-b"),
++            fs::Permissions::from_mode(0o700),
++        )
++        .unwrap();
+         prepare_runtime_rootfs(&template, &second).unwrap();
+         assert!(!second.join("dev/ptmx").exists());
+         assert!(!second.join("dev/null").exists());
+Diff in /workspace/dms/source/src/node/native_workspace.rs:1230:
+         rootfs_template(&template);
+         symlink("/etc/passwd", template.join("bad-link")).unwrap();
+         fs::create_dir(temp.path().join("bundle-a")).unwrap();
+-        fs::set_permissions(temp.path().join("bundle-a"), fs::Permissions::from_mode(0o700))
+-            .unwrap();
+-        assert!(
+-            prepare_runtime_rootfs(&template, &temp.path().join("bundle-a/rootfs")).is_err()
+-        );
++        fs::set_permissions(
++            temp.path().join("bundle-a"),
++            fs::Permissions::from_mode(0o700),
++        )
++        .unwrap();
++        assert!(prepare_runtime_rootfs(&template, &temp.path().join("bundle-a/rootfs")).is_err());
+ 
+         fs::remove_file(template.join("bad-link")).unwrap();
+         let destination = temp.path().join("bundle-a/rootfs");

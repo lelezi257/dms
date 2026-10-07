@@ -31,6 +31,17 @@ def verify_final(observed, source, namespace):
 
 
 class Run(base.Run):
+    def archive_artifacts(self, name, destination):
+        archive_probe = getattr(self, 'recovery_probe', None)
+        if archive_probe is None:
+            spec = importlib.util.spec_from_file_location('native_artifact_archive',
+                Path(__file__).parent / 'probes/native_orderly_recovery.py')
+            archive_probe = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(archive_probe)
+        self.save('artifact-archive-tool.json', {'path': str(Path(archive_probe.__file__)),
+                  'sha256': base.sha(archive_probe.__file__)})
+        archive_probe.archive(self, name, destination, 'final')
+
     def native(self, ident, *action, error=False):
         text = self.command(['python3', self.args.controller, '--socket',
             self.root / 'control/control.sock', '--id', ident, *action],
@@ -46,6 +57,10 @@ class Run(base.Run):
         if getattr(self.args, 'control_capacity_only', False) and (
                 self.args.source_rejection_only or self.args.semantics_only or self.args.semantics_probe):
             raise ValueError('control-capacity-only is mutually exclusive with other modes')
+        if getattr(self.args, 'orderly_recovery_only', False) and (
+                self.args.source_rejection_only or self.args.control_capacity_only
+                or self.args.semantics_only or self.args.semantics_probe):
+            raise ValueError('orderly-recovery-only is mutually exclusive with other modes')
         self.check('Linux-root', platform.system() == 'Linux' and platform.machine() == 'aarch64'
                    and os.geteuid() == 0, [platform.system(), platform.machine(), os.geteuid()])
         self.check('new-owned-root', self.root.parent == Path('/opt') and not self.root.exists(), str(self.root))
@@ -128,21 +143,26 @@ class Run(base.Run):
             result[n] = {'pid': pid, 'starttick': int((proc / 'stat').read_text().rsplit(')', 1)[1].split()[19]),
                          'sha256': base.sha(proc / 'exe'),
                          'installed': base.verify_executable(proc / 'exe', self.root / ('prefix/bin/afs-' + n))}
+            if self.args.orderly_recovery_only:
+                result[n]['boot_id'] = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
             self.check(n + '-live-ELF', result[n]['sha256'] == getattr(self.args, 'afs_' + n + '_sha256'), result[n])
         mounted = json.loads(self.command(['findmnt', '-J', '-o', 'TARGET,SOURCE,FSTYPE,OPTIONS,ID',
                             '--mountpoint', self.root / 'mount/ownerfs']))
         self.check('OwnerFs-mount', mounted['filesystems'][0]['source'] == 'afs-ownerfs', mounted)
         result['mount'] = mounted
+        self.current_process = result
         self.save('running-identity.json', result)
         return result
 
     def run(self):
-        control_only = self.args.source_rejection_only or self.args.control_capacity_only
+        control_only = (self.args.source_rejection_only or self.args.control_capacity_only
+                        or self.args.orderly_recovery_only)
         result = {'status': 'BLOCKED', 'scope': 'single experimental managed OwnerFs workspace; not full G2.12/13',
                   'source_commit': self.args.source_commit, 'driver_sha256': base.sha(__file__),
                   'basic_payload_selected': not (self.args.semantics_only or control_only),
                   'source_rejection_selected': self.args.source_rejection_only,
                   'control_capacity_selected': self.args.control_capacity_only,
+                  'orderly_recovery_selected': self.args.orderly_recovery_only,
                   'semantic_groups': self.args.semantics_groups if self.args.semantics_probe else []}
         process = None
         try:
@@ -161,12 +181,23 @@ class Run(base.Run):
             workspace = self.root / 'mount/ownerfs/workspace'
             workspace.mkdir(mode=0o700)
             os.chown(workspace, 501, 501)
-            seed = b'OwnerFs host-to-container sentinel\n' * 1024
-            with (workspace / 'seed').open('wb') as f:
-                f.write(seed)
-                f.flush()
-                os.fsync(f.fileno())
-            seed_sha = hashlib.sha256(seed).hexdigest()
+            if not self.args.orderly_recovery_only:
+                seed = b'OwnerFs host-to-container sentinel\n' * 1024
+                with (workspace / 'seed').open('wb') as f:
+                    f.write(seed)
+                    f.flush()
+                    os.fsync(f.fileno())
+                seed_sha = hashlib.sha256(seed).hexdigest()
+            else:
+                recovery_spec = importlib.util.spec_from_file_location('native_orderly_recovery',
+                    Path(__file__).parent / 'probes/native_orderly_recovery.py')
+                recovery = importlib.util.module_from_spec(recovery_spec)
+                recovery_spec.loader.exec_module(recovery)
+                self.recovery_probe = recovery
+                self.recovery_inputs_before = recovery.frozen_inputs(self)
+                self.save('orderly-inputs-before-first-start.json', self.recovery_inputs_before)
+                self.save('orderly-recovery-tool.json', {'path': str(Path(recovery.__file__)),
+                          'sha256': base.sha(recovery.__file__)})
             start = self.native('first', 'start', 'workspace')
             self.check('final-verified', start.get('state') == 'FinalVerified', start)
             if not control_only:
@@ -185,7 +216,9 @@ class Run(base.Run):
                         if p.is_dir() and (p.stat().st_dev, p.stat().st_ino) == (source.st_dev, source.st_ino)]
             self.check('real-storage-source', len(physical) == 1, physical)
             self.save('final-identity.json', {'container': state, 'observed': observed, 'storage_path': physical})
-            if self.args.source_rejection_only:
+            if self.args.orderly_recovery_only:
+                process, pid = recovery.execute(self, start, workspace, process)
+            elif self.args.source_rejection_only:
                 source_spec = importlib.util.spec_from_file_location('native_source_rejection',
                     Path(__file__).parent / 'probes/native_source_rejection.py')
                 source_rejection = importlib.util.module_from_spec(source_spec)
@@ -247,11 +280,14 @@ class Run(base.Run):
                         self.check('finally-stopped', stopped.get('status') == 'Stopped', stopped)
                     self.ctl('stop', 'all')
                     self.check('mount-removed', self.command(['findmnt', '-rn', '--mountpoint', self.root / 'mount/ownerfs'], allowed=(1,)) == '', 'absent')
+                    process = getattr(self, 'current_process', process)
                     if process:
                         for n in ('meta', 'node'):
                             self.check(n + '-gone', not Path(f'/proc/{process[n]["pid"]}').exists(), process[n]['pid'])
                     self.check('controller-artifacts-removed', not (self.root / 'control/control.sock').exists()
                                and not (self.root / 'control/controller.lock').exists(), 'absent')
+                    if self.args.orderly_recovery_only and hasattr(self, 'recovery_probe') and process:
+                        self.recovery_probe.record_closure(self, process, 'final')
                     result['cleanup'] = 'PASS'
                 except Exception as error:
                     result['cleanup'] = 'FAIL'
@@ -260,7 +296,11 @@ class Run(base.Run):
                 for n in ('control', 'logs', 'run'):
                     src = self.root / n
                     if src.exists():
-                        shutil.copytree(src, self.out / n, ignore=shutil.ignore_patterns('*.sock'), dirs_exist_ok=True)
+                        try:
+                            self.archive_artifacts(n, self.out / n)
+                        except Exception as error:
+                            result.setdefault('archive_errors', {})[n] = repr(error)
+                            result['status'] = 'FAIL'
             self.save('checks.json', self.checks)
             self.save('result.json', result)
         print(json.dumps(result, indent=2))
@@ -280,13 +320,15 @@ def main():
                       help='only reject an unknown source field on a live managed container and prove legal exec/normal stop')
     mode.add_argument('--control-capacity-only', action='store_true',
                       help='fill the active control ledger with 63 busy Starts; reject new Exec with ENOSPC and preserve Status/Stop')
+    mode.add_argument('--orderly-recovery-only', action='store_true',
+                      help='confirm 4KiB through one container, stop/restart the same local-file services, and freshly read it')
     parser.add_argument('--semantics-probe', type=Path, help='optional short mixed-path checks before normal stop')
     parser.add_argument('--semantics-groups', nargs='+',
                         choices=('locks', 'append', 'mmap_inotify', 'permissions_errno'),
                         default=['locks', 'append', 'mmap_inotify', 'permissions_errno'],
                         help='only run affected groups; omitted groups retain their original evidence')
     args = parser.parse_args()
-    if (args.source_rejection_only or args.control_capacity_only) and args.semantics_probe:
+    if (args.source_rejection_only or args.control_capacity_only or args.orderly_recovery_only) and args.semantics_probe:
         parser.error('control-only modes cannot be combined with --semantics-probe')
     return Run(args).run()
 

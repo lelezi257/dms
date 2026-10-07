@@ -1,0 +1,28 @@
+{
+  "status": "SHARED_ARCHIVER_GUARD_PASS_PRODUCT_PENDING",
+  "tools": "tool-identity-r4.json",
+  "original_preparation": "tools-preparation-r3.json",
+  "addendum": {
+    "path": "development/native-rootfs-restart-records-addendum.md",
+    "sha256": "5c1701a36e05b36e12666e3618b299c4aabba14a5c1fbf824a397095b0c43f67"
+  },
+  "affected_guard": "commands/guard-shared-archive-r4.stderr",
+  "previous_10_guards_reused": true,
+  "unique_guard_count": 11,
+  "runtime": "NOT_STARTED",
+  "product_admission": "NOT_RUN",
+  "source_helper_unchanged": "faae54c1e608b5505fa207228ce2b3e1550841547a5e648a7a63363e72867f84",
+  "shared_behavior": "all native modes use same exact-owned OCI private runtime-root archiver; unknown linked/nonregular inputs fail; preserve runtime special files in place",
+  "local_only_tool_archive": {
+    "path": "/var/tmp/afs-native-orderly-recovery-tools-r4.tar",
+    "sha256": "7421b59e37027132c5d99d505d194c747fc990f08729c10d04d4f9f89af76703",
+    "bytes": 92160,
+    "recovery": "tools/<canonical path> restored against tool-identity-r4.json"
+  },
+  "narrow_delta_paths": [
+    "native-workspace-linux.py.r3-to-r4.patch",
+    "native_orderly_recovery.py.r3-to-r4.patch",
+    "test_native_orderly_recovery.py.r3-to-r4.patch"
+  ],
+  "next": "independent read-only review, frozen new product package, then one fresh admission"
+}

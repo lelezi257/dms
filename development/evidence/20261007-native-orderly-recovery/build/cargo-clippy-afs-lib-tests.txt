@@ -1,0 +1,4 @@
+error: failed to open: /var/tmp/afs-e2e-release-20261006-r1/target/debug/.cargo-lock
+
+Caused by:
+  Permission denied (os error 13)

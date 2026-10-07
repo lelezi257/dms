@@ -1,0 +1,9 @@
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda1        85G   81G  4.0G  96% /
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda1        85G   81G  4.0G  96% /
+/tmp/moose-p1a-stock-negative-r1
+/tmp/moose-p1a-stock-negative-r2
+/home/lzc.guest/afs-v121-source
+/workspace/dms/source
+/workspace/dms/juicefs-dms

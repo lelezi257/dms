@@ -1,0 +1,40 @@
+--- a/development/acceptance/native-workspace-linux.py
++++ b/development/acceptance/native-workspace-linux.py
+@@ -31,6 +31,17 @@
+ 
+ 
+ class Run(base.Run):
++    def archive_artifacts(self, name, destination):
++        archive_probe = getattr(self, 'recovery_probe', None)
++        if archive_probe is None:
++            spec = importlib.util.spec_from_file_location('native_artifact_archive',
++                Path(__file__).parent / 'probes/native_orderly_recovery.py')
++            archive_probe = importlib.util.module_from_spec(spec)
++            spec.loader.exec_module(archive_probe)
++        self.save('artifact-archive-tool.json', {'path': str(Path(archive_probe.__file__)),
++                  'sha256': base.sha(archive_probe.__file__)})
++        archive_probe.archive(self, name, destination, 'final')
++
+     def native(self, ident, *action, error=False):
+         text = self.command(['python3', self.args.controller, '--socket',
+             self.root / 'control/control.sock', '--id', ident, *action],
+@@ -285,14 +296,11 @@
+                 for n in ('control', 'logs', 'run'):
+                     src = self.root / n
+                     if src.exists():
+-                        if self.args.orderly_recovery_only and hasattr(self, 'recovery_probe'):
+-                            try:
+-                                self.recovery_probe.archive(self, n, self.out / n, 'final')
+-                            except Exception as error:
+-                                result.setdefault('archive_errors', {})[n] = repr(error)
+-                                result['status'] = 'FAIL'
+-                        else:
+-                            shutil.copytree(src, self.out / n, ignore=shutil.ignore_patterns('*.sock'), dirs_exist_ok=True)
++                        try:
++                            self.archive_artifacts(n, self.out / n)
++                        except Exception as error:
++                            result.setdefault('archive_errors', {})[n] = repr(error)
++                            result['status'] = 'FAIL'
+             self.save('checks.json', self.checks)
+             self.save('result.json', result)
+         print(json.dumps(result, indent=2))

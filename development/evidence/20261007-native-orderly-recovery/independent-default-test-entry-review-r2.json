@@ -1,0 +1,24 @@
+{
+  "schema": "bounded-independent-default-test-entry-delta-review-v1",
+  "static_verdict": "APPROVE_MINIMAL_FIX",
+  "runtime_or_source_gate_pass": false,
+  "method": "Read-only exact delta, attributes and actual command construction inspected; no Linux tests, fmt, builds, probes or product run.",
+  "final_source_sha256": {
+    "src/node/native_workspace.rs": "8c6f1d5021aed4280a4c05d8bf371f624b4a8f31d9c847f4b98b1a5a2971556b",
+    "development/acceptance/source-slice-linux.py": "7df1cca3dd7121d5ff3835dd9a18145a3a7140180a8a80ae2d1a3734be0dab20"
+  },
+  "delta_proof": "Removing precisely three added rootfs ignore attributes and reversing one physical-native filter line yields both original FAIL source hashes exactly. No other delta relative to that recorded FAIL.",
+  "closed_finding": "DEFAULT-NONROOT-LIBRARY-BROKEN",
+  "facts": [
+    "Three root-required Linux rootfs tests are now explicitly ignored with instruction to run physical-native gate; genuine require_root().unwrap() and /root fixture preparation remain. No early-return success guard.",
+    "Default library command remains ordinary-user cargo test ... --lib -- --nocapture, so the three ignored tests no longer execute in that entry.",
+    "physical-native still uses sudo -n timeout with the built afs test binary, --ignored --test-threads=1 --nocapture; its filter is now node::native_workspace::. Static selected ignored set includes exactly the existing four mount tests and three new rootfs tests.",
+    "Nonignored sequence tests remain in default library execution. Physical test build and provenance selection are unchanged."
+  ],
+  "validation": "All verification for these final combined source SHA identities is PENDING. No fresh Linux default-user library or explicit seven-test physical gate/fmt/strict Clippy/build/new package proof; existing rootfs-only10+4 saved PASS remains historical for earlier identity. ENOSPC build branch is stopped, not retried.",
+  "prior_failure_preserved": {
+    "path": "independent-default-test-entry-review-r1.json",
+    "sha256": "00080b8327e6214b83bb7ff6db10f079fe0ba2c6ad0d293ad7a4c12350ddf81a"
+  },
+  "next_step": "After parent-authorized environment capacity resolution, validate frozen combined source via ordinary-user library and explicit root physical gate plus affected sequence checks/source gate; only then new package and once-only admission/runtime. No product PASS before those checks."
+}

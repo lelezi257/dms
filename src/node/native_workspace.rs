@@ -33,6 +33,7 @@ use std::{
 const MAX_REQUEST: u64 = 8192;
 const MAX_OPERATIONS: usize = 64;
 const PROBE: &str = "/afs-workspace-probe";
+const COMMAND_SUFFIXES: [&str; 4] = [".stdout", ".stderr", ".command.json", ".exit.json"];
 
 pub(super) struct NativeWorkspace {
     stop: Arc<AtomicBool>,
@@ -133,6 +134,7 @@ struct Active {
     final_namespace: Option<File>,
     final_root: Option<File>,
     final_unique: Option<u64>,
+    runtime_rootfs: Option<PathBuf>,
     pid: Option<ProcessIdentity>,
     verified: bool,
     container_attempted: bool,
@@ -227,6 +229,14 @@ impl Driver {
             let _ = fs::remove_file(&lock_path);
             return Err(error);
         }
+        let sequence = match next_command_sequence(&cfg.control_dir) {
+            Ok(sequence) => sequence,
+            Err(error) => {
+                let _ = fs::remove_file(&socket_path);
+                let _ = fs::remove_file(&lock_path);
+                return Err(error);
+            }
+        };
         Ok(Self {
             owner,
             mount,
@@ -236,7 +246,7 @@ impl Driver {
             lock,
             active: None,
             responses: HashMap::new(),
-            sequence: 0,
+            sequence,
         })
     }
 
@@ -366,6 +376,7 @@ impl Driver {
             final_namespace: None,
             final_root: None,
             final_unique: None,
+            runtime_rootfs: None,
             pid: None,
             verified: false,
             container_attempted: false,
@@ -409,16 +420,19 @@ impl Driver {
             .clone();
         let bundle = self.cfg.control_dir.join(format!("bundle-{container}"));
         fs::create_dir(&bundle)?;
+        let runtime_rootfs = bundle.join("rootfs");
+        prepare_runtime_rootfs(&self.cfg.rootfs, &runtime_rootfs)?;
         let source = self.mount.join(workspace);
-        let spec = container_spec(&self.cfg, &source);
+        let spec = container_spec(&self.cfg, &runtime_rootfs, &source);
         fs::write(
             bundle.join("config.json"),
             serde_json::to_vec_pretty(&spec)?,
         )?;
-        self.active
-            .as_mut()
-            .expect("retained export")
-            .container_attempted = true;
+        {
+            let active = self.active.as_mut().expect("retained export");
+            active.runtime_rootfs = Some(runtime_rootfs);
+            active.container_attempted = true;
+        }
         self.run_runtime(
             &["create", "--bundle", path_str(&bundle)?, &container],
             Duration::from_secs(5),
@@ -619,7 +633,11 @@ impl Driver {
             active.final_unique,
         ) {
             let source = active.permit.source_identity();
-            let covered = fs::metadata(self.cfg.rootfs.join("workspace"))?;
+            let runtime_rootfs = active
+                .runtime_rootfs
+                .as_ref()
+                .ok_or_else(|| io::Error::other("missing owned runtime rootfs"))?;
+            let covered = fs::metadata(runtime_rootfs.join("workspace"))?;
             detach_final_clone(
                 namespace,
                 root,
@@ -638,6 +656,7 @@ impl Driver {
         let active = self.active.as_mut().expect("active");
         active.final_root = None;
         active.final_namespace = None;
+        active.runtime_rootfs = None;
         active.export.detach()?;
         self.active = None;
         Ok(())
@@ -662,11 +681,12 @@ impl Driver {
         timeout: Duration,
         cancel: bool,
     ) -> io::Result<Vec<u8>> {
-        self.sequence += 1;
-        let stem = self
-            .cfg
-            .control_dir
-            .join(format!("command-{:04}", self.sequence));
+        let next = self
+            .sequence
+            .checked_add(1)
+            .ok_or_else(|| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
+        let stem = self.cfg.control_dir.join(format!("command-{next:04}"));
+        self.sequence = next;
         let mut command = Command::new(binary);
         command.args(args);
         run_recorded(
@@ -678,8 +698,41 @@ impl Driver {
     }
 }
 
-fn container_spec(cfg: &NativeWorkspaceConfig, source: &Path) -> Value {
-    json!({"ociVersion":"1.0.2","root":{"path":cfg.rootfs,"readonly":true},
+fn next_command_sequence(control_dir: &Path) -> io::Result<u64> {
+    let mut max = 0u64;
+    for entry in fs::read_dir(control_dir)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else {
+            continue;
+        };
+        let Some(rest) = name.strip_prefix("command-") else {
+            continue;
+        };
+        let metadata = fs::symlink_metadata(entry.path())?;
+        if !metadata.is_file() {
+            return Err(io::Error::from_raw_os_error(libc::EPERM));
+        }
+        let Some(suffix) = COMMAND_SUFFIXES
+            .iter()
+            .find(|suffix| rest.ends_with(**suffix))
+        else {
+            return Err(io::Error::from_raw_os_error(libc::EINVAL));
+        };
+        let digits = &rest[..rest.len() - suffix.len()];
+        if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(io::Error::from_raw_os_error(libc::EINVAL));
+        }
+        let sequence = digits
+            .parse::<u64>()
+            .map_err(|_| io::Error::from_raw_os_error(libc::EOVERFLOW))?;
+        max = max.max(sequence);
+    }
+    Ok(max)
+}
+
+fn container_spec(cfg: &NativeWorkspaceConfig, rootfs: &Path, source: &Path) -> Value {
+    json!({"ociVersion":"1.0.2","root":{"path":rootfs,"readonly":true},
         "hostname":"afs-native-workspace","process":{"terminal":false,"cwd":"/",
             "args":[PROBE,"idle"],"user":{"uid":cfg.workload_uid,"gid":cfg.workload_gid},
             "env":["PATH=/bin:/usr/bin"],"noNewPrivileges":true,
@@ -688,6 +741,64 @@ fn container_spec(cfg: &NativeWorkspaceConfig, source: &Path) -> Value {
         "mounts":[{"destination":"/proc","type":"proc","source":"proc","options":["nosuid","nodev","noexec"]},
             {"destination":"/workspace","type":"bind","source":source,"options":["bind","rw","nosuid","nodev"]}],
         "linux":{"namespaces":[{"type":"mount"},{"type":"pid"},{"type":"network"},{"type":"ipc"},{"type":"uts"},{"type":"cgroup"}]}})
+}
+
+fn prepare_runtime_rootfs(template: &Path, destination: &Path) -> io::Result<()> {
+    trusted_tree(template)?;
+    if destination.exists() {
+        return Err(io::Error::from_raw_os_error(libc::EEXIST));
+    }
+    let parent = destination
+        .parent()
+        .ok_or_else(|| io::Error::from_raw_os_error(libc::EINVAL))?;
+    trusted_path(parent, true)?;
+    let root_metadata = fs::symlink_metadata(template)?;
+    fs::create_dir(destination)?;
+    fs::set_permissions(
+        destination,
+        fs::Permissions::from_mode(root_metadata.permissions().mode() & 0o777),
+    )?;
+    let mut stack = vec![template.to_owned()];
+    let mut count = 0;
+    while let Some(directory) = stack.pop() {
+        for entry in fs::read_dir(&directory)? {
+            count += 1;
+            if count > 256 {
+                return Err(io::Error::from_raw_os_error(libc::E2BIG));
+            }
+            let source_path = entry?.path();
+            let metadata = fs::symlink_metadata(&source_path)?;
+            if metadata.file_type().is_symlink()
+                || metadata.uid() != 0
+                || metadata.permissions().mode() & 0o022 != 0
+                || (!metadata.is_dir() && !metadata.is_file())
+            {
+                return Err(io::Error::from_raw_os_error(libc::EPERM));
+            }
+            let relative = source_path
+                .strip_prefix(template)
+                .map_err(|_| io::Error::from_raw_os_error(libc::EINVAL))?;
+            let target = destination.join(relative);
+            if metadata.is_dir() {
+                fs::create_dir(&target)?;
+                fs::set_permissions(
+                    &target,
+                    fs::Permissions::from_mode(metadata.permissions().mode() & 0o777),
+                )?;
+                stack.push(source_path);
+            } else {
+                let copied = fs::copy(&source_path, &target)?;
+                if copied != metadata.len() {
+                    return Err(io::Error::from_raw_os_error(libc::EIO));
+                }
+                fs::set_permissions(
+                    &target,
+                    fs::Permissions::from_mode(metadata.permissions().mode() & 0o777),
+                )?;
+            }
+        }
+    }
+    trusted_tree(destination)
 }
 
 fn verify_final(value: &Value, source: (u64, u64), namespace: (u64, u64)) -> io::Result<()> {
@@ -921,6 +1032,65 @@ fn isolate_mount_namespace() -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_os = "linux")]
+    use std::os::unix::fs::symlink;
+
+    fn rootfs_template(root: &Path) {
+        fs::create_dir(root).unwrap();
+        fs::set_permissions(root, fs::Permissions::from_mode(0o755)).unwrap();
+        for directory in ["dev", "proc", "workspace", "bin"] {
+            fs::create_dir(root.join(directory)).unwrap();
+            fs::set_permissions(root.join(directory), fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        fs::write(root.join(PROBE.trim_start_matches('/')), b"probe").unwrap();
+        fs::set_permissions(
+            root.join(PROBE.trim_start_matches('/')),
+            fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+        fs::write(root.join("bin/sh"), b"shell").unwrap();
+        fs::set_permissions(root.join("bin/sh"), fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    fn tree_fingerprint(root: &Path) -> Vec<(PathBuf, u32, u64, bool)> {
+        let mut entries = Vec::new();
+        let mut stack = vec![root.to_owned()];
+        while let Some(directory) = stack.pop() {
+            for entry in fs::read_dir(&directory).unwrap() {
+                let path = entry.unwrap().path();
+                let metadata = fs::symlink_metadata(&path).unwrap();
+                entries.push((
+                    path.strip_prefix(root).unwrap().to_owned(),
+                    metadata.permissions().mode() & 0o777,
+                    metadata.len(),
+                    metadata.is_dir(),
+                ));
+                if metadata.is_dir() {
+                    stack.push(path);
+                }
+            }
+        }
+        entries.sort();
+        entries
+    }
+
+    #[cfg(target_os = "linux")]
+    fn root_owned_tempdir() -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix("afs-native-rootfs-")
+            .tempdir_in("/root")
+            .unwrap()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn create_char_device(path: &Path) {
+        let status = Command::new("/usr/bin/mknod")
+            .args([path_str(path).unwrap(), "c", "1", "3"])
+            .status()
+            .unwrap();
+        assert!(status.success(), "mknod failed: {status}");
+    }
+
     #[test]
     fn native_control_replay_preserves_failure_and_capacity_never_blocks_stop() {
         let temp = tempfile::tempdir().unwrap();
@@ -1009,6 +1179,99 @@ mod tests {
         assert_eq!(driver.responses.len(), MAX_OPERATIONS + 1);
     }
     #[test]
+    fn native_command_sequence_continues_after_retained_partial_records() {
+        let temp = tempfile::tempdir().unwrap();
+        fs::write(temp.path().join("command-0007.stdout"), b"old stdout").unwrap();
+        fs::write(
+            temp.path().join("command-0007.command.json"),
+            b"old command",
+        )
+        .unwrap();
+        fs::write(temp.path().join("command-0003.exit.json"), b"older exit").unwrap();
+        let old_stdout = fs::read(temp.path().join("command-0007.stdout")).unwrap();
+        let old_command = fs::read(temp.path().join("command-0007.command.json")).unwrap();
+        let cfg = NativeWorkspaceConfig {
+            control_dir: temp.path().into(),
+            runtime: "/not-admitted".into(),
+            rootfs: temp.path().join("rootfs"),
+            workload_uid: 501,
+            workload_gid: 501,
+        };
+        let mut driver = Driver {
+            owner: Arc::new(OwnerFs::new()),
+            mount: temp.path().into(),
+            cfg,
+            stop: Arc::new(AtomicBool::new(false)),
+            listener: UnixListener::bind(temp.path().join("test.sock")).unwrap(),
+            lock: File::create(temp.path().join("test.lock")).unwrap(),
+            active: None,
+            responses: HashMap::new(),
+            sequence: next_command_sequence(temp.path()).unwrap(),
+        };
+        driver
+            .run_external(Path::new("/bin/true"), &[], Duration::from_secs(1), false)
+            .unwrap();
+        assert_eq!(
+            fs::read(temp.path().join("command-0007.stdout")).unwrap(),
+            old_stdout
+        );
+        assert_eq!(
+            fs::read(temp.path().join("command-0007.command.json")).unwrap(),
+            old_command
+        );
+        assert!(temp.path().join("command-0008.stdout").exists());
+        assert!(temp.path().join("command-0008.stderr").exists());
+        assert!(temp.path().join("command-0008.command.json").exists());
+        assert!(temp.path().join("command-0008.exit.json").exists());
+    }
+    #[test]
+    fn native_command_sequence_rejects_malformed_records_and_overflow() {
+        let temp = tempfile::tempdir().unwrap();
+        fs::write(temp.path().join("command-0001.output"), b"ambiguous").unwrap();
+        assert!(matches!(
+            next_command_sequence(temp.path()),
+            Err(error) if error.raw_os_error() == Some(libc::EINVAL)
+        ));
+        fs::remove_file(temp.path().join("command-0001.output")).unwrap();
+        fs::write(
+            temp.path().join(format!("command-{}.stdout", u64::MAX)),
+            b"max",
+        )
+        .unwrap();
+        let cfg = NativeWorkspaceConfig {
+            control_dir: temp.path().into(),
+            runtime: "/not-admitted".into(),
+            rootfs: temp.path().join("rootfs"),
+            workload_uid: 501,
+            workload_gid: 501,
+        };
+        let mut driver = Driver {
+            owner: Arc::new(OwnerFs::new()),
+            mount: temp.path().into(),
+            cfg,
+            stop: Arc::new(AtomicBool::new(false)),
+            listener: UnixListener::bind(temp.path().join("test.sock")).unwrap(),
+            lock: File::create(temp.path().join("test.lock")).unwrap(),
+            active: None,
+            responses: HashMap::new(),
+            sequence: next_command_sequence(temp.path()).unwrap(),
+        };
+        assert!(matches!(
+            driver.run_external(Path::new("/bin/true"), &[], Duration::from_secs(1), false),
+            Err(error) if error.raw_os_error() == Some(libc::EOVERFLOW)
+        ));
+    }
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn native_command_sequence_rejects_symlinked_record() {
+        let temp = tempfile::tempdir().unwrap();
+        symlink("/etc/passwd", temp.path().join("command-0001.stdout")).unwrap();
+        assert!(matches!(
+            next_command_sequence(temp.path()),
+            Err(error) if error.raw_os_error() == Some(libc::EPERM)
+        ));
+    }
+    #[test]
     fn native_control_rejects_source_injection_and_bad_identifiers() {
         assert!(
             serde_json::from_str::<Request>(
@@ -1047,8 +1310,14 @@ mod tests {
             workload_uid: 501,
             workload_gid: 501,
         };
-        let spec = container_spec(&cfg, Path::new("/afs/root"));
+        let spec = container_spec(
+            &cfg,
+            Path::new("/var/native/bundle/rootfs"),
+            Path::new("/afs/root"),
+        );
         assert_eq!(spec["root"]["readonly"], true);
+        assert_eq!(spec["root"]["path"], "/var/native/bundle/rootfs");
+        assert_ne!(spec["root"]["path"], cfg.rootfs.to_string_lossy().as_ref());
         assert_eq!(spec["process"]["noNewPrivileges"], true);
         assert_eq!(spec["process"]["capabilities"]["permitted"], json!([]));
         let mounts = spec["mounts"].as_array().unwrap();
@@ -1056,6 +1325,106 @@ mod tests {
         assert_eq!(mounts[1]["destination"], "/workspace");
         assert_eq!(mounts[1]["source"], "/afs/root");
         assert_eq!(spec["linux"]["namespaces"].as_array().unwrap().len(), 6);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    #[ignore = "requires root Linux trusted rootfs fixture; run physical-native gate"]
+    fn runtime_rootfs_copy_keeps_template_reusable_after_mutable_dev_artifacts() {
+        require_root().unwrap();
+        let temp = root_owned_tempdir();
+        let template = temp.path().join("template");
+        rootfs_template(&template);
+        let before = tree_fingerprint(&template);
+        let first = temp.path().join("bundle-a/rootfs");
+        fs::create_dir(temp.path().join("bundle-a")).unwrap();
+        fs::set_permissions(
+            temp.path().join("bundle-a"),
+            fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
+        prepare_runtime_rootfs(&template, &first).unwrap();
+        let template_probe = fs::metadata(template.join(PROBE.trim_start_matches('/'))).unwrap();
+        let first_probe = fs::metadata(first.join(PROBE.trim_start_matches('/'))).unwrap();
+        assert_ne!(
+            (template_probe.dev(), template_probe.ino()),
+            (first_probe.dev(), first_probe.ino())
+        );
+        symlink("pts/ptmx", first.join("dev/ptmx")).unwrap();
+        create_char_device(&first.join("dev/null"));
+        assert_eq!(tree_fingerprint(&template), before);
+
+        let second = temp.path().join("bundle-b/rootfs");
+        fs::create_dir(temp.path().join("bundle-b")).unwrap();
+        fs::set_permissions(
+            temp.path().join("bundle-b"),
+            fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
+        prepare_runtime_rootfs(&template, &second).unwrap();
+        assert!(!second.join("dev/ptmx").exists());
+        assert!(!second.join("dev/null").exists());
+        trusted_tree(&template).unwrap();
+        trusted_tree(&second).unwrap();
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    #[ignore = "requires root Linux trusted rootfs fixture; run physical-native gate"]
+    fn runtime_rootfs_copy_rejects_untrusted_source_and_destination_collision() {
+        require_root().unwrap();
+        let temp = root_owned_tempdir();
+        let template = temp.path().join("template");
+        rootfs_template(&template);
+        symlink("/etc/passwd", template.join("bad-link")).unwrap();
+        fs::create_dir(temp.path().join("bundle-a")).unwrap();
+        fs::set_permissions(
+            temp.path().join("bundle-a"),
+            fs::Permissions::from_mode(0o700),
+        )
+        .unwrap();
+        assert!(prepare_runtime_rootfs(&template, &temp.path().join("bundle-a/rootfs")).is_err());
+
+        fs::remove_file(template.join("bad-link")).unwrap();
+        let destination = temp.path().join("bundle-a/rootfs");
+        fs::create_dir(&destination).unwrap();
+        assert!(matches!(
+            prepare_runtime_rootfs(&template, &destination),
+            Err(error) if error.raw_os_error() == Some(libc::EEXIST)
+        ));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    #[ignore = "requires root Linux trusted rootfs fixture; run physical-native gate"]
+    fn runtime_rootfs_workspace_is_the_oci_root_covered_directory() {
+        require_root().unwrap();
+        let temp = root_owned_tempdir();
+        let template = temp.path().join("template");
+        rootfs_template(&template);
+        let bundle = temp.path().join("bundle");
+        fs::create_dir(&bundle).unwrap();
+        fs::set_permissions(&bundle, fs::Permissions::from_mode(0o700)).unwrap();
+        let runtime_rootfs = bundle.join("rootfs");
+        prepare_runtime_rootfs(&template, &runtime_rootfs).unwrap();
+        let cfg = NativeWorkspaceConfig {
+            control_dir: temp.path().into(),
+            runtime: "/usr/bin/runc".into(),
+            rootfs: template,
+            workload_uid: 501,
+            workload_gid: 501,
+        };
+        let spec = container_spec(&cfg, &runtime_rootfs, Path::new("/afs/root"));
+        assert_eq!(
+            Path::new(spec["root"]["path"].as_str().unwrap()),
+            runtime_rootfs
+        );
+        let covered = fs::metadata(runtime_rootfs.join("workspace")).unwrap();
+        let template_covered = fs::metadata(cfg.rootfs.join("workspace")).unwrap();
+        assert_ne!(
+            (covered.dev(), covered.ino()),
+            (template_covered.dev(), template_covered.ino())
+        );
     }
     #[test]
     fn native_command_cancellation_retains_failure_receipt_and_reaps_child() {

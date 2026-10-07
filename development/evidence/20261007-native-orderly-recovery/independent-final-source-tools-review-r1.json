@@ -1,0 +1,65 @@
+{
+  "schema": "bounded-independent-final-static-review-v1",
+  "static_verdict": "APPROVE_WITH_EXPLICIT_TRUST_AND_VALIDATION_LIMITS",
+  "runtime_admission_verdict": "BLOCKED_NOT_READY",
+  "product_pass": false,
+  "review_method": "Read-only source/diff/contracts and saved raw evidence; no builds, tests, probes, services, environment repairs or product execution. Only this report written.",
+  "source_sha256": {
+    "src/node/native_workspace.rs": "38dbe87fd4a23ee14708a964548c4cd9add1dca0a9f17e65032fd6641b3b0aa0",
+    "development/acceptance/native-workspace-linux.py": "a7e1254b7132b9e452c6f986606661e1677e9a2f1c5bd5bb07d657ccadfce46c",
+    "development/acceptance/probes/native_orderly_recovery.py": "3dc731423f47ee08bb35d7b020402466f74bcbdffdbf7d7ec72207ae710b4064",
+    "development/acceptance/probes/test_native_orderly_recovery.py": "1b2e4fc827664b143283cb963d0ac12f8a16c07bf18a0ff75907933057d369bf",
+    "development/native-rootfs-restart-repair.md": "c0762fbc050d1c582c518295be345634f58cf745a3f4a6087ca416a4b373015c",
+    "development/native-rootfs-restart-records-addendum.md": "5c1701a36e05b36e12666e3618b299c4aabba14a5c1fbf824a397095b0c43f67"
+  },
+  "findings": [],
+  "checked": [
+    {
+      "area": "Command continuity and lock ordering",
+      "facts": "Driver requires root and private root-owned mode0700 control path, retains strict empty-runtime-state guard, creates exclusive lock and owned listener, then scans command records before returning Driver. Scan uses symlink_metadata, accepts only recognized decimal stems with stdout/stderr/command.json/exit.json suffixes, rejects nonregular/malformed/overflow records; largest observed stem seeds sequence. Checked increment happens before new output creation. Existing record bytes are not written, moved or deleted.",
+      "boundary": "Single administrator-owned control directory and no concurrent privileged mutator; lock excludes another admitted controller. Incomplete historical output records still reserve their numbers. Non-UTF8 filenames cannot alias generated ASCII stems.",
+      "failure_cleanup": "Initialization scan errors remove only newly created owned socket/lock, then return error; removal failures are not elevated to readiness. Runtime-state/adoption guard remains unchanged."
+    },
+    {
+      "area": "Private rootfs preparation and permissions",
+      "facts": "Trusted source tree and destination parent checks preserve ownership/no-group-or-world-write/no-link/regular-or-directory/256-entry limits. Fresh owned bundle/rootfs is created; files copied as bytes, not hard links, directories separately created; safe permission bits reapplied and final destination trusted-tree verified. OCI points to that private root with readonly true. Template and old mutable bundles are retained.",
+      "toctou_boundary": "Source validation and fs::copy/read_dir are path-based; fs::copy can follow a source replaced after symlink_metadata. All source ancestry/entries are root-owned and non-group/world-writable, and destination is under private root-owned control. Thus an unprivileged workload cannot perform this race; this review accepts the existing trusted-administrator/no-concurrent-privileged-mutation boundary. It does not claim descriptor-based resistance to a concurrent root mutator. Whole-template before/after lstat/hash observer is additional runtime evidence, not such a product guarantee."
+    },
+    {
+      "area": "Preparation failure and normal detach",
+      "facts": "Active export is retained before preparation. runtime_rootfs and container_attempted are assigned only after copy and OCI config succeed. Before runtime invocation, failures use export detach with no runtime call, preserving partial bundle for evidence. After runtime attempt, unresolved state/clone/source identities retain owned active claim; no force/lazy detach. Final clone detach uses the exact private runtime_rootfs/workspace covered directory rather than template. Existing namespace/source/unique mount/flags checks remain. Runtime delete precedes clearing final handles; export-detach failure retains active state."
+    },
+    {
+      "area": "All native modes safe evidence archive",
+      "facts": "Driver finalization always calls shared archive_artifacts; helper discovers exact owned bundle OCI root paths, validates private containment and nonlinked directory ancestors, indexes full lstat/regular SHA/link target/device/rdev/allocated facts and retains mutated roots in place. Those roots alone are excluded from ordinary text copy. Outside owned roots, unknown links/devices/nonregular inputs fail explicitly; archive errors set FAIL and final result is still saved. No phase1 move/delete/reset workaround. Fresh phase1 directory retains separate command/log/lifecycle records; final output remains separate.",
+      "boundary": "Archiving is under the same admitted root-owned fixture/no concurrent privileged mutation boundary; old stopped bundle roots remain on guest, metadata index is not a complete byte backup of their special-file trees."
+    },
+    {
+      "area": "Two-phase oracle and evidence identity",
+      "facts": "New-read command selection compares the pre-call command SHA map to post-call exact shell argv, requires exactly one changed/new command plus actual code0/reasonNone/successTrue and exact full stdout. Container and fresh FUSE reads require all 4096 nonzero bytes, exact hash/EOF/mode0600/uidgid501. Each phase independently validates actual current source/mount/grant/container incarnation; restart retains stable Root/home/source and new service/container PID/starttick/ELF identity. Actual service waits bind child/ready/exit/boot/config/exe/incarnation and both child/supervisor absence. Inputs retain whole trusted-template lstat/SHA, config/prefix file bytes and Meta state directory identity; no reinstall/reconfiguration between phases. Final closure remains required separately, so intermediate recovery-result PASS cannot alone close acceptance."
+    }
+  ],
+  "validation": {
+    "rootfs_only_saved_linux": "cargo-test-native-workspace-2.txt: 10 passed, 4 ignored; cargo-test-native-mount-ignored.txt: explicit root mount tests 4 passed. These precede combined final command continuity version and must not be promoted to final-source PASS.",
+    "python_tools_saved_linux": "r1 8 unique guards plus r2 archive, r3 current-read, r4 shared-all-modes archive affected guards =11 unique. Current r4 tool identities match recorded hashes. Reviewer did not rerun.",
+    "final_sequence_source": "NOT_TESTED: saved cargo-test-command-sequence.txt fails during compilation with ENOSPC before tests. Source contains 3 targeted continuity/malformed/overflow/symlink checks but no passing final executable proof.",
+    "strict_clippy_build": "NOT_PASSED: saved strict Clippy branch also ENOSPC. New final-source build/ELF/package absent; any format-only result cannot replace tests/Clippy/build.",
+    "environment": "afs-build disk-full branch stopped; reviewer performed no repair, deletion, resize or retry.",
+    "evidence_sha256": {
+      "evidence/afs-delivery/native-rootfs-repair-20261007-r1/cargo-test-native-workspace-2.txt": "2761d662a8f71b35b51a712eac893683516c8795875414bb94b6c7e4b0c066a9",
+      "evidence/afs-delivery/native-rootfs-repair-20261007-r1/cargo-test-native-mount-ignored.txt": "0a7041d81a7e7707dbcea55c3cedcc7e08167a6adaa21582cb0010feb9d54d7e",
+      "evidence/afs-delivery/native-rootfs-repair-20261007-r1/cargo-test-command-sequence.txt": "c4c64b9cf20d61c3d90353d1c63c2eac50ba3ee2c8621119d214b7b8daaea2ce",
+      "evidence/afs-delivery/native-rootfs-repair-20261007-r1/cargo-clippy-afs-lib-tests-sudo.txt": "cedb6a87e4c3face0b52c851e86665ac09e663850d1f1d0852b61362995b2b32",
+      "evidence/afs-delivery/native-orderly-recovery-20261007-r1/commands/guard-shared-archive-r4.stderr": "0bd2f0326069f162aa227c13af3e1d33379896ff7dfe2f1bfd469683591656af",
+      "evidence/afs-delivery/native-orderly-recovery-20261007-r1/tools-preparation-r4.json": "b4e8ac6a584d6d403af1ba852e682e7352a521e4c3a6584a258355c17e57af4e",
+      "evidence/afs-delivery/native-orderly-recovery-20261007-r1/independent-orderly-tools-review-r1.json": "acfb4a31215d042e336d63e51f4b1d3c6cb3000ad20791d479d8afef2c53015d"
+    }
+  },
+  "historical_failure_handling": "Original r1 review FAIL remains unchanged. Its move-command recommendation is withdrawn and superseded by frozen records addendum: product command continuity retains all original files. Later tool deltas close safe archiving/current-read issues statically; they do not rewrite original FAIL.",
+  "next_step": "Keep runtime stopped. Resolve build capacity through parent/user environment decision, then verify frozen combined source with affected Linux sequence checks/strict source gate/new package identity and one fresh admission before once-only two-phase runtime. No repeated old standards/capacity/performance cases.",
+  "scope_limits": [
+    "No actual orderly-restart product PASS or final candidate gate PASS.",
+    "No full G2.12/G2.13, default-ON, abnormal adoption, complete POSIX, graceful application drain, performance or stronger durability claim.",
+    "No third-party changes reviewed or authorized."
+  ]
+}

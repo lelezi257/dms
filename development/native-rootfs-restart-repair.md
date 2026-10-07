@@ -1,0 +1,23 @@
+# Keep the trusted rootfs reusable across orderly container restarts
+
+2026-10-07. Narrow first-party G2.12 lifecycle repair, preserving third-party source and default OFF. Existing6d current container/control cases retain their original PASS and binary identities. Full ON, mixed append/classic-lock/watch and abnormal restart reconciliation remain open.
+
+## Evidence before edits
+
+The stopped capacity fixture contains12 official-runc-created symlinks/character devices beneath its configured rootfs/dev, while runtime-state is empty and socket/controller lock are gone. The exact fixed6d `Driver::new` calls `trusted_tree(cfg.rootfs)`, which rejects any symlink/non-regular-file/non-directory; errors propagate through controller readiness to Node startup. Cleanup correctly stops/deletes runtime and normally detaches mounts, but does not restore the configured rootfs tree. This is a product lifecycle incompatibility, not an environment blocker. The actual second startup has not been run: code plus observed filesystem metadata are evidence, not a claimed live restart FAIL. Preserve [read-only diagnosis](evidence/20261007-native-orderly-recovery/rootfs-restart-static-boundary.json).
+
+## Repair plan and locked behavior
+
+Before editing add meaningful Linux regressions for a trusted template remaining unchanged when a per-container runtime root acquires device/link artifacts, a second independently prepared runtime root remaining valid, rejection of an untrusted source tree, destination collision and OCI root/normal-detach covered-directory binding. Run targeted tests in Linux; save any first failures. Do not hide root-required checks behind a returning-success non-root guard; use the admitted root execution environment for root-owned fixtures.
+
+Treat configured rootfs as the administrator-owned trusted template. For each fresh owned bundle create a separate private runtime rootfs, copying only revalidated trusted regular files/directories with their safe modes, no hard links or followed symlinks. Keep directory-count limits, ownership/writability checks and existing runtime/source/namespace/grant checks. OCI root must name this owned per-container copy; retain its exact path/covered workspace directory for normal final-clone detach. Official runc mutates only this copy. Preserve mutable stopped roots in their owned bundles for traceability; no recursive removal, force/lazy detach, special-case trusted-tree exclusions, vendor patch or automatic adoption of nonempty runtime state. Failed preparation cannot lead to a runtime call or lose an active export's safe cleanup path.
+
+Scope is `src/node/native_workspace.rs` and its focused tests. No shared OwnerFs/DFS semantics, protocol authority, TTL, FUSE or third-party modifications. Review the final diff, then Linux format/strict affected Clippy/build/tests and only justified wider checks. A Rust change creates a new candidate/input/ELF/package identity; old6d evidence is historical/reusable for unchanged paths, never new-binary PASS.
+
+## Runtime exit after source validation
+
+Using a fresh isolated fixture and the newly validated binary/package, confirm a nonzero small file via container write/sync and exact FUSE fresh read/EOF. Public Stop must empty runtime and remove actual container; orderly Node/Meta stop must yield actual waits0 and remove old mounts/socket/lock. Archive phase-one controller commands/logs/lifecycle before restart so sequence reuse cannot overwrite evidence. Keep exactly the same template/config/prefix/state/local-file Meta (no reinstall, directory rebuilding, deletion of runtime artifacts or config regeneration).
+
+Restart services, record new process incarnations with exact ELF identity and valid mount; public Start the same workspace with a new ID. Verify a new actual container and valid current namespace/grant against the same stable workspace Root and physical source. Linux may reuse namespace inode numbers; require incarnation correctness, not arbitrary inequality. Container fresh read and FUSE fresh read must verify full bytes/EOF and expected owner/mode, then public Stop and both actual service waits0. Independent resource/protected-process/mount postcheck is required.
+
+Before the runtime once admit dependencies, template/tool/source/ELF/package identity, new fixture paths/ports/ext4/RAM/disk and protected inventory; new runtime plus guest tools/raw budget256MiB, final free floor1GiB. Environment blockers stop this lane with evidence; ordinary product failures permit a scoped first-party repair with affected regression, never unchanged retries or criterion waivers. No64MiB/standards/performance/3FS reruns. PASS only closes this orderly recovery subitem, not full production restart/drain or G2.12/G2.13.

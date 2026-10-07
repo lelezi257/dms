@@ -1,0 +1,28 @@
+--- a/development/acceptance/probes/test_native_orderly_recovery.py
++++ b/development/acceptance/probes/test_native_orderly_recovery.py
+@@ -125,6 +125,25 @@
+             self.assertIn('rdev', index['dev/fifo'])
+             self.assertTrue((root / 'dev/fd').is_symlink())
+ 
++    def test_current_container_read_cannot_reuse_stale_phase1_command_or_cached_response(self):
++        with tempfile.TemporaryDirectory() as d:
++            root = Path(d);(root / 'control').mkdir()
++            shell = probe.read_shell()
++            old = root / 'control/command-0010.command.json'
++            old.write_text(json.dumps({'argv': ['exec', 'first', '/bin/sh', '-ec', shell]}))
++            old.with_name('command-0010.stdout').write_text('stale wrong data')
++            output = probe.PAYLOAD.decode() + f'\nRECOVERY_META 4096 600 501 501\n{probe.DIGEST}  /workspace/{probe.PROOF}\nRECOVERY_EOF 0\n'
++            def native(*args):
++                fresh = root / 'control/command-0007.command.json'
++                fresh.write_text(json.dumps({'argv': ['exec', 'second', '/bin/sh', '-ec', shell]}))
++                fresh.with_name('command-0007.stdout').write_text(output)
++                fresh.with_name('command-0007.exit.json').write_text(json.dumps({'code': 0, 'reason': None, 'success': True}))
++                return {'status': 'Executed'}
++            run = SimpleNamespace(root=root, native=native, save=lambda *a: None)
++            self.assertEqual(probe.container_read(run, 'second'), self.content())
++            # The same returned cached success, without a new exact command, is insufficient.
++            with self.assertRaises(ValueError):probe.container_read(run, 'second')
++
+     def test_orderly_mode_is_mutually_exclusive_before_any_runtime(self):
+         spec = importlib.util.spec_from_file_location('orderly_driver', Path(__file__).parents[1] / 'native-workspace-linux.py')
+         driver = importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)

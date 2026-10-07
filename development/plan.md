@@ -1,6 +1,8 @@
-**当前切片（2026-10-07）：** 产品6d51aeb/157输入/map66/ELF/包及vendor未改。容器控制额度新分项实际PASS：1成功Start+63独立EBUSY填满64，新Exec准确ENOSPC且双视图无sentinel；两Status之后真实grant/PIDtick/ns/mount/source与16controller制品SHA仍完全不变。公开Stop/Idle/runtime空、NodeMeta两actualwait0/4PIDgone、旧1进程身份/26完整mountrows不变。91,643,904B<256MiB、最终9,286,127,616B>1GiB；单次执行，无修环境。独立审阅通过，仅关闭此G2.12分项；原工具r1顺序判据FAIL及恢复索引保留。 [版本、范围与原始证据](evidence/20261007-native-control-capacity/README.md)。
+**当前状态（2026-10-07）：** 3FS基线资格按用户决定留专题，主线容器workspace。main f09185e、产品6d/157/map66/既有ELF包的通过范围保留；新rootfs私有副本/命令续号修复在独立分支fix/native-orderly-recovery-20261007，不视为新可用候选。G1历史8/8，G2为10限定完成/2性能FAIL/2bind进行中/13待验收，bind默认OFF。
 
-**下一项：** 容器workspace有序恢复小项：正常public Stop/服务有序停止后，以同state/local-file Meta重新启动，再public Start同workspace，由新容器与FUSE fresh read完整读回已确认文件/EOF。现有OFF恢复、managed host重开及source拒绝证据各自复用，尚未覆盖这个完整闭环；先冻结小case，不进入异常退出/非空runtime adoption/生产对账矩阵。3FS资格留专题，不重跑本次PASS、标准、64MiB、性能或混合语义；bind默认OFF。G1历史8/8、G2 10限定完成/2性能FAIL/2bind进行中/13待验收不变。
+**新增/阻塞：** 工具11个独立Linux guards通过；早期Rust10+4有输出但未冻结源码SHA，不计最终版本PASS。静态审阅发现并最小修正非root测试入口，原FAIL保留。afs-build85GiB根盘实际满：误用debug与root工具链下载、后续ENOSPC，已停止构建并求助；最终续号/源码门禁/新包/重启读回均未完成。[版本、失败与证据](evidence/20261007-native-orderly-recovery/README.md)。
+
+**下一项：** 等环境处理决定后一次准入，复用release缓存、普通用户构建、仅真实test binary特权运行；新包后只做4KiB两阶段正常重启读回，不重跑标准/性能或3FS。独立文本/审查与证据收口不受该阻塞。
 
 [append偏移边界与暂缓理由](native-append-offset-boundary.md)：当前公开回复不返回实际追加位置；保留失败；经典锁也已按公开原语边界收口，不改第三方或反复重测。
 

@@ -1,0 +1,31 @@
+{
+  "schema": "bounded-independent-default-test-entry-review-v1",
+  "verdict": "FAIL",
+  "method": "Read-only exact source-gate command and Rust test attributes inspected; no test/build/product execution. Prior review JSONs retained unchanged.",
+  "source_sha256": {
+    "src/node/native_workspace.rs": "38dbe87fd4a23ee14708a964548c4cd9add1dca0a9f17e65032fd6641b3b0aa0",
+    "development/acceptance/source-slice-linux.py": "730f8d8dbc086bb7eb28d72e0b235acaf9bb1e3c3270eb4ee03726c11faf378a"
+  },
+  "finding": {
+    "id": "DEFAULT-NONROOT-LIBRARY-BROKEN",
+    "severity": "blocking",
+    "facts": [
+      "source-slice-linux.py line73 base is cargo test --release --locked --offline --all-features -p afs; line80 library appends --lib -- --nocapture, without sudo. subprocess.Popen executes inherited current user.",
+      "native_workspace.rs lines1330-1333,1370-1373,1395-1398 add three Linux #[test] rootfs tests with require_root().unwrap(); no #[ignore]. root_owned_tempdir also requires /root access. Ordinary non-root library test selects these and panics on EPERM. This is a source-inferred deterministic regression, not a claimed executed FAIL.",
+      "Existing physical-native at source-slice-linux.py lines104-107 uses sudo -n timeout on built afs test executable, filter node::native_workspace::mount::linux::tests:: plus --ignored. Merely marking the new three ignored would exclude them from both current default library execution and this physical filter."
+    ],
+    "affected_tests": [
+      "runtime_rootfs_copy_keeps_template_reusable_after_mutable_dev_artifacts",
+      "runtime_rootfs_copy_rejects_untrusted_source_and_destination_collision",
+      "runtime_rootfs_workspace_is_the_oci_root_covered_directory"
+    ],
+    "minimal_fix": [
+      "Mark only the three root-required rootfs tests explicitly ignored with a reason naming admitted root Linux fixture and explicit execution. Keep require_root().unwrap(); do not convert root failure into a passing early return.",
+      "Ensure the actual sudo physical test entry selects the three as well: minimally broaden native ignored-test filter to node::native_workspace:: (existing four mount tests plus these three), or add a precise explicit rootfs entry against the same built test binary. Coordinate source-gate ownership before editing.",
+      "Once environment capacity is resolved, run affected ordinary-user library and explicit root physical gates on frozen final source; do not retry while current build ENOSPC branch is stopped."
+    ]
+  },
+  "evidence_limits": "Saved rootfs-only 10 PASS was run with admitted root and four mount tests explicitly root. It does not establish ordinary-user library compatibility. Final sequence/build gate remains untested/ENOSPC; no product PASS.",
+  "supersedes_scope": "Adds a missing default-test-entry blocker to independent-final-source-tools-review-r1.json static approval; leaves its original bytes and other checked claims unchanged.",
+  "prior_review_sha256": "e04b2d19a3aa5f573bccb6499cbd750719c51f86d7f338e86820d849d775ae44"
+}

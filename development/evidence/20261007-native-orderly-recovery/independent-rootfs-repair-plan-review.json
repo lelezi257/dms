@@ -1,0 +1,78 @@
+{
+  "schema": "afs-bounded-rootfs-repair-plan-review-v1",
+  "date": "2026-10-07",
+  "reviewer": "native_lock_review",
+  "verdict": "APPROVE_NARROW_FIRST_PARTY_REPAIR_PLAN",
+  "blocking_design_findings": [],
+  "method": "Read-only frozen contract, saved actual Linux filesystem metadata and fixed6d Git code/lifecycle review. No reading of unfinished repair implementation, source edits, VM services/restart/tests/builds or recursive delegation.",
+  "contract": {
+    "path": "source/development/native-rootfs-restart-repair.md",
+    "sha256": "c0762fbc050d1c582c518295be345634f58cf745a3f4a6087ca416a4b373015c"
+  },
+  "diagnosis": {
+    "evidence": "rootfs-restart-static-boundary.json",
+    "sha256": "3740ce645898e4ae6a49287ac3d06792cde03cc36c8b3593239b5c6cfdc191d1",
+    "fixed_product": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+    "fixed_code_sha256": {
+      "src/node/native_workspace.rs": "a70c53efcda5311a58c255f0b97a988219f12818cca3f01d67629fc27bd6135a",
+      "src/node/native_workspace/mount.rs": "5efee3530092b8831954e415e7cdb6d65c6137dc8de20cb71c62775ec00b8c65"
+    },
+    "actual_runc_rootfs_dev_artifacts": 12,
+    "types": {
+      "symlinks": 6,
+      "character_devices": 6
+    },
+    "runtime_state_empty": true,
+    "node_restart_actually_executed": false,
+    "classification": "Saved real metadata plus fixed strict trusted_tree path demonstrates a product lifecycle incompatibility. It is not a claimed observed live restart FAIL or an environment blocker.",
+    "inventory_stderr_note": "Original inventory stderr contains failed inherited cwd navigation messages; actual Python inventory returned0 and recorded Linux/root paths. These original messages remain preserved, not presented as restart output."
+  },
+  "design_findings": [
+    {
+      "type": "FACT",
+      "conclusion": "Fixed Driver::new validates cfg.rootfs as root-owned, without symlinks/special files/group-world writable paths, with256-entry bound and empty workspace/proc. Fixed OCI spec and cleanup currently use that same template path, while saved official runtime metadata contains12 dev devices/links after stop. Strict validation should remain intact."
+    },
+    {
+      "type": "ASSESSMENT",
+      "conclusion": "Per-owned-bundle private byte copies isolate runtime mutations while keeping the configured template admissible on orderly controller restart. Rejecting destination collision and retaining stopped or partial owned roots avoids overwriting/adopting unknown state. This is a focused first-party repair consistent with unmodified vendor/defaultOFF policy."
+    },
+    {
+      "type": "FACT",
+      "conclusion": "Fixed start retains Active permit/export before activation and catches subsequent preparation/start errors through cleanup. With container_attempted false, cleanup detaches the owned export without invoking runc. Preserve that ordering for failed root preparation; retain unresolved claims on cleanup failure."
+    },
+    {
+      "type": "ASSESSMENT",
+      "conclusion": "OCI root and covered workspace must refer to the same private runtime root. Existing final namespace/root handles and exact source/unique-mount checks should remain live until normal detach succeeds. Template workspace identity cannot serve as the expected restored directory once rootfs is copied."
+    },
+    {
+      "type": "FACT",
+      "conclusion": "Existing normal detach enters the held namespace, validates exact source and unique mount ID, normally unmounts, and validates the restored covered directory. Existing public Stop uses owned KILL, not graceful application drain. No mount helper or authority redesign is required by this repair."
+    }
+  ],
+  "implementation_review_points_already_required_by_contract": [
+    "Revalidate trusted source files/directories, count and ownership/writability; reject symlinks/special files and never follow links during actual copying. Use fresh exclusive destination entries and copied bytes with separate inodes, never hard links or clobber of existing bundles.",
+    "Apply existing safe permissions/root ownership to the private copy and leave trusted template unchanged; runtime mutation of copied file/content/links/devices must not alter template or independently prepared next copy.",
+    "Create/validate the copy before container_attempted or any runtime call. Bind owned runtime-root path and its covered workspace identity to Active so normal final-clone detach uses the copy. Preserve failed-preparation export cleanup and fail-closed unresolved-claim behavior.",
+    "Keep runtime-state nonempty reconciliation rejection, grants/source/namespace checks, defaultOFF and vendor bytes unchanged. Do not recursively delete retained roots or relax trusted_tree.",
+    "Meaningful Linux root fixtures cover runtime-mutated copy/template invariance, second copy, bad source, collision/no-clobber, actual no-hardlinks and OCI/covered binding; root-required tests must genuinely run as root rather than return success untested."
+  ],
+  "oci_primary_source": {
+    "url": "https://github.com/opencontainers/runtime-spec/blob/v1.3.0/config.md#root",
+    "checked": "2026-10-07",
+    "scope": "OCI config Root contract permits an absolute path or a path relative to the bundle on POSIX and requires the declared directory to exist. readonly controls the container view; it does not replace observed host-side runc mutation evidence.",
+    "supports": "An existing owned bundle/rootfs copy is a legal root path without changing OCI authority or vendor source."
+  },
+  "validation_boundary": {
+    "source_tests_build": "PENDING; no implementation approval or test PASS here. Final narrow diff and affected Linux fmt/strictClippy/build/tests must identify the new compiler inputs/ELFs/package.",
+    "runtime": "PENDING; after source validation only one fresh orderly write/sync/full-read/EOF→Stop→servicewait0→same-template/config/state restart→fresh container/read/EOF/owner/mode→Stop/actualservicewait0 proof.",
+    "archive_boundary": "Phase-one controller command/log/lifecycle evidence must be archived without overwrite before sequence reset. Do not reset product state, regenerate config/rootfs or adopt nonempty runtime state; document exact owned evidence movement if used.",
+    "resource": "New root plus guest tools/raw256MiB ceiling, final1GiB free floor and protected identity/mount postcheck remain required.",
+    "historical_identity": "Existing6d PASS remains its own evidence. New Rust binary never inherits a current-version PASS label from6d solely by design review."
+  },
+  "scope_limits": [
+    "This is design approval only. No live restart FAIL/PASS has been independently run or claimed.",
+    "Only first-party src/node/native_workspace.rs/focused tests; no vendor patch or shared OwnerFs/DFS/FUSE/protocol/TTL change.",
+    "Abnormal adoption, production restart/drain/revocation ACK, fullG2.12/G2.13/ON and append/lock/watch gaps remain open.",
+    "No performance/64MiB/standard-suite/3FS reruns requested by this review."
+  ]
+}

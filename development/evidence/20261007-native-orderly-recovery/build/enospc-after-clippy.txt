@@ -1,0 +1,25 @@
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda1        85G   85G     0 100% /
+/dev/vda1        85G   85G     0 100% /
+/dev/vda1        85G   85G     0 100% /
+3.7G	/var/tmp/afs-e2e-release-20261006-r1/target
+-rw-r--r-- 1 root root  275475 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libarcstr-92e503dc93fe0611.rmeta
+-rw-r--r-- 1 root root  308130 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libbase64-69d375d71e5d85a1.rmeta
+-rw-r--r-- 1 root root  872403 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libbytes-1b2f136b725fc576.rmeta
+-rw-r--r-- 1 root root  589788 Oct  7 09:51 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libbytes-e899527bc688e952.rmeta
+-rw-r--r-- 1 root root    8154 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libequivalent-41892d56feda73f7.rmeta
+-rw-r--r-- 1 root root   63966 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libevent_listener_strategy-0168bd7db18b0294.rmeta
+-rw-r--r-- 1 root root   10795 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libfnv-dff2a98c537eef4c.rmeta
+-rw-r--r-- 1 root root   30957 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libfutures_sink-0a944b36a055b896.rmeta
+-rw-r--r-- 1 root root 1418994 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libhttp-d305a33b6ab087a9.rmeta
+-rw-r--r-- 1 root root  239397 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libidna-e5ee114ae027c437.rmeta
+-rw-r--r-- 1 root root    7187 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libis_terminal-1a9dba05e6e49202.rmeta
+-rw-r--r-- 1 root root   26912 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libmemoffset-4aa858849b0390e1.rmeta
+-rw-r--r-- 1 root root 2488924 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libregex_syntax-04099a9a283cccd2.rmeta
+-rw-r--r-- 1 root root  826246 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libserde-81f268b2a84e6140.rmeta
+-rw-r--r-- 1 root root  142692 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libslab-d24cdede83f03df9.rmeta
+-rw-r--r-- 1 root root  209657 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libsmallvec-042672356b9035e8.rmeta
+-rw-r--r-- 1 root root  232777 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libtokio_rustls-edfe0595e84d14ec.rmeta
+-rw-r--r-- 1 root root 1016595 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libtracing_subscriber-b291930a28532d56.rmeta
+-rw-r--r-- 1 root root   90297 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libunicase-392c267449cfb7c1.rmeta
+-rw-r--r-- 1 root root  445500 Oct  7 09:49 /var/tmp/afs-e2e-release-20261006-r1/target/debug/deps/libzerotrie-5d0d917abba19153.rmeta

@@ -1,0 +1,18 @@
+--- a/development/acceptance/native-workspace-linux.py
++++ b/development/acceptance/native-workspace-linux.py
+@@ -285,7 +285,14 @@
+                 for n in ('control', 'logs', 'run'):
+                     src = self.root / n
+                     if src.exists():
+-                        shutil.copytree(src, self.out / n, ignore=shutil.ignore_patterns('*.sock'), dirs_exist_ok=True)
++                        if self.args.orderly_recovery_only and hasattr(self, 'recovery_probe'):
++                            try:
++                                self.recovery_probe.archive(self, n, self.out / n, 'final')
++                            except Exception as error:
++                                result.setdefault('archive_errors', {})[n] = repr(error)
++                                result['status'] = 'FAIL'
++                        else:
++                            shutil.copytree(src, self.out / n, ignore=shutil.ignore_patterns('*.sock'), dirs_exist_ok=True)
+             self.save('checks.json', self.checks)
+             self.save('result.json', result)
+         print(json.dumps(result, indent=2))

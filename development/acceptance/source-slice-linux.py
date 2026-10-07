@@ -103,7 +103,7 @@ for label, command, timeout in commands:
             raise RuntimeError({'artifacts': sorted(paths)})
         command = ['sudo', '-n', 'timeout', str(timeout), paths.pop()]
         if native:
-            command += ['node::native_workspace::mount::linux::tests::']
+            command += ['node::native_workspace::']
         command += ['--ignored', '--test-threads=1', '--nocapture']
     dump(label + '.command.json', {'argv': command, 'cwd': str(args.source), 'target': str(args.target), 'timeout_seconds': timeout})
     start = time.monotonic()

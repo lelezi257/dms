@@ -1,0 +1,42 @@
+{
+  "created_at_unix": 1791338190.6437051,
+  "no_rerun_performed": true,
+  "no_source_or_original_static_report_modified": true,
+  "original_inventory_subprocess": {
+    "argv_exact": [
+      "limactl",
+      "shell",
+      "afs-g2-micro",
+      "sudo",
+      "python3",
+      "-c",
+      "\nimport json, os, stat, platform, time\nfrom pathlib import Path\nroot=Path('/opt/afs-managed-control-capacity-20261007-r1')\nrootfs=root/'rootfs'\ncontrol=root/'control'\ndef meta(p):\n    try:\n        st=os.lstat(p)\n    except FileNotFoundError:\n        return {'path':str(p),'exists':False}\n    m=st.st_mode\n    if stat.S_ISREG(m): typ='regular'\n    elif stat.S_ISDIR(m): typ='directory'\n    elif stat.S_ISLNK(m): typ='symlink'\n    elif stat.S_ISCHR(m): typ='char_device'\n    elif stat.S_ISBLK(m): typ='block_device'\n    elif stat.S_ISFIFO(m): typ='fifo'\n    elif stat.S_ISSOCK(m): typ='socket'\n    else: typ='other'\n    d={'path':str(p),'exists':True,'type':typ,'mode':oct(stat.S_IMODE(m)),'uid':st.st_uid,'gid':st.st_gid,'dev':st.st_dev,'ino':st.st_ino,'size':st.st_size}\n    if typ=='symlink': d['target']=os.readlink(p)\n    if typ in ('char_device','block_device'):\n        d['rdev']=st.st_rdev; d['major']=os.major(st.st_rdev); d['minor']=os.minor(st.st_rdev)\n    return d\nentries=[]; violations=[]\nif rootfs.exists():\n    for dirpath, dirnames, filenames in os.walk(rootfs, topdown=True, followlinks=False):\n        for name in sorted(dirnames+filenames):\n            p=Path(dirpath)/name\n            m=meta(p); entries.append(m)\n            if m.get('type') not in ('regular','directory'):\n                violations.append(m)\nselected=[root, rootfs, rootfs/'dev', rootfs/'proc', rootfs/'workspace', control, control/'runtime-state', control/'control.sock', control/'controller.lock']\nprint(json.dumps({\n  'timestamp_unix': time.time(),\n  'platform': {'system':platform.system(),'machine':platform.machine(),'release':platform.release()},\n  'root': str(root),\n  'root_exists': root.exists(),\n  'selected_paths': [meta(p) for p in selected],\n  'rootfs_entry_count': len(entries),\n  'rootfs_non_regular_or_directory_count': len(violations),\n  'rootfs_non_regular_or_directory_entries': violations,\n  'rootfs_dev_entries': [meta(p) for p in sorted((rootfs/'dev').iterdir())] if (rootfs/'dev').is_dir() else None,\n  'control_entries': sorted([p.name for p in control.iterdir()]) if control.is_dir() else None,\n  'control_runtime_state_listing': sorted([p.name for p in (control/'runtime-state').iterdir()]) if (control/'runtime-state').is_dir() else None\n}, sort_keys=True))\n"
+    ],
+    "argv_form_recorded_in_static_report": [
+      "limactl",
+      "shell",
+      "afs-g2-micro",
+      "sudo",
+      "python3",
+      "<python-static-inventory>"
+    ],
+    "parsed_inventory_available_in_static_report": true,
+    "parsed_inventory_summary": {
+      "control_entries_count": 34,
+      "control_runtime_state_listing": [],
+      "root": "/opt/afs-managed-control-capacity-20261007-r1",
+      "rootfs_non_regular_or_directory_count": 12
+    },
+    "returncode": 0,
+    "script_stdin_exact_source": "reconstructed_from_this_agent_turn_tool_call; not independently persisted before this provenance file",
+    "script_stdin_sha256": "bf322ac0176d00e622a6696f7bb75247c1382c7581370bb2466db995b921352b",
+    "stderr_exact": "bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory\nbash: line 1: cd: /Users/lzc: No such file or directory\n",
+    "stdout_raw_available_now": false,
+    "stdout_raw_gap": "The original subprocess stdout buffer was parsed into inventory and its SHA was stored in rootfs-restart-static-boundary.json, but the raw stdout bytes were not saved as a separate artifact. Per instruction this file does not rerun the probe or fabricate stdout.",
+    "stdout_sha256_recorded_at_original_capture": "86b5f7d0b13ee6c86a790c3bd5b2633dc6b087feb8a9d541e7cb5156ed9cc0e9"
+  },
+  "static_report": "../evidence/afs-delivery/native-orderly-recovery-20261007-r1/rootfs-restart-static-boundary.json",
+  "static_report_bytes": 17531,
+  "static_report_sha256": "3740ce645898e4ae6a49287ac3d06792cde03cc36c8b3593239b5c6cfdc191d1",
+  "status": "PARTIAL_PROVENANCE_RECORDED"
+}

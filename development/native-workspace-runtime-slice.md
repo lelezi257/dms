@@ -1,3 +1,5 @@
+**新增当前限定通过（2026-10-07，事实）：** main253057f基底/157-map a062bfe8，两个真实Linux挂载清理重试缺陷先2FAIL复现、修复后2PASS；普通10测试、配置7测试及七项受影响源码门禁通过。仅确认clone卸载/容器删除阶段推进，失败保留同一authority/export；未构建新服务包或执行官方runc/Node E2E。G1历史8/8、G2计数/defaultOFF不变，6d已存性能数据保持历史身份并复用，不重复刷分。下一独立Node关闭时的忙引用所有权/排空小项；宿主独立开关及混合语义缺口仍未完成。[版本、原始失败与结果](evidence/20261007-ownerfs-bind-cleanup-retry/README.md)。
+
 # Managed OwnerFs workspace runtime slice
 
 2026-10-07; initial source25a8061/map8ef8b788, official runc1.5.2 on afs-g2-micro. The initial actual run exposed a stopped-container procfs cleanup failure. The narrow fixed candidate has157 compiler inputs/map66dbbe3e; targeted controller tests, four physical mount tests including hidden procfs, strict Clippy, release build and helper TERM pass on Linux. A fresh actual managed-container rerun is required; old package results retain their original identity. G1 remains historical8/8. This is a bounded prerequisite of G2.12, not its full exit or G2.13 performance.

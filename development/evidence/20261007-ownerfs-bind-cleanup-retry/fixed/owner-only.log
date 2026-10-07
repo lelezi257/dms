@@ -1,0 +1,23 @@
+    Checking afs v0.1.0 (/workspace/dms/source)
+warning: method `read_ranges_at_uncommitted` is never used
+   --> src/node/chunk.rs:187:19
+    |
+168 | impl PinnedChunkReader {
+    | ---------------------- method in this implementation
+...
+187 |     pub(crate) fn read_ranges_at_uncommitted(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `quarantined_chunks` is never used
+   --> src/node/chunk.rs:625:19
+    |
+293 | impl LocalChunkStore {
+    | -------------------- method in this implementation
+...
+625 |     pub(crate) fn quarantined_chunks(&self) -> Result<Vec<LocalChunkRecord>> {
+    |                   ^^^^^^^^^^^^^^^^^^
+
+warning: `afs` (lib) generated 2 warnings
+    Finished `release` profile [optimized] target(s) in 2.64s

@@ -62,7 +62,7 @@ mod structural_index_invariants;
 mod structural_index_perf;
 
 #[cfg(test)]
-mod native_home_tests;
+pub(crate) mod native_home_tests;
 #[cfg(test)]
 mod subtree_index_invariants;
 #[cfg(test)]

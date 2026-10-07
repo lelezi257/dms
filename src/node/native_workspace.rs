@@ -141,6 +141,8 @@ struct Active {
     pid: Option<ProcessIdentity>,
     verified: bool,
     container_attempted: bool,
+    final_clone_detached: bool,
+    container_deleted: bool,
 }
 struct ProcessIdentity {
     pid: u32,
@@ -383,6 +385,8 @@ impl Driver {
             pid: None,
             verified: false,
             container_attempted: false,
+            final_clone_detached: false,
+            container_deleted: false,
         });
         let result = (|| {
             let active = self.active.as_mut().expect("retained permit and export");
@@ -557,15 +561,36 @@ impl Driver {
             return Ok(());
         };
         active.verified = false;
-        let container = active.container.clone();
         if !active.container_attempted {
             active.export.detach()?;
             self.active = None;
             return Ok(());
         }
+        if !active.container_deleted {
+            self.cleanup_container()?;
+        }
+        // A confirmed delete is monotonic: a busy export retry must not query
+        // an already deleted container or reacquire its authority/mount.
+        self.active
+            .as_mut()
+            .expect("retained export")
+            .export
+            .detach()?;
+        self.active = None;
+        Ok(())
+    }
+
+    fn cleanup_container(&mut self) -> io::Result<()> {
+        let container = self
+            .active
+            .as_ref()
+            .expect("retained container")
+            .container
+            .clone();
         // Recover an exact physical claim if the in-container observer failed.
         // Captured handles remain owned until normal clone detach is proved.
         if let Some(active) = self.active.as_ref()
+            && !active.final_clone_detached
             && active.final_namespace.is_some()
             && active.final_unique.is_none()
         {
@@ -631,11 +656,13 @@ impl Driver {
                 "final clone identity remains unverified; retain claim for reconciliation",
             ));
         }
-        if let (Some(namespace), Some(root), Some(unique)) = (
-            &active.final_namespace,
-            &active.final_root,
-            active.final_unique,
-        ) {
+        if !active.final_clone_detached
+            && let (Some(namespace), Some(root), Some(unique)) = (
+                &active.final_namespace,
+                &active.final_root,
+                active.final_unique,
+            )
+        {
             let source = active.permit.source_identity();
             let runtime_rootfs = active
                 .runtime_rootfs
@@ -656,14 +683,17 @@ impl Driver {
                     inode: covered.ino(),
                 },
             )?;
+            self.active
+                .as_mut()
+                .expect("retained final claim")
+                .final_clone_detached = true;
         }
         self.run_runtime(&["delete", &container], Duration::from_secs(1), false)?;
         let active = self.active.as_mut().expect("active");
+        active.container_deleted = true;
         active.final_root = None;
         active.final_namespace = None;
         active.runtime_rootfs = None;
-        active.export.detach()?;
-        self.active = None;
         Ok(())
     }
 
@@ -1039,6 +1069,161 @@ mod tests {
     use super::*;
     #[cfg(target_os = "linux")]
     use std::os::unix::fs::symlink;
+
+    #[cfg(target_os = "linux")]
+    fn cleanup_retry_fixture() -> (tempfile::TempDir, tempfile::TempDir, Driver) {
+        require_root().unwrap();
+        isolate_mount_namespace().unwrap();
+        let (source_temp, owner, ctx, _) =
+            crate::node::vfs::ownerfs::native_home_tests::fixture(true);
+        crate::node::vfs::ownerfs::native_home_tests::mkdir_root(&owner, &ctx, "workspace");
+        let owner = Arc::new(owner);
+        let permit = owner
+            .native_home_export_for_current_namespace(OsStr::new("workspace"))
+            .unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let mount = temp.path().join("mount");
+        fs::create_dir_all(mount.join("workspace")).unwrap();
+        let mut export = WorkspaceBindMount::prepare(
+            permit.source_descriptor().unwrap(),
+            File::open(&mount).unwrap(),
+            permit.name(),
+        )
+        .unwrap();
+        export.activate().unwrap();
+        let runtime = temp.path().join("runtime");
+        fs::write(
+            &runtime,
+            format!(
+                "#!/bin/sh\nset -eu\ncd '{}'\nprintf '%s\\n' \"$3\" >> calls\n[ ! -e deleted ] || exit 64\ncase \"$3\" in\nstate) printf '%s\\n' '{{\"id\":\"afs-native-retry\",\"status\":\"stopped\"}}';;\ndelete) if [ -e fail-delete-once ]; then rm fail-delete-once; exit 1; fi; touch deleted;;\n*) exit 65;;\nesac\n",
+                temp.path().display()
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(&runtime, fs::Permissions::from_mode(0o755)).unwrap();
+        let driver = Driver {
+            owner,
+            mount,
+            cfg: NativeWorkspaceConfig {
+                control_dir: temp.path().into(),
+                runtime,
+                rootfs: temp.path().join("rootfs"),
+                workload_uid: 501,
+                workload_gid: 501,
+            },
+            stop: Arc::new(AtomicBool::new(false)),
+            listener: UnixListener::bind(temp.path().join("test.sock")).unwrap(),
+            lock: File::create(temp.path().join("test.lock")).unwrap(),
+            active: Some(Active {
+                permit,
+                export,
+                container: "afs-native-retry".into(),
+                final_namespace: None,
+                final_root: None,
+                final_unique: None,
+                runtime_rootfs: None,
+                pid: None,
+                verified: true,
+                container_attempted: true,
+                final_clone_detached: false,
+                container_deleted: false,
+            }),
+            responses: HashMap::new(),
+            sequence: 0,
+        };
+        (temp, source_temp, driver)
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    #[ignore = "requires root Linux private mount namespace; run explicitly"]
+    fn cleanup_retry_after_deleted_container_retains_busy_export() {
+        let (temp, _source, mut driver) = cleanup_retry_fixture();
+        let claim = driver
+            .active
+            .as_ref()
+            .unwrap()
+            .export
+            .mount_identity()
+            .unwrap();
+        let mut holder = Command::new("sleep")
+            .arg("30")
+            .current_dir(driver.mount.join("workspace"))
+            .spawn()
+            .unwrap();
+        let first = driver.cleanup();
+        let held = driver
+            .active
+            .as_ref()
+            .map(|a| a.export.mount_identity().unwrap());
+        holder.kill().unwrap();
+        holder.wait().unwrap();
+        let second = driver.cleanup();
+        assert_eq!(first.unwrap_err().raw_os_error(), Some(libc::EBUSY));
+        assert_eq!(held, Some(claim));
+        second.expect("retry must only detach the same export after confirmed delete");
+        assert_eq!(driver.status()["state"], "Idle");
+        assert_eq!(
+            fs::read_to_string(temp.path().join("calls")).unwrap(),
+            "state\nstate\ndelete\n"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    #[ignore = "requires root Linux private mount namespace; run explicitly"]
+    fn cleanup_retry_after_clone_detach_does_not_unmount_twice() {
+        let (temp, _source, mut driver) = cleanup_retry_fixture();
+        let rootfs = temp.path().join("runtime-rootfs");
+        fs::create_dir_all(rootfs.join("workspace")).unwrap();
+        let active = driver.active.as_mut().unwrap();
+        // A real second namespace keeps the controller's rootfs path covered,
+        // just as the adapter sees the private OCI root separately from its view.
+        let mut child = Command::new("unshare")
+            .args(["--mount", "--propagation", "private", "/bin/sh", "-ec",
+                "mount --bind \"$1\" \"$2/workspace\"; mount -o remount,bind,nosuid,nodev \"$2/workspace\"; echo ready; read release",
+                "clone-fixture"])
+            .arg(driver.mount.join("workspace"))
+            .arg(&rootfs)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut ready = String::new();
+        BufReader::new(child.stdout.take().unwrap())
+            .read_line(&mut ready)
+            .unwrap();
+        assert_eq!(ready, "ready\n");
+        let namespace = File::open(format!("/proc/{}/ns/mnt", child.id())).unwrap();
+        let root = File::open(format!("/proc/{}/root{}", child.id(), rootfs.display())).unwrap();
+        child.kill().unwrap();
+        child.wait().unwrap();
+        let (_, _, unique) =
+            inspect_secondary_clone(&namespace, &root, OsStr::new("workspace")).unwrap();
+        active.final_namespace = Some(namespace);
+        active.final_root = Some(root);
+        active.final_unique = Some(unique);
+        active.runtime_rootfs = Some(rootfs);
+        fs::write(temp.path().join("fail-delete-once"), b"").unwrap();
+        let first = driver.cleanup();
+        assert!(
+            first.is_err(),
+            "injected runtime deletion failure must propagate"
+        );
+        assert_eq!(driver.status()["state"], "Unknown");
+        assert!(
+            driver.active.is_some(),
+            "failed cleanup retains its authority and claim"
+        );
+        driver
+            .cleanup()
+            .expect("retry must skip the confirmed final clone detach");
+        assert_eq!(driver.status()["state"], "Idle");
+        assert_eq!(
+            fs::read_to_string(temp.path().join("calls")).unwrap(),
+            "state\nstate\ndelete\nstate\nstate\ndelete\n"
+        );
+    }
 
     fn rootfs_template(root: &Path) {
         fs::create_dir(root).unwrap();

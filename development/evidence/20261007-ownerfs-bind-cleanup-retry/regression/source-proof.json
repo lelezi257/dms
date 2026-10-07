@@ -1,0 +1,32 @@
+{
+  "source_base": "253057fdb94151283fcf3bae60c902c4098f67e1",
+  "map_sha256": "604b71a0bff8dd62a3f23732a333fef72a77db3761dabe5409816a3e7307639a",
+  "status": "PASS",
+  "selected_gates": [
+    "physical-build"
+  ],
+  "commands": [
+    {
+      "label": "physical-build",
+      "returncode": 0,
+      "elapsed_seconds": 62.139552142005414,
+      "minimum_free_bytes": 40251695104,
+      "stop_reason": null
+    }
+  ],
+  "inputs_unchanged": true,
+  "binaries": {
+    "afs-meta": {
+      "sha256": "f4d423fcced38cd0a6624b1104ff05c136974150d21590522a90a40e637aca0c",
+      "bytes": 15879736
+    },
+    "afs-node": {
+      "sha256": "de1d16895c062651aa9e9de375b9ac5bb5da5b52672a7d70093bebdd090bc9ee",
+      "bytes": 26022400
+    },
+    "afs-workspace-probe": {
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+      "bytes": 560000
+    }
+  }
+}

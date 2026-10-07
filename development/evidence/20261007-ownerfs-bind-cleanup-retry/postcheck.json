@@ -1,0 +1,7 @@
+{
+  "scope": "post-run caller namespace and relevant live process scan; no protected-process identity claim",
+  "relevant_processes": [],
+  "host_test_mounts": [],
+  "free_bytes": 40292388864,
+  "status": "PASS"
+}

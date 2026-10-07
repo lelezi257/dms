@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "timeout",
+    "60",
+    "/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2",
+    "node::native_workspace::tests::cleanup_retry_",
+    "--ignored",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "exit": 101,
+  "elapsed_seconds": 0.12088366800162476,
+  "test_elf_sha256": "5373c38790e28c9c6dde642ce30812186270cac841a90ec304776d07bc149b8f",
+  "scope": "new regression against original cleanup; expected product FAIL retained"
+}

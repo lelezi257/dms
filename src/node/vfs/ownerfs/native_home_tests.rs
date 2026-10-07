@@ -130,7 +130,7 @@ impl RootMeta for NativeHomeMeta {
     }
 }
 
-pub(super) fn fixture(
+pub(crate) fn fixture(
     native_home_eligible: bool,
 ) -> (tempfile::TempDir, OwnerFs, RequestContext, Arc<LocalFs>) {
     let temp = tempfile::tempdir().unwrap();
@@ -181,7 +181,7 @@ fn fixture_native_home_eligible_with_remote() -> (tempfile::TempDir, OwnerFs, Re
     (temp, fs, ctx)
 }
 
-pub(super) fn mkdir_root(fs: &OwnerFs, ctx: &RequestContext, name: &str) -> Entry {
+pub(crate) fn mkdir_root(fs: &OwnerFs, ctx: &RequestContext, name: &str) -> Entry {
     Backend::mkdir(fs, ctx, fs.root_inode(), OsStr::new(name), 0o755).unwrap()
 }
 

@@ -48,4 +48,6 @@ Every run records throughput plus p50, p95 and p99 for the measured operation-la
 
 Current f03 local read now has independently measured raw latency arrays and a frozenp95, but its formal hot prerequisite failed before timing. The separately frozen repeat diagnostic has unequal client residency (Owner0/Moose64MiB); ratios andp50/p95/p99 are retained as diagnostic, not formal PASS. [Case evidence](evidence/20261008-owner-local-read-latency/README.md). The missing item is matched-cache qualification, not a blanket lack of any latency samples.
 
+Current f03 local create+fdatasync write also retains independent raw latency and separate barrier times. Twelve fresh 64MiB files passed core content/EOF checks, but MooseFS strong durable-ACK and backing-cache comparability remain unqualified. The measured ratios are diagnostic, not a formal pass or an accepted relaxation. [Write evidence](evidence/20261008-owner-local-write-latency/README.md).
+
 Stage G1 remains closed at historical 8/8. Current-version regressions, ordinary OwnerFs performance under this rule, and missing latency evidence belong to G2.

@@ -1,0 +1,6 @@
+{
+  "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-local-read-latency-20261008-r1/runner-diagnostic.py",
+  "sha256": "f49bff15e6b6eacb5ed10e74002d06efaef231f661c82ca1688be6db944b4908",
+  "patch": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-local-write-20261008-r1/runner.patch",
+  "patch_sha256": "072013ffd3295973a46d0d7cf08fc573ac584a561afe0f26795b281e6deb3d0f"
+}

@@ -1,0 +1,6 @@
+{
+  "status": "PASS_TARGETED_TOOL_GUARDS",
+  "valid_payload": 1,
+  "rejected_mismatches": 10,
+  "not_product_run": true
+}

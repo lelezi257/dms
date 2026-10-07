@@ -1,0 +1,33 @@
+{"msg":"Mounting /opt/afs-workspace-bind-data-perf-20261007-r1/mount/ownerfs","level":"INFO","ts":"2026-10-07T08:07:19.695974179Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-07T08:07:19.697625782Z","instance":"node-a","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/opt/afs-workspace-bind-data-perf-20261007-r1/run/node.sock","rest":"127.0.0.1:22501","grpc":"127.0.0.1:22500"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:19.814838466Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs root is not registered in Meta","kind":"NotFound","code":34078721}
+{"msg":"FUSE operation parse failed for request RequestId(32): Unknown FUSE opcode (52)","level":"WARN","ts":"2026-10-07T08:07:19.876273954Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:19.925189561Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-07T08:07:19.925219479Z","instance":"node-a","service_name":"afs-node","name":"io-off-experiment-0","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:19.925853711Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:20.086318746Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:20.333437988Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-07T08:07:20.333464073Z","instance":"node-a","service_name":"afs-node","name":"io-off-experiment-1","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:20.333878296Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:20.440686005Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:20.468692335Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-07T08:07:20.468720794Z","instance":"node-a","service_name":"afs-node","name":"io-off-experiment-2","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:20.469443654Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:20.632564534Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:20.871623186Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-07T08:07:20.871656521Z","instance":"node-a","service_name":"afs-node","name":"io-off-experiment-3","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:20.872040326Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:20.980499805Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:21.009056363Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-07T08:07:21.009081239Z","instance":"node-a","service_name":"afs-node","name":"io-off-experiment-4","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:21.009788598Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:21.114878863Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:21.366908568Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-07T08:07:21.366929902Z","instance":"node-a","service_name":"afs-node","name":"io-off-experiment-5","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:21.367315375Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T08:07:21.478854212Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T08:07:21.657166354Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"Mounting /opt/afs-workspace-bind-data-perf-20261007-r1/mount/ownerfs","level":"INFO","ts":"2026-10-07T08:07:22.110560216Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE operation parse failed for request RequestId(4): Unknown FUSE opcode (52)","level":"WARN","ts":"2026-10-07T08:07:22.11095398Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-07T08:07:22.112141024Z","instance":"node-a","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/opt/afs-workspace-bind-data-perf-20261007-r1/run/node.sock","rest":"127.0.0.1:22501","grpc":"127.0.0.1:22500"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T08:07:23.997339547Z","instance":"node-a","service_name":"afs-node"}

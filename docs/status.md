@@ -1,3 +1,7 @@
+**新增当前workspace数据性能子项完成（2026-10-07，事实）：** 产品93169c8/157编译输入与既有ELF包未变，普通官方runc容器绑定宿主workspace，OFF/独立宿主ON/ext4同候选64MiB/C1/1MiB块、1预热5配对；ON写0.944934/读1.036200×ext4配对速度达到预设0.90。OFF写0.738207/读0.348338 FAIL保留暂缓，不刷分。183驱动/232独立检查、15 Linux工具测试PASS；48原始C输出/48scrape、每轮OFF阳性/ON数据回调0、正常wait0/PID与mount闭合/保护身份/248,127,488B峰值预算均核实。缓存未观察、写后读小样本范围和单轮波动明确；不是全G2.13/full ON/当前POSIX或新试用包。G1历史8/8和总体大项计数/defaultOFF不变。下一小规模workspace元数据，然后DFS一写多读；普通性能、广义排空/混合语义/复杂可靠性仍分项后置。 [精确版本、原始数据和独立复核](../development/evidence/20261007-workspace-bind-data-perf/README.md)。
+
+以下保留原时点/原版本记录。
+
 **新增当前宿主运行小项通过（2026-10-07，事实）：** main产品93169c8/157编译输入未变，两次包字节一致；隔离Linux/ext4中无runc的真实Node宿主bind通过55驱动/50独立检查，12工具测试PASS。物理Home目录覆盖FUSE一级workspace，普通UID501双向64KiB内容、UID502 EACCES13、六类native数据/目录回调增量0、Meta/Node实际wait0及正常mount闭合通过；native背景getattr12保留，不冒称全部回调0。探针二次stat及外层旧回执路径错误FAIL保留，仅改工具后限定回归/复核；源码/ELF/环境不变。G1历史8/8、G2计数/defaultOFF不变；当前限定功能不继承标准/性能/full ON。下一继续既定workspace性能，旧6d摸底原身份复用，广义撤权/排空/mixed语义和复杂可靠性后置。 [版本、原始结果与失败](../development/evidence/20261007-ownerfs-workspace-host-runtime/README.md)。
 
 以下保留原时点/原版本记录。

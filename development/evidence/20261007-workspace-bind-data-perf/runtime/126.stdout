@@ -1,0 +1,119 @@
+# HELP afs_dfs_payload_bytes_total Actual DFS file payload bytes transferred; descriptors are excluded.
+# TYPE afs_dfs_payload_bytes_total counter
+afs_dfs_payload_bytes_total{direction="recv",operation="replica",transport="grpc"} 0
+afs_dfs_payload_bytes_total{direction="recv",operation="replica",transport="rdma"} 0
+afs_dfs_payload_bytes_total{direction="send",operation="read",transport="grpc"} 0
+afs_dfs_payload_bytes_total{direction="send",operation="read",transport="rdma"} 0
+# HELP afs_fuse_callbacks_total Implemented FUSE callback entries received by filesystem and operation, including failures.
+# TYPE afs_fuse_callbacks_total counter
+afs_fuse_callbacks_total{filesystem="dfs",operation="access"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="create"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="destroy"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="flush"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="forget"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="fsync"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="fsyncdir"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="getattr"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="getlk_with_options"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="getxattr"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="init"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="interrupt"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="link"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="listxattr"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="lookup"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="mkdir"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="mknod"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="open"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="opendir"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="read"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="readdir"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="readlink"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="release"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="releasedir"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="removexattr"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="rename"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="rmdir"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="setattr"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="setlk_with_options"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="setxattr"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="statfs"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="symlink"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="unlink"} 0
+afs_fuse_callbacks_total{filesystem="dfs",operation="write"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="access"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="create"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="destroy"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="flush"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="forget"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="fsync"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="fsyncdir"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="getattr"} 98
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="getlk_with_options"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="getxattr"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="init"} 1
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="interrupt"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="link"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="listxattr"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="lookup"} 1
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="mkdir"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="mknod"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="open"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="opendir"} 16
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="read"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="readdir"} 32
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="readlink"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="release"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="releasedir"} 16
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="removexattr"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="rename"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="rmdir"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="setattr"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="setlk_with_options"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="setxattr"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="statfs"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="symlink"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="unlink"} 0
+afs_fuse_callbacks_total{filesystem="ownerfs",operation="write"} 0
+# HELP afs_ownerfiles_payload_bytes_total Successful logical OwnerFiles payload bytes by side, direction and data plane.
+# TYPE afs_ownerfiles_payload_bytes_total counter
+afs_ownerfiles_payload_bytes_total{direction="read",plane="grpc",side="client"} 0
+afs_ownerfiles_payload_bytes_total{direction="read",plane="grpc",side="server"} 0
+afs_ownerfiles_payload_bytes_total{direction="read",plane="rdma",side="client"} 0
+afs_ownerfiles_payload_bytes_total{direction="read",plane="rdma",side="server"} 0
+afs_ownerfiles_payload_bytes_total{direction="write",plane="grpc",side="client"} 0
+afs_ownerfiles_payload_bytes_total{direction="write",plane="grpc",side="server"} 0
+afs_ownerfiles_payload_bytes_total{direction="write",plane="rdma",side="client"} 0
+afs_ownerfiles_payload_bytes_total{direction="write",plane="rdma",side="server"} 0
+# HELP afs_trace_dropped_spans_total Spans dropped before OTLP export.
+# TYPE afs_trace_dropped_spans_total counter
+afs_trace_dropped_spans_total{reason="queue_full"} 0
+# HELP afs_trace_export_duration_seconds OTLP batch export latency in seconds.
+# TYPE afs_trace_export_duration_seconds histogram
+afs_trace_export_duration_seconds_bucket{le="0.0001"} 0
+afs_trace_export_duration_seconds_bucket{le="0.00025"} 0
+afs_trace_export_duration_seconds_bucket{le="0.0005"} 0
+afs_trace_export_duration_seconds_bucket{le="0.001"} 0
+afs_trace_export_duration_seconds_bucket{le="0.0025"} 0
+afs_trace_export_duration_seconds_bucket{le="0.005"} 0
+afs_trace_export_duration_seconds_bucket{le="0.01"} 0
+afs_trace_export_duration_seconds_bucket{le="0.025"} 0
+afs_trace_export_duration_seconds_bucket{le="0.05"} 0
+afs_trace_export_duration_seconds_bucket{le="0.1"} 0
+afs_trace_export_duration_seconds_bucket{le="0.25"} 0
+afs_trace_export_duration_seconds_bucket{le="0.5"} 0
+afs_trace_export_duration_seconds_bucket{le="1"} 0
+afs_trace_export_duration_seconds_bucket{le="2.5"} 0
+afs_trace_export_duration_seconds_bucket{le="5"} 0
+afs_trace_export_duration_seconds_bucket{le="+Inf"} 0
+afs_trace_export_duration_seconds_sum 0
+afs_trace_export_duration_seconds_count 0
+# HELP afs_trace_export_queue_depth Sampled spans waiting in the process export queue.
+# TYPE afs_trace_export_queue_depth gauge
+afs_trace_export_queue_depth 0
+# HELP afs_trace_exported_spans_total Spans successfully exported through OTLP.
+# TYPE afs_trace_exported_spans_total counter
+afs_trace_exported_spans_total 0
+# HELP afs_trace_last_success_timestamp_seconds Unix timestamp of the most recent successful OTLP export.
+# TYPE afs_trace_last_success_timestamp_seconds gauge
+afs_trace_last_success_timestamp_seconds 0
+# EOF

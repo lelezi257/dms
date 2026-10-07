@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "child": {
+      "pid": "84501",
+      "exe": "/opt/afs-workspace-bind-data-perf-20261007-r1/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-bind-data-perf-20261007-r1/etc/meta.toml",
+      "start_ticks": "9105932",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-data-perf-20261007-r1/run/meta.lifecycle.GDZRB1",
+      "supervisor_pid": "84485"
+    },
+    "ready": {
+      "supervisor_pid": "84485"
+    },
+    "exit": {
+      "pid": "84501",
+      "exe": "/opt/afs-workspace-bind-data-perf-20261007-r1/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-bind-data-perf-20261007-r1/etc/meta.toml",
+      "start_ticks": "9105932",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-data-perf-20261007-r1/run/meta.lifecycle.GDZRB1",
+      "supervisor_pid": "84485",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  },
+  "node": {
+    "child": {
+      "pid": "84746",
+      "exe": "/opt/afs-workspace-bind-data-perf-20261007-r1/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-bind-data-perf-20261007-r1/etc/node.toml",
+      "start_ticks": "9105950",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-data-perf-20261007-r1/run/node.lifecycle.h6FNyV",
+      "supervisor_pid": "84730"
+    },
+    "ready": {
+      "supervisor_pid": "84730"
+    },
+    "exit": {
+      "pid": "84746",
+      "exe": "/opt/afs-workspace-bind-data-perf-20261007-r1/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-bind-data-perf-20261007-r1/etc/node.toml",
+      "start_ticks": "9105950",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-data-perf-20261007-r1/run/node.lifecycle.h6FNyV",
+      "supervisor_pid": "84730",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  }
+}

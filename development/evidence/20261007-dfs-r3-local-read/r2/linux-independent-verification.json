@@ -1,0 +1,47 @@
+{
+  "budgets": {
+    "admission": 388284416,
+    "after-read-budget": 591589376,
+    "before-read-budget": 590856192
+  },
+  "closure": {
+    "actual_wait0_roles": 4,
+    "owned_pids_gone": 8
+  },
+  "commands": {
+    "parent_guard_results": [
+      "commands/a-driver-guards.result.json"
+    ],
+    "r2_result_files": 76
+  },
+  "identity": {
+    "afs_meta_sha256": "76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2",
+    "afs_node_sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7",
+    "compiler_input_map": "151a2c6d0de361c1aa3ed2bc9d197102f59563a1ad2a98f56930c981f902c8f2",
+    "io_sha256": "c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804",
+    "product_source_commit": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d"
+  },
+  "local_read": {
+    "median_mib_per_second": 65.624895983899,
+    "mib_per_second": [
+      65.76119589677552,
+      65.624895983899,
+      65.70684354598512,
+      65.56091705906002,
+      65.54412299117901
+    ]
+  },
+  "replicas": {
+    "after": {
+      "chunks": 16,
+      "physical_copies": 48
+    },
+    "before": {
+      "chunks": 16,
+      "physical_copies": 48
+    }
+  },
+  "scope": "G2.22 DFS R3 current-package A single-client local read only; no 3FS parity claim and no G2.23 write-performance claim",
+  "status": "PASS",
+  "writer_seed_wall_ns": 869387895
+}

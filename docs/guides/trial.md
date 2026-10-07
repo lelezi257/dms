@@ -98,3 +98,5 @@ ctl stop all
 - gRPC是本试用默认数据通道；RDMA、复杂故障、长时间/大规模、etcd/Redis后置。
 - 当前fuser仍保留历史私有差异；官方迁移存在公开API缺口，不能宣称原版依赖整改完成。
 - 历史G1/g1.5的8/8保留；新候选回归、历史标准、各性能子项均按各自版本记录。
+
+Current7e6 ordinary-package DFS single-reader observation: [64MiB/C1 A reads, five samples, three-copy proof and normal closure](../../development/evidence/20261007-dfs-r3-local-read/README.md). This is measured data with unobserved cache/RPC locality, not a qualified3FS comparison or a five-round write result; the first test-output preparation refusal remains linked.

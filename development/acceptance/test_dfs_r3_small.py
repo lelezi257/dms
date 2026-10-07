@@ -90,6 +90,64 @@ class CurrentDatasetGuards(unittest.TestCase):
                         self.assertFalse(result['performance_claim'])
                     self.assertTrue((out/'summary.json').is_file())
 
+    def local_rounds(self):
+        row = dict(operation='seq-read', file_bytes=64 * 2**20, io_bytes=64 * 2**20,
+                   block_bytes=2**20, concurrency=1, barrier='close', pattern_byte=97,
+                   operations=64, cache_requested='unobserved', content_ok=True,
+                   residency_observed=False, wall_ns=1_000_000_000, dataset=probe.DATASET)
+        return [dict(status='PASS', rc=0, round=i, measured=i > 0,
+                     result=dict(row, wall_ns=(100 if i == 0 else i) * 1_000_000_000))
+                for i in range(6)]
+
+    def test_local_timings_exclude_warmup_and_keep_five_values(self):
+        result = probe.local_read_timings(self.local_rounds())
+        self.assertEqual(result['mib_per_second'], [64, 32, 64/3, 16, 12.8])
+        self.assertEqual(result['median_mib_per_second'], 64/3)
+        self.assertFalse(result['qualified_threefs_parity'])
+
+    def test_local_timings_reject_missing_duplicate_failed_or_mislabeled_rounds(self):
+        original = self.local_rounds()
+        invalid = [original[:-1], original + [original[-1]]]
+        for mutation in ({'round': 0}, {'round': True}, {'measured': False},
+                         {'status': 'FAIL'}, {'rc': 2}):
+            changed = copy.deepcopy(original)
+            changed[1].update(mutation)
+            invalid.append(changed)
+        for rounds in invalid:
+            with self.subTest(rounds=rounds), self.assertRaises(ValueError):
+                probe.local_read_timings(rounds)
+
+    def test_local_timings_reject_corrupt_data_and_false_timer(self):
+        for mutation in ({'content_ok': False}, {'operations': 63}, {'wall_ns': True},
+                         {'wall_ns': 0}, {'dataset': 'uniform'}):
+            changed = self.local_rounds()
+            changed[2]['result'].update(mutation)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                probe.local_read_timings(changed)
+
+    def test_local_reader_preserves_failure_and_never_scores_post_read_corruption(self):
+        manifest = dict(status='DATA_RECORDED', identity=self.identity,
+                        relative_dir=probe.RELATIVE, content=probe.expected_content())
+        args = SimpleNamespace(manifest='/manifest.json', round_timeout=60)
+        verified = dict(status='PASS', sha256=manifest['content']['sha256'])
+        for failed_round, final in ((2, verified), (None, ValueError('post-read corruption')),
+                                    (None, verified)):
+            with tempfile.TemporaryDirectory() as directory:
+                out = Path(directory)
+                rounds = self.local_rounds()
+                if failed_round is not None:
+                    rounds[failed_round]['status'] = 'FAIL'
+                with patch.object(probe, 'prepare', return_value=(out, out, out/'payload', out/'io', self.identity)), \
+                     patch.object(probe.sync, 'read_json', return_value=manifest), \
+                     patch.object(probe, 'verify_content', side_effect=[verified, final]), \
+                     patch.object(probe, 'run_sample', side_effect=rounds) as run:
+                    result = probe.local_reader(args)
+                success = failed_round is None and not isinstance(final, Exception)
+                self.assertEqual(result['status'], 'DATA_RECORDED' if success else 'BLOCKED')
+                self.assertEqual(run.call_count, 6 if failed_round is None else failed_round + 1)
+                self.assertEqual('timings' in result, success)
+                self.assertTrue((out/'summary.json').is_file())
+
 
 if __name__ == '__main__':
     unittest.main()

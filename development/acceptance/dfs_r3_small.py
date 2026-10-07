@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import statistics
 import subprocess
 import sys
 
@@ -215,16 +216,56 @@ def check_reader(args):
     return result
 
 
+def local_read_timings(rounds):
+    """Keep the warmup separate; no score from incomplete/failed observations."""
+    require(len(rounds) == 6, 'one warmup and five measured reads required')
+    for index, sample in enumerate(rounds):
+        require(sample.get('status') == 'PASS' and sample.get('rc') == 0,
+                'failed local read cannot produce timing summary')
+        require(type(sample.get('round')) is int and sample['round'] == index
+                and sample.get('measured') is (index > 0), 'invalid round/warmup accounting')
+        validate_sample(sample['result'], 'read')
+    values = [sync.DATA_BYTES / 2**20 * 1e9 / sample['result']['wall_ns'] for sample in rounds[1:]]
+    return {'measured_rounds': 5, 'warmup_rounds': 1, 'mib_per_second': values,
+            'median_mib_per_second': statistics.median(values),
+            'timer_scope': 'C open/read/content-check/EOF/close; excludes driver SHA checks',
+            'cache_residency': 'unobserved', 'rpc_read_location': 'unobserved',
+            'qualified_threefs_parity': False}
+
+
+def local_reader(args):
+    """One client reads on the writer node; this does not prove storage locality."""
+    result, output = {'role': 'local-read', 'status': 'BLOCKED'}, None
+    rounds = []
+    try:
+        output, _, payload, tool, identity = prepare(args)
+        manifest = validate_manifest(sync.read_json(Path(args.manifest)), identity)
+        result['pre_content'] = verify_content(payload, manifest['content'])
+        for index in range(6):
+            sample = run_sample(tool, payload, 'read', output, index, args.round_timeout)
+            rounds.append(sample)
+            require(sample['status'] == 'PASS', f'local read round {index} failed')
+        result['final_content'] = verify_content(payload, manifest['content'])
+        result.update(identity=identity, timings=local_read_timings(rounds), status='DATA_RECORDED')
+    except Exception as error:
+        result['error'] = repr(error)
+    finally:
+        result['read_rounds'] = rounds
+        if output is not None:
+            sync.write_json(output / 'summary.json', result)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='role', required=True)
-    for role in ('writer', 'reader', 'check'):
+    for role in ('writer', 'reader', 'check', 'local-read'):
         item = sub.add_parser(role)
         for name in ('dfs-root', 'io-tool', 'identity', 'output'):
             item.add_argument('--' + name, required=True)
         item.add_argument('--round-timeout', type=float, default=60)
         item.add_argument('--candidate', help='separate expected source/map/ELF/probe identity manifest')
-        if role in ('reader', 'check'):
+        if role in ('reader', 'check', 'local-read'):
             item.add_argument('--manifest', required=True)
         if role == 'reader':
             item.add_argument('--reader-id', choices=('B', 'C'), required=True)
@@ -236,10 +277,11 @@ def main():
     item.set_defaults(readers=['B', 'C'])
     args = parser.parse_args()
     result = (writer(args) if args.role == 'writer' else reader(args) if args.role == 'reader'
-              else check_reader(args) if args.role == 'check' else sync.coordinator(args))
+              else check_reader(args) if args.role == 'check' else local_reader(args)
+              if args.role == 'local-read' else sync.coordinator(args))
     # Coordinator protocol validates the common shape; readers separately reject
     # uniform content. Keep that boundary explicit instead of changing old code.
-    print(json.dumps(result, indent=2), file=sys.stdout if args.role in ('writer', 'check') else sys.stderr)
+    print(json.dumps(result, indent=2), file=sys.stdout if args.role in ('writer', 'check', 'local-read') else sys.stderr)
     return 0 if result['status'] == 'DATA_RECORDED' else 1
 
 

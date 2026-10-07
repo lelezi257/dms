@@ -1,0 +1,206 @@
+[
+  {
+    "path": "results/local-read/read-00.json",
+    "sha256": "39602fff64ac0761b47352b59904600395e1ada6269e463201f0ff42e3f4ed53",
+    "observed": {
+      "argv": [
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/tools/dfs_unique_io",
+        "read",
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/mount/dfs/r3-current-counter/payload64m.bin"
+      ],
+      "measured": false,
+      "rc": 0,
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 42291,
+        "block_bytes": 1048576,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 11224293,
+        "concurrency": 1,
+        "content_ok": true,
+        "dataset": "counter-1m-v1",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "wall_ns": 973593228
+      },
+      "round": 0,
+      "status": "PASS",
+      "stderr": "",
+      "stdout": "{\"dataset\":\"counter-1m-v1\",\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"pattern_byte\":97,\"operations\":64,\"barrier\":\"close\",\"cache_requested\":\"unobserved\",\"residency_observed\":false,\"content_ok\":true,\"wall_ns\":973593228,\"client_cpu_ns\":11224293,\"barrier_ns\":42291}\n"
+    }
+  },
+  {
+    "path": "results/local-read/read-01.json",
+    "sha256": "f40850b47a70543dd99143b414c70215f35f5d18767ff4a4a1fedfee4b98e9e6",
+    "observed": {
+      "argv": [
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/tools/dfs_unique_io",
+        "read",
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/mount/dfs/r3-current-counter/payload64m.bin"
+      ],
+      "measured": true,
+      "rc": 0,
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 30041,
+        "block_bytes": 1048576,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 12000947,
+        "concurrency": 1,
+        "content_ok": true,
+        "dataset": "counter-1m-v1",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "wall_ns": 973218311
+      },
+      "round": 1,
+      "status": "PASS",
+      "stderr": "",
+      "stdout": "{\"dataset\":\"counter-1m-v1\",\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"pattern_byte\":97,\"operations\":64,\"barrier\":\"close\",\"cache_requested\":\"unobserved\",\"residency_observed\":false,\"content_ok\":true,\"wall_ns\":973218311,\"client_cpu_ns\":12000947,\"barrier_ns\":30041}\n"
+    }
+  },
+  {
+    "path": "results/local-read/read-02.json",
+    "sha256": "d60fac9bfebd8f4b23e776b7e0bf5a8037df4af4854eaba276409d71cebfae60",
+    "observed": {
+      "argv": [
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/tools/dfs_unique_io",
+        "read",
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/mount/dfs/r3-current-counter/payload64m.bin"
+      ],
+      "measured": true,
+      "rc": 0,
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 41583,
+        "block_bytes": 1048576,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 12462461,
+        "concurrency": 1,
+        "content_ok": true,
+        "dataset": "counter-1m-v1",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "wall_ns": 975239641
+      },
+      "round": 2,
+      "status": "PASS",
+      "stderr": "",
+      "stdout": "{\"dataset\":\"counter-1m-v1\",\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"pattern_byte\":97,\"operations\":64,\"barrier\":\"close\",\"cache_requested\":\"unobserved\",\"residency_observed\":false,\"content_ok\":true,\"wall_ns\":975239641,\"client_cpu_ns\":12462461,\"barrier_ns\":41583}\n"
+    }
+  },
+  {
+    "path": "results/local-read/read-03.json",
+    "sha256": "6e5c16b29b739511ef84db097f2290fbab641d618d7af1fbb2359d442d68b2a8",
+    "observed": {
+      "argv": [
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/tools/dfs_unique_io",
+        "read",
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/mount/dfs/r3-current-counter/payload64m.bin"
+      ],
+      "measured": true,
+      "rc": 0,
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 55250,
+        "block_bytes": 1048576,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 12150863,
+        "concurrency": 1,
+        "content_ok": true,
+        "dataset": "counter-1m-v1",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "wall_ns": 974023352
+      },
+      "round": 3,
+      "status": "PASS",
+      "stderr": "",
+      "stdout": "{\"dataset\":\"counter-1m-v1\",\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"pattern_byte\":97,\"operations\":64,\"barrier\":\"close\",\"cache_requested\":\"unobserved\",\"residency_observed\":false,\"content_ok\":true,\"wall_ns\":974023352,\"client_cpu_ns\":12150863,\"barrier_ns\":55250}\n"
+    }
+  },
+  {
+    "path": "results/local-read/read-04.json",
+    "sha256": "4d01323064047497bdcb5830ce04e61a5d29bb3e1c2e60247cd5ab01fdabfc0c",
+    "observed": {
+      "argv": [
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/tools/dfs_unique_io",
+        "read",
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/mount/dfs/r3-current-counter/payload64m.bin"
+      ],
+      "measured": true,
+      "rc": 0,
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 45125,
+        "block_bytes": 1048576,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 12518829,
+        "concurrency": 1,
+        "content_ok": true,
+        "dataset": "counter-1m-v1",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "wall_ns": 976191348
+      },
+      "round": 4,
+      "status": "PASS",
+      "stderr": "",
+      "stdout": "{\"dataset\":\"counter-1m-v1\",\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"pattern_byte\":97,\"operations\":64,\"barrier\":\"close\",\"cache_requested\":\"unobserved\",\"residency_observed\":false,\"content_ok\":true,\"wall_ns\":976191348,\"client_cpu_ns\":12518829,\"barrier_ns\":45125}\n"
+    }
+  },
+  {
+    "path": "results/local-read/read-05.json",
+    "sha256": "356546ac762dfc559e13eece00dc705d619ea000794e70c1ef9dbd8577290890",
+    "observed": {
+      "argv": [
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/tools/dfs_unique_io",
+        "read",
+        "/mnt/lima-afsadata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/mount/dfs/r3-current-counter/payload64m.bin"
+      ],
+      "measured": true,
+      "rc": 0,
+      "result": {
+        "barrier": "close",
+        "barrier_ns": 41000,
+        "block_bytes": 1048576,
+        "cache_requested": "unobserved",
+        "client_cpu_ns": 12465337,
+        "concurrency": 1,
+        "content_ok": true,
+        "dataset": "counter-1m-v1",
+        "file_bytes": 67108864,
+        "io_bytes": 67108864,
+        "operation": "seq-read",
+        "operations": 64,
+        "pattern_byte": 97,
+        "residency_observed": false,
+        "wall_ns": 976441473
+      },
+      "round": 5,
+      "status": "PASS",
+      "stderr": "",
+      "stdout": "{\"dataset\":\"counter-1m-v1\",\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"pattern_byte\":97,\"operations\":64,\"barrier\":\"close\",\"cache_requested\":\"unobserved\",\"residency_observed\":false,\"content_ok\":true,\"wall_ns\":976441473,\"client_cpu_ns\":12465337,\"barrier_ns\":41000}\n"
+    }
+  }
+]

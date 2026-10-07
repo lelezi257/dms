@@ -1,0 +1,4 @@
+{"msg":"meta.ready","level":"INFO","ts":"2026-10-07T11:53:07.774553339Z","instance":"meta-ctl","service_name":"afs-meta","rest":"0.0.0.0:24701","grpc":"0.0.0.0:24700"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T11:53:11.15343834Z","instance":"meta-ctl","service_name":"afs-meta"}
+{"msg":"meta.ready","level":"INFO","ts":"2026-10-07T11:55:20.43107413Z","instance":"meta-ctl","service_name":"afs-meta","rest":"0.0.0.0:24701","grpc":"0.0.0.0:24700"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T11:55:36.200813322Z","instance":"meta-ctl","service_name":"afs-meta"}

@@ -1,0 +1,1 @@
+{"status":"FAIL","scope":"host file preparation only","error":"old external RAW has no compiler-inputs.json; canonical manifest lives in source evidence/current-trial RAW","runtime_started":false}

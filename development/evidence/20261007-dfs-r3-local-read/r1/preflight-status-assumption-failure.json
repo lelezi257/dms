@@ -1,0 +1,7 @@
+{
+  "status": "FAIL",
+  "scope": "host aggregation only",
+  "reason": "Expected PASS_PREPARATION_ONLY without inspecting fixture output status",
+  "all_four_preflight_command_rc": 0,
+  "services_started": false
+}

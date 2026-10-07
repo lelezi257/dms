@@ -1,3 +1,7 @@
+**2026-10-07新增事实：G2.22当前7e6/c3bb的A单读者64MiB小项完成内容/计时/正常闭合，正式3FS对照仍待验。** 1预热5读，中位65.624896MiB/s；前后48物理副本，四actualwait0/八PID消失及11保护进程/完整mount库存不变。Linux11工具guards及独立观察校验通过；首轮遗漏结果目录导致写前拒绝，原FAIL及四正常退出保留，修测试准备后一次数据运行，无Rust/vendor/VM修补。G1历史8/8、G2大项计数/defaultOFF不变，G2.23写性能/G2.27/full bind仍开放。当前OFF标准限定复用已由既有impact-map及当前安装恢复覆盖，不重跑整套；下一G2.23三同步副本小写入摸底。 [证据](evidence/20261007-dfs-r3-local-read/README.md)。
+
+以下保留原时点记录。
+
 **当前独立出口（2026-10-07，事实）：G2.13完成，限定当前7e6/C1的8个小规模核心case。** 同公开c3bb包/map151a，新增64MiB写0.969905/读0.965910×ext4，复用同候选六元数据0.964347–1.032311；全部>=测前0.90。189驱动/258 Linux独立checks及15受影响工具guards通过，四actualwait0/十二服务监督及OCI PID与正常mount闭合，一保护进程/26 mount完整库存不变，峰值245153792B<256MiB。OFF写0.728219/读0.457996 FAIL保留暂缓，不重测刷分；无Rust/vendor/C修改或重建。G1历史8/8不变；G2变为11限定完成/2普通性能FAIL/1bind功能进行中/13待验收。G2.12 full ON/复杂语义、全部PR43组合/冷热耐久/大规模/正式MooseFS及3FS资格不升级，默认OFF、Goal ACTIVE。下一当前7e6 OFF标准适用性/限定复用审计，仅真实受影响缺口才补测，再更新核心性能交付状态。 [版本、原始数据及8项组合账本](evidence/20261007-workspace-bind-data-current/README.md)。
 
 以下保留原时点记录；当前入口以上方为准。
@@ -140,8 +144,8 @@
 | G2.18 | OwnerFs本地大规模写 | 8GiB同持久屏障，读回正确并达本地目标 | **待验收** |
 | G2.19 | OwnerFs远端大规模读 | 8GiB同条件MooseFS对照，正确并持平 | **待验收** |
 | G2.20 | OwnerFs远端大规模写 | 8GiB同持久语义MooseFS对照，正确并持平 | **待验收** |
-| G2.21 | DFS小规模一写多读 | 一写确认、多读者相同数据，逐读者/总吞吐与3FS对照 | **931 R3非重复64MiB三副本小功能/数据PASS，3FS正式性能待验收；DFS最高优先级**；[R3证据](evidence/20261007-dfs-r3-small/README.md)：16不同chunk×3物理份，B/C1预热5读，共同中位98.052181MiB/s；最新7e6回归单列。以下6d为历史范围：64MiB一写/B+C各1预热5读，前后全SHA/EOF、4AFS wait0/3stdio rc0；同一ctl公共窗口中位45.149、B/C纯C50.326/22.716MiB/s。实际A+B durable、uniform去重/缓存未观察，不计三同步/3FS。[同步证据](evidence/20261007-dfs-sync-read-small/README.md)；[旧含启动/预检/预热父窗口](evidence/20261007-dfs-manyread-small/README.md)保持原范围，非改善对比；[历史e925功能/核心恢复](evidence/20261006-e2e-current/crossvm-r1/README.md)保留原版本 |
-| G2.22 | DFS单节点小规模读 | 同副本/接口/缓存与3FS对照，正确并持平 | **待验收** |
+| G2.21 | DFS小规模一写多读 | 一写确认、多读者相同数据，逐读者/总吞吐与3FS对照 | **931 R3非重复64MiB三副本小功能/数据PASS，3FS正式性能待验收；DFS最高优先级**；[R3证据](evidence/20261007-dfs-r3-small/README.md)：16不同chunk×3物理份，B/C1预热5读，共同中位98.052181MiB/s；[最新7e6/c3bb内容/48副本及正常Meta恢复](evidence/20261007-dfs-r3-current-recovery/README.md)已过，未继承931五轮计时。以下6d为历史范围：64MiB一写/B+C各1预热5读，前后全SHA/EOF、4AFS wait0/3stdio rc0；同一ctl公共窗口中位45.149、B/C纯C50.326/22.716MiB/s。实际A+B durable、uniform去重/缓存未观察，不计三同步/3FS。[同步证据](evidence/20261007-dfs-sync-read-small/README.md)；[旧含启动/预检/预热父窗口](evidence/20261007-dfs-manyread-small/README.md)保持原范围，非改善对比；[历史e925功能/核心恢复](evidence/20261006-e2e-current/crossvm-r1/README.md)保留原版本 |
+| G2.22 | DFS单节点小规模读 | 同副本/接口/缓存与3FS对照，正确并持平 | **当前7e6小功能/计时已留，正式3FS对照待验收**；[A单读者64MiB/1预热5读](evidence/20261007-dfs-r3-local-read/README.md)，中位65.624896MiB/s，前后48物理副本/四wait0；缓存/RPC位置未观察，首写前工具拒绝保留，不计持平 |
 | G2.23 | DFS单节点小规模写 | 三份同步durable，屏障/读回正确并持平 | **待验收** |
 | G2.24 | DFS多节点读写 | 固定文件/并发，读写分别验收，不用平均数掩盖失败 | **待验收** |
 | G2.25 | DFS删除 | 固定文件集合，删除正确，操作性能对照报告 | **当前功能/摸底完成，正式对照待验收**；6d候选29.861/30.682ops/s，[原候选证据](evidence/20261007-dfs-delete-small/README.md)；patched3FS R2一次615.210/509.565、B/C各600ENOENT通过；A超预算4,067,328B/FDB-15使原资源/关闭资格FAIL，18owned已消失，不调判据/不重测。[完整新数据及失败](evidence/20261007-threefs-delete-small/README.md)。非3FS持平/物理回收/复杂故障 |

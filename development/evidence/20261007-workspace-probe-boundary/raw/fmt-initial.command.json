@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-build",
+    "bash",
+    "-c",
+    "export PATH=/home/lzc.linux/.cargo/bin:$PATH; cd /workspace/dms/source; cargo fmt --all -- --check"
+  ],
+  "rc": 1
+}

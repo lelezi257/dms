@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-g2-micro",
+    "--",
+    "sudo",
+    "python3",
+    "-B",
+    "/tmp/afs-workspace-probe-remediation-transfer-r1/runtime-postcheck-r1.py"
+  ],
+  "rc": 0
+}

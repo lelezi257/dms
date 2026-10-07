@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "pid": 89150,
+    "starttick": 9620726,
+    "sha256": "76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2",
+    "installed": {
+      "path": "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix/bin/afs-meta",
+      "device": 64769,
+      "inode": 829133
+    },
+    "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd"
+  },
+  "node": {
+    "pid": 89334,
+    "starttick": 9620743,
+    "sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7",
+    "installed": {
+      "path": "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix/bin/afs-node",
+      "device": 64769,
+      "inode": 829134
+    },
+    "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd"
+  },
+  "mount": {
+    "filesystems": [
+      {
+        "target": "/opt/afs-managed-workspace-probe-remediation-20261007-r1/mount/ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "id": 80
+      }
+    ]
+  }
+}

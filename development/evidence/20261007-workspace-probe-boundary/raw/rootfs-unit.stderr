@@ -1,0 +1,9 @@
+test_corrupt_and_truncated_elf_are_not_static_fallback (test_prepare_workspace_rootfs.LinkageAdmission.test_corrupt_and_truncated_elf_are_not_static_fallback) ... ok
+test_missing_library_and_unexpected_ldd_failure_still_reject (test_prepare_workspace_rootfs.LinkageAdmission.test_missing_library_and_unexpected_ldd_failure_still_reject) ... ok
+test_resolved_dynamic_output_is_admitted (test_prepare_workspace_rootfs.LinkageAdmission.test_resolved_dynamic_output_is_admitted) ... ok
+test_static_busybox_requires_valid_arm64_table_without_interpreter (test_prepare_workspace_rootfs.LinkageAdmission.test_static_busybox_requires_valid_arm64_table_without_interpreter) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK

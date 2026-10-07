@@ -1,0 +1,42 @@
+{
+  "source_commit": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d",
+  "source_base": "124c71c900fc3408e2087aaca6c4da2db08f4232",
+  "map_sha256": "f2f04e180bbdaf6f0074cfbae0410d4545adf8de628904c566278bba98d2e3e3",
+  "package_sha256": "4e5b9e0200e294e72a520085073bb6d226fba1c3c4949f3bbdff5aba09cc86cd",
+  "package_bytes": 14429906,
+  "binaries": {
+    "afs-meta": {
+      "sha256": "76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2"
+    },
+    "afs-node": {
+      "sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7"
+    }
+  },
+  "features": "ownerfs,dfs",
+  "helper_sha256": "4499d7f24be16926a6564f3af7a3fe7b2e5e6bb07a36c5d907bc00cc4740c2c1",
+  "ordinary_package_excludes_probe": true,
+  "package_members": [
+    "afs-probe-7e6e00a-linux-aarch64",
+    "afs-probe-7e6e00a-linux-aarch64/DEPENDENCIES.md",
+    "afs-probe-7e6e00a-linux-aarch64/SHA256SUMS",
+    "afs-probe-7e6e00a-linux-aarch64/bin",
+    "afs-probe-7e6e00a-linux-aarch64/bin/afs-meta",
+    "afs-probe-7e6e00a-linux-aarch64/bin/afs-node",
+    "afs-probe-7e6e00a-linux-aarch64/bin/afs-processctl",
+    "afs-probe-7e6e00a-linux-aarch64/bin/afs-selfcheck",
+    "afs-probe-7e6e00a-linux-aarch64/bin/afs-trial-config",
+    "afs-probe-7e6e00a-linux-aarch64/bin/dep02-smoke.sh",
+    "afs-probe-7e6e00a-linux-aarch64/docs",
+    "afs-probe-7e6e00a-linux-aarch64/docs/guides",
+    "afs-probe-7e6e00a-linux-aarch64/docs/guides/trial.md",
+    "afs-probe-7e6e00a-linux-aarch64/install.sh",
+    "afs-probe-7e6e00a-linux-aarch64/ldd.txt",
+    "afs-probe-7e6e00a-linux-aarch64/manifest.json",
+    "afs-probe-7e6e00a-linux-aarch64/scripts",
+    "afs-probe-7e6e00a-linux-aarch64/templates",
+    "afs-probe-7e6e00a-linux-aarch64/templates/meta.toml",
+    "afs-probe-7e6e00a-linux-aarch64/templates/node-dfs.toml",
+    "afs-probe-7e6e00a-linux-aarch64/templates/node-ownerfs.toml",
+    "afs-probe-7e6e00a-linux-aarch64/templates/node.toml"
+  ]
+}

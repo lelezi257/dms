@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "scope": "single experimental managed OwnerFs workspace; not full G2.12/13",
+  "source_commit": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d",
+  "driver_sha256": "0f52d1b59d31f95a325a630c9c2dc2f8592250a1af57ce5cc38628a414b66380",
+  "basic_payload_selected": false,
+  "source_rejection_selected": false,
+  "control_capacity_selected": false,
+  "orderly_recovery_selected": false,
+  "node_shutdown_selected": true,
+  "fuse_counters_selected": false,
+  "fuse_counter_case": null,
+  "semantic_groups": [],
+  "cleanup": "PASS"
+}

@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "python3",
+    "-c",
+    "import subprocess,sys,time,json; p=subprocess.Popen([sys.argv[1],'idle'],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE); time.sleep(0.2); assert p.poll() is None,'idle init exited prematurely'; p.terminate(); out,err=p.communicate(timeout=3); print(json.dumps({'returncode':p.returncode,'stdout':out.decode(),'stderr':err.decode()})); assert p.returncode==0,'TERM failed'",
+    "/var/tmp/afs-e2e-release-20261006-r1/target/release/examples/afs-workspace-probe"
+  ],
+  "cwd": "/workspace/dms/source",
+  "target": "/var/tmp/afs-e2e-release-20261006-r1/target",
+  "timeout_seconds": 10
+}

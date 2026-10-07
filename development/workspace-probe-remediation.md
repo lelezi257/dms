@@ -48,3 +48,16 @@ table without interpreter, and missing libraries/errors still reject. Initial
 fmt failure is preserved. No third-party changes. Default-build artifact proof,
 new ordinary package and real Node/container runtime are still PENDING at this
 source commit; final results will be added without overwriting historical proof.
+
+## Final bounded result
+
+Default cargo build and --bins both select only Meta/Node; explicit example
+build/use PASS and the ordinary package excludes it. New source7e6/default
+ELFs executed one --node-shutdown-only slice on the existing official-runc VM:
+startup/identity/read/normal active shutdown PASS, independently confirmed
+actual wait0/PID+mount/control closure, frozen inputs and protected objects.
+Scoped result/commands/failed-format record and exact maps live in the
+[compact evidence index](evidence/20261007-workspace-probe-boundary/README.md).
+This independent remediation is complete; G1/G2 broad exits are unchanged.
+Return to the prepared DFS R3 one-writer/two-reader small slice; no old result
+is automatically upgraded to the changed source or package.

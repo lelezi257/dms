@@ -1,0 +1,313 @@
+[
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016909959958866239,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--version"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0013429969985736534,
+    "stdout": "001.stdout",
+    "stderr": "001.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-xzf",
+      "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/package.tar.gz",
+      "-C",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/package"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.22589954400609713,
+    "stdout": "002.stdout",
+    "stderr": "002.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/package/afs-probe-7e6e00a-linux-aarch64/install.sh",
+      "--prefix",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/logs",
+      "--mount-root",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/mount"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3343749949999619,
+    "stdout": "003.stdout",
+    "stderr": "003.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix/bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035856149916071445,
+    "stdout": "004.stdout",
+    "stderr": "004.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix/bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035915740008931607,
+    "stdout": "005.stdout",
+    "stderr": "005.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix/bin/afs-trial-config",
+      "single",
+      "--backend",
+      "local-file",
+      "--config-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/run",
+      "--mount-root",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/mount",
+      "--meta-grpc-port",
+      "24400",
+      "--meta-rest-port",
+      "24401",
+      "--node-grpc-port",
+      "24500",
+      "--node-rest-port",
+      "24501",
+      "--force"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.26695705601014197,
+    "stdout": "006.stdout",
+    "stderr": "006.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.32756234701082576,
+    "stdout": "007.stdout",
+    "stderr": "007.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0014618709974456578,
+    "stdout": "008.stdout",
+    "stderr": "008.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/control/control.sock",
+      "--id",
+      "initial",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.07119192800018936,
+    "stdout": "009.stdout",
+    "stderr": "009.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/control/control.sock",
+      "--id",
+      "first",
+      "start",
+      "workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.11559709800349083,
+    "stdout": "010.stdout",
+    "stderr": "010.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/control/runtime-state",
+      "state",
+      "afs-native-first"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0036577400023816153,
+    "stdout": "011.stdout",
+    "stderr": "011.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/control/control.sock",
+      "--id",
+      "active-read",
+      "exec",
+      "--",
+      "/bin/sh",
+      "-ec",
+      "test \"$(/bin/busybox sha256sum /workspace/seed | /bin/busybox cut -d \" \" -f 1)\" = a19938334431dfd5bb84df16cc24b8afb6f8753c24647b523190383b29c6cd02"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.07202138401044067,
+    "stdout": "012.stdout",
+    "stderr": "012.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/control/control.sock",
+      "--id",
+      "active-before-node-stop",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.07757374401262496,
+    "stdout": "013.stdout",
+    "stderr": "013.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/logs",
+      "stop",
+      "node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.17367814600584097,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/control/runtime-state",
+      "list",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003467449001618661,
+    "stdout": "015.stdout",
+    "stderr": "015.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0639596990076825,
+    "stdout": "016.stdout",
+    "stderr": "016.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0017158699920400977,
+    "stdout": "017.stdout",
+    "stderr": "017.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.001367662989650853,
+    "stdout": "018.stdout",
+    "stderr": "018.stderr"
+  }
+]

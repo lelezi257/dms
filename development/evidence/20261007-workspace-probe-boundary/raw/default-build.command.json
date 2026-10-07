@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "python3",
+    "-B",
+    "-c",
+    "import subprocess,json,os\nfrom pathlib import Path\nenv=dict(os.environ,PATH='/home/lzc.linux/.cargo/bin:'+os.environ['PATH'],CARGO_TARGET_DIR='/var/tmp/afs-e2e-release-20261006-r1/target',CARGO_BUILD_JOBS='2',CARGO_INCREMENTAL='0')\nargv=['cargo','build','--release','--locked','--offline','--bins','--message-format=json']\nr=subprocess.run(argv,cwd='/workspace/dms/source',env=env,capture_output=True,text=True,timeout=900)\nroot=Path('/var/tmp/workspace-probe-default-20261007-r1');root.mkdir()\n(root/'default-build.stdout').write_text(r.stdout);(root/'default-build.stderr').write_text(r.stderr)\nassert r.returncode==0, r.stderr\nmetadata=json.loads(subprocess.check_output(['cargo','metadata','--locked','--offline','--no-deps','--format-version','1'],cwd='/workspace/dms/source',env=env,text=True))\ntargets=next(x for x in metadata['packages'] if x['name']=='afs')['targets']\nartifacts=[j for line in r.stdout.splitlines() if (j:=json.loads(line)).get('reason')=='compiler-artifact' and j['target']['kind']==['bin']]\nassert sorted(x['target']['name'] for x in artifacts)==['afs-meta','afs-node']\nassert sorted(x['name'] for x in targets if x['kind']==['bin'])==['afs-meta','afs-node']\nhelper=next(x for x in targets if x['name']=='afs-workspace-probe')\nassert helper['kind']==['example'] and helper['src_path'].endswith('/tests/support/workspace_probe.rs')\nproof=dict(status='PASS_DEFAULT_BUILD',argv=argv,rc=r.returncode,bin_artifacts=[dict(name=x['target']['name'],executable=x['executable'],fresh=x['fresh']) for x in artifacts],helper_target=helper,stale_top_level_cache_file_is_not_build_artifact=Path(env['CARGO_TARGET_DIR']+'/release/afs-workspace-probe').exists())\n(root/'default-proof.json').write_text(json.dumps(proof,indent=2)+'\\n'); print(json.dumps(proof))\n"
+  ],
+  "rc": 0
+}

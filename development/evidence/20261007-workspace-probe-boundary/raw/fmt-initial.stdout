@@ -1,0 +1,40 @@
+Diff in /workspace/dms/source/src/node/native_workspace.rs:975:
+     let path = Path::new(program);
+     path.is_absolute()
+         && path.file_name().is_some()
+-        && path.components().all(|component| {
+-            matches!(component, Component::RootDir | Component::Normal(_))
+-        })
++        && path
++            .components()
++            .all(|component| matches!(component, Component::RootDir | Component::Normal(_)))
+ }
+ fn rootfs_command_path(rootfs: &Path, program: &str) -> io::Result<PathBuf> {
+     if !valid_container_program(program) {
+Diff in /workspace/dms/source/tests/config_contract.rs:170:
+         base.replace("fs='ownerfs'", "fs='dfs'"),
+         base.replace("idle_command=['/bin/view-observer','idle']\n", ""),
+         base.replace("identity_command=['/bin/view-observer','identity']\n", ""),
+-        base.replace("idle_command=['/bin/view-observer','idle']", "idle_command=[]"),
+-        base.replace("idle_command=['/bin/view-observer','idle']", "idle_command=['relative','idle']"),
+-        base.replace("idle_command=['/bin/view-observer','idle']", "idle_command=['/bin/../observer','idle']"),
+-        base.replace("idle_command=['/bin/view-observer','idle']", "idle_command=['/bin/view\u{0}observer','idle']"),
++        base.replace(
++            "idle_command=['/bin/view-observer','idle']",
++            "idle_command=[]",
++        ),
++        base.replace(
++            "idle_command=['/bin/view-observer','idle']",
++            "idle_command=['relative','idle']",
++        ),
++        base.replace(
++            "idle_command=['/bin/view-observer','idle']",
++            "idle_command=['/bin/../observer','idle']",
++        ),
++        base.replace(
++            "idle_command=['/bin/view-observer','idle']",
++            "idle_command=['/bin/view\u{0}observer','idle']",
++        ),
+         base.replace(
+             "idle_command=['/bin/view-observer','idle']",
+             &format!("idle_command=['/bin/view-observer','{}']", "x".repeat(4097)),

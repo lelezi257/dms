@@ -1,0 +1,646 @@
+{
+  "status": "PASS_ADMISSION_ONLY",
+  "commands": [
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "-T",
+        "/opt"
+      ],
+      "rc": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "-T",
+        "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1"
+      ],
+      "rc": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "-T",
+        "/opt/afs-workspace-probe-remediation-20261007-r1"
+      ],
+      "rc": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/admit-elf-qxu9tgz7/afs-meta"
+      ],
+      "rc": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000fe9558245000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000fe9557710000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000fe9557660000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000fe95574a0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000fe9558200000)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/admit-elf-qxu9tgz7/afs-node"
+      ],
+      "rc": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000e671f1444000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000e671f02f0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000e671f0240000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000e671f0080000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000e671f1400000)\n",
+      "stderr": ""
+    }
+  ],
+  "candidate": {
+    "source_commit": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d",
+    "source_base": "124c71c900fc3408e2087aaca6c4da2db08f4232",
+    "map_sha256": "f2f04e180bbdaf6f0074cfbae0410d4545adf8de628904c566278bba98d2e3e3",
+    "package_sha256": "4e5b9e0200e294e72a520085073bb6d226fba1c3c4949f3bbdff5aba09cc86cd",
+    "package_bytes": 14429906,
+    "binaries": {
+      "afs-meta": {
+        "sha256": "76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2"
+      },
+      "afs-node": {
+        "sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7"
+      }
+    },
+    "features": "ownerfs,dfs",
+    "helper_sha256": "4499d7f24be16926a6564f3af7a3fe7b2e5e6bb07a36c5d907bc00cc4740c2c1",
+    "ordinary_package_excludes_probe": true,
+    "package_members": [
+      "afs-probe-7e6e00a-linux-aarch64",
+      "afs-probe-7e6e00a-linux-aarch64/DEPENDENCIES.md",
+      "afs-probe-7e6e00a-linux-aarch64/SHA256SUMS",
+      "afs-probe-7e6e00a-linux-aarch64/bin",
+      "afs-probe-7e6e00a-linux-aarch64/bin/afs-meta",
+      "afs-probe-7e6e00a-linux-aarch64/bin/afs-node",
+      "afs-probe-7e6e00a-linux-aarch64/bin/afs-processctl",
+      "afs-probe-7e6e00a-linux-aarch64/bin/afs-selfcheck",
+      "afs-probe-7e6e00a-linux-aarch64/bin/afs-trial-config",
+      "afs-probe-7e6e00a-linux-aarch64/bin/dep02-smoke.sh",
+      "afs-probe-7e6e00a-linux-aarch64/docs",
+      "afs-probe-7e6e00a-linux-aarch64/docs/guides",
+      "afs-probe-7e6e00a-linux-aarch64/docs/guides/trial.md",
+      "afs-probe-7e6e00a-linux-aarch64/install.sh",
+      "afs-probe-7e6e00a-linux-aarch64/ldd.txt",
+      "afs-probe-7e6e00a-linux-aarch64/manifest.json",
+      "afs-probe-7e6e00a-linux-aarch64/scripts",
+      "afs-probe-7e6e00a-linux-aarch64/templates",
+      "afs-probe-7e6e00a-linux-aarch64/templates/meta.toml",
+      "afs-probe-7e6e00a-linux-aarch64/templates/node-dfs.toml",
+      "afs-probe-7e6e00a-linux-aarch64/templates/node-ownerfs.toml",
+      "afs-probe-7e6e00a-linux-aarch64/templates/node.toml"
+    ]
+  },
+  "tools": {
+    "source_commit": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d",
+    "files": {
+      "development/acceptance/native-workspace-linux.py": {
+        "sha256": "0f52d1b59d31f95a325a630c9c2dc2f8592250a1af57ce5cc38628a414b66380",
+        "bytes": 26408
+      },
+      "development/acceptance/installed-smoke-linux.py": {
+        "sha256": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+        "bytes": 13639
+      },
+      "development/acceptance/probes/native_orderly_recovery.py": {
+        "sha256": "3dc731423f47ee08bb35d7b020402466f74bcbdffdbf7d7ec72207ae710b4064",
+        "bytes": 15544
+      },
+      "scripts/ownerfs/native-workspace-control.py": {
+        "sha256": "11b32a45f5e24801260acddfc47e3a4e7e16385c3f0a2af08e0dba9a9573217b",
+        "bytes": 2603
+      },
+      "development/acceptance/prepare-workspace-rootfs-linux.py": {
+        "sha256": "3f9e71ea2028462fa9e42313cae35f6cf8124b644c38f677186a57b65c8d990f",
+        "bytes": 5383
+      }
+    }
+  },
+  "prepared_template": {
+    ".": {
+      "dev": 64769,
+      "ino": 829041,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791365417775464653,
+      "ctime_ns": 1791365417775464653
+    },
+    "afs-workspace-probe": {
+      "dev": 64769,
+      "ino": 829042,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 559992,
+      "mtime_ns": 1791365417771464664,
+      "ctime_ns": 1791365417771464664,
+      "sha256": "4499d7f24be16926a6564f3af7a3fe7b2e5e6bb07a36c5d907bc00cc4740c2c1"
+    },
+    "bin": {
+      "dev": 64769,
+      "ino": 829043,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791365417773464658,
+      "ctime_ns": 1791365417773464658
+    },
+    "bin/busybox": {
+      "dev": 64769,
+      "ino": 829049,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 1914704,
+      "mtime_ns": 1791365417772464661,
+      "ctime_ns": 1791365417772464661,
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933"
+    },
+    "bin/sh": {
+      "dev": 64769,
+      "ino": 829050,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 1914704,
+      "mtime_ns": 1791365417773464658,
+      "ctime_ns": 1791365417773464658,
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933"
+    },
+    "lib": {
+      "dev": 64769,
+      "ino": 829051,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791365417775464653,
+      "ctime_ns": 1791365417775464653
+    },
+    "lib/aarch64-linux-gnu": {
+      "dev": 64769,
+      "ino": 829052,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791365417774464656,
+      "ctime_ns": 1791365417774464656
+    },
+    "lib/aarch64-linux-gnu/libc.so.6": {
+      "dev": 64769,
+      "ino": 829054,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 1722920,
+      "mtime_ns": 1791365417775464653,
+      "ctime_ns": 1791365417775464653,
+      "sha256": "0f1905dc27dbc6715875c70527bc8da846a10084c9c483e9d8ff76dce8d69d0e"
+    },
+    "lib/aarch64-linux-gnu/libgcc_s.so.1": {
+      "dev": 64769,
+      "ino": 829053,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 133696,
+      "mtime_ns": 1791365417774464656,
+      "ctime_ns": 1791365417774464656,
+      "sha256": "f2d3ad2bf0b61f6bc944cc37d7b6ab7f88d2582b41ff989ca164803f56cc5f20"
+    },
+    "lib/ld-linux-aarch64.so.1": {
+      "dev": 64769,
+      "ino": 829055,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 203968,
+      "mtime_ns": 1791365417775464653,
+      "ctime_ns": 1791365417775464653,
+      "sha256": "390027e5f45f236bd1838bc54bf464c5ff01d260ab9f8b415ea8276641bce505"
+    },
+    "proc": {
+      "dev": 64769,
+      "ino": 829056,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791365417775464653,
+      "ctime_ns": 1791365417775464653
+    },
+    "workspace": {
+      "dev": 64769,
+      "ino": 829057,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791365417775464653,
+      "ctime_ns": 1791365417775464653
+    }
+  },
+  "rootfs_inputs": {
+    "afs-workspace-probe": {
+      "source": "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/inputs/afs-workspace-probe",
+      "sha256": "4499d7f24be16926a6564f3af7a3fe7b2e5e6bb07a36c5d907bc00cc4740c2c1",
+      "bytes": 559992,
+      "mode": "0o755"
+    },
+    "bin/busybox": {
+      "source": "/opt/afs-managed-orderly-recovery-20261007-r1/rootfs/bin/busybox",
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "bytes": 1914704,
+      "mode": "0o755"
+    },
+    "bin/sh": {
+      "source": "/opt/afs-managed-orderly-recovery-20261007-r1/rootfs/bin/busybox",
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "bytes": 1914704,
+      "mode": "0o755"
+    },
+    "lib/aarch64-linux-gnu/libgcc_s.so.1": {
+      "source": "/usr/lib/aarch64-linux-gnu/libgcc_s.so.1",
+      "sha256": "f2d3ad2bf0b61f6bc944cc37d7b6ab7f88d2582b41ff989ca164803f56cc5f20",
+      "bytes": 133696,
+      "mode": "0o755"
+    },
+    "lib/aarch64-linux-gnu/libc.so.6": {
+      "source": "/usr/lib/aarch64-linux-gnu/libc.so.6",
+      "sha256": "0f1905dc27dbc6715875c70527bc8da846a10084c9c483e9d8ff76dce8d69d0e",
+      "bytes": 1722920,
+      "mode": "0o755"
+    },
+    "lib/ld-linux-aarch64.so.1": {
+      "source": "/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
+      "sha256": "390027e5f45f236bd1838bc54bf464c5ff01d260ab9f8b415ea8276641bce505",
+      "bytes": 203968,
+      "mode": "0o755"
+    }
+  },
+  "dependencies": {
+    "bash": "/usr/bin/bash",
+    "python3": "/usr/bin/python3",
+    "tar": "/usr/bin/tar",
+    "ldd": "/usr/bin/ldd",
+    "openssl": "/usr/bin/openssl",
+    "findmnt": "/usr/bin/findmnt",
+    "fusermount3": "/usr/bin/fusermount3",
+    "curl": "/usr/bin/curl",
+    "flock": "/usr/bin/flock",
+    "ss": "/usr/bin/ss",
+    "sed": "/usr/bin/sed",
+    "awk": "/usr/bin/awk",
+    "mountpoint": "/usr/bin/mountpoint",
+    "setsid": "/usr/bin/setsid",
+    "nsenter": "/usr/bin/nsenter",
+    "head": "/usr/bin/head",
+    "tr": "/usr/bin/tr",
+    "install": "/usr/bin/install",
+    "readlink": "/usr/bin/readlink",
+    "sha256sum": "/usr/bin/sha256sum",
+    "timeout": "/usr/bin/timeout"
+  },
+  "protected_before": {
+    "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+    "processes": [
+      {
+        "pid": 3554,
+        "exe": "/usr/bin/gpg-agent (deleted)",
+        "starttick": 4412560,
+        "argv": "gpg-agent --homedir /var/tmp/afs-runc-admission-20261007-r1/gnupg --use-standard-socket --daemon ",
+        "exe_sha256": "5bd7c61c431192d41478e288e6f5bba0287aa5e766b007db82d25f27c8b8cdd7"
+      }
+    ],
+    "mountinfo": [
+      "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+      "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+      "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4020012k,nr_inodes=1005003,mode=755,inode64",
+      "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+      "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811364k,mode=755,inode64",
+      "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+      "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+      "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+      "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+      "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+      "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+      "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+      "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+      "40 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3230",
+      "41 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:15 - mqueue mqueue rw",
+      "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:16 - debugfs debugfs rw",
+      "43 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:17 - hugetlbfs hugetlbfs rw,pagesize=2M",
+      "44 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:18 - tracefs tracefs rw",
+      "45 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+      "46 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+      "48 32 259:0 / /boot rw,relatime shared:30 - ext4 /dev/vda16 rw",
+      "50 48 253:15 / /boot/efi rw,relatime shared:47 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+      "52 40 0:37 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:49 - binfmt_misc binfmt_misc rw",
+      "56 32 0:44 / /workspace/dms ro,relatime shared:147 - virtiofs lima-a7a710dc212e898d ro",
+      "98 32 253:16 / /mnt/lima-cidata ro,relatime shared:350 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+      "58 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:99 - tmpfs tmpfs rw,size=811360k,nr_inodes=202840,mode=700,uid=501,gid=1000,inode64"
+    ],
+    "old_opt_elfs": {
+      "/opt/afs-active-node-stop-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "78e7ad556b8767af4bcc34c81fb94075011152254e26ed24b26a8f528b97d3a8",
+        "dev": 64769,
+        "ino": 826463,
+        "size": 15788960
+      },
+      "/opt/afs-active-node-stop-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "d264a470372593ab00bd6c691f1e389492decf8e4c750a6b29b608719407d58a",
+        "dev": 64769,
+        "ino": 826464,
+        "size": 25980792
+      },
+      "/opt/afs-hostbind-93169c8-r1/prefix/bin/afs-meta": {
+        "sha256": "4150942fd873b879ab6dc9034904116cf1670904a259d6a081f3b0c1fd1e7343",
+        "dev": 64769,
+        "ino": 827430,
+        "size": 15882088
+      },
+      "/opt/afs-hostbind-93169c8-r1/prefix/bin/afs-node": {
+        "sha256": "9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d",
+        "dev": 64769,
+        "ino": 827431,
+        "size": 26181088
+      },
+      "/opt/afs-main-bind-accepted-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "f4d423fcced38cd0a6624b1104ff05c136974150d21590522a90a40e637aca0c",
+        "dev": 64769,
+        "ino": 825930,
+        "size": 15879736
+      },
+      "/opt/afs-main-bind-accepted-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "de1d16895c062651aa9e9de375b9ac5bb5da5b52672a7d70093bebdd090bc9ee",
+        "dev": 64769,
+        "ino": 825931,
+        "size": 26022400
+      },
+      "/opt/afs-managed-append-20261007-r8/prefix/bin/afs-meta": {
+        "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+        "dev": 64769,
+        "ino": 787201,
+        "size": 15821088
+      },
+      "/opt/afs-managed-append-20261007-r8/prefix/bin/afs-node": {
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "dev": 64769,
+        "ino": 787202,
+        "size": 25880120
+      },
+      "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+        "dev": 64769,
+        "ino": 824929,
+        "size": 15821088
+      },
+      "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "dev": 64769,
+        "ino": 824930,
+        "size": 25880120
+      },
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "8c53c693023249b69c22f51d8aad7d0950b0f1d3452534e219c3d1c7c906e286",
+        "dev": 64769,
+        "ino": 825362,
+        "size": 15816704
+      },
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "738ea5eaf0fe8f6412c99f79e26d1e3a92fba78a068510e7e27b129301d85324",
+        "dev": 64769,
+        "ino": 825363,
+        "size": 25943584
+      },
+      "/opt/afs-managed-source-rejection-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+        "dev": 64769,
+        "ino": 824619,
+        "size": 15821088
+      },
+      "/opt/afs-managed-source-rejection-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "dev": 64769,
+        "ino": 824620,
+        "size": 25880120
+      },
+      "/opt/afs-managed-workspace-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8",
+        "dev": 64769,
+        "ino": 524440,
+        "size": 15795096
+      },
+      "/opt/afs-managed-workspace-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8",
+        "dev": 64769,
+        "ino": 524441,
+        "size": 25966344
+      },
+      "/opt/afs-managed-workspace-20261007-r2/prefix/bin/afs-meta": {
+        "sha256": "08aee9fec2e7e12ce03912fa85e8bded28b2162de78c2c9c36703a9a1a6e58b8",
+        "dev": 64769,
+        "ino": 524576,
+        "size": 15795096
+      },
+      "/opt/afs-managed-workspace-20261007-r2/prefix/bin/afs-node": {
+        "sha256": "d6e7cd11a610e7f0839d2a3d2337cd92678432e15fcffb6fd2fa6a00860058b8",
+        "dev": 64769,
+        "ino": 524577,
+        "size": 25966344
+      },
+      "/opt/afs-managed-workspace-20261007-r4/prefix/bin/afs-meta": {
+        "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+        "dev": 64769,
+        "ino": 524880,
+        "size": 15821088
+      },
+      "/opt/afs-managed-workspace-20261007-r4/prefix/bin/afs-node": {
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "dev": 64769,
+        "ino": 524881,
+        "size": 25880120
+      },
+      "/opt/afs-managed-workspace-20261007-r5/prefix/bin/afs-meta": {
+        "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+        "dev": 64769,
+        "ino": 525309,
+        "size": 15821088
+      },
+      "/opt/afs-managed-workspace-20261007-r5/prefix/bin/afs-node": {
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "dev": 64769,
+        "ino": 525310,
+        "size": 25880120
+      },
+      "/opt/afs-managed-workspace-20261007-r6/prefix/bin/afs-meta": {
+        "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+        "dev": 64769,
+        "ino": 525673,
+        "size": 15821088
+      },
+      "/opt/afs-managed-workspace-20261007-r6/prefix/bin/afs-node": {
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "dev": 64769,
+        "ino": 525674,
+        "size": 25880120
+      },
+      "/opt/afs-managed-workspace-20261007-r7/prefix/bin/afs-meta": {
+        "sha256": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
+        "dev": 64769,
+        "ino": 526080,
+        "size": 15821088
+      },
+      "/opt/afs-managed-workspace-20261007-r7/prefix/bin/afs-node": {
+        "sha256": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
+        "dev": 64769,
+        "ino": 526081,
+        "size": 25880120
+      },
+      "/opt/afs-workspace-bind-data-perf-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "4150942fd873b879ab6dc9034904116cf1670904a259d6a081f3b0c1fd1e7343",
+        "dev": 64769,
+        "ino": 828055,
+        "size": 15882088
+      },
+      "/opt/afs-workspace-bind-data-perf-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d",
+        "dev": 64769,
+        "ino": 828056,
+        "size": 26181088
+      },
+      "/opt/afs-workspace-bind-metadata-perf-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "4150942fd873b879ab6dc9034904116cf1670904a259d6a081f3b0c1fd1e7343",
+        "dev": 64769,
+        "ino": 828708,
+        "size": 15882088
+      },
+      "/opt/afs-workspace-bind-metadata-perf-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d",
+        "dev": 64769,
+        "ino": 828709,
+        "size": 26181088
+      },
+      "/opt/afs-workspace-callback-observed-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "75864631b10ec053bb3ed09cc00dbf57befc967413be721cd539ec976d3bebb2",
+        "dev": 64769,
+        "ino": 826778,
+        "size": 15811096
+      },
+      "/opt/afs-workspace-callback-observed-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "d54c2dc27f7915aaf907f7741699f91508d2e2c147dc9445de3ed72f08279ea9",
+        "dev": 64769,
+        "ino": 826779,
+        "size": 26080848
+      },
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "4150942fd873b879ab6dc9034904116cf1670904a259d6a081f3b0c1fd1e7343",
+        "dev": 64769,
+        "ino": 827626,
+        "size": 15882088
+      },
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d",
+        "dev": 64769,
+        "ino": 827627,
+        "size": 26181088
+      },
+      "/opt/afs-workspace-host-runtime-20261007-r2/prefix/bin/afs-meta": {
+        "sha256": "4150942fd873b879ab6dc9034904116cf1670904a259d6a081f3b0c1fd1e7343",
+        "dev": 64769,
+        "ino": 827830,
+        "size": 15882088
+      },
+      "/opt/afs-workspace-host-runtime-20261007-r2/prefix/bin/afs-node": {
+        "sha256": "9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d",
+        "dev": 64769,
+        "ino": 827831,
+        "size": 26181088
+      },
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-meta": {
+        "sha256": "75864631b10ec053bb3ed09cc00dbf57befc967413be721cd539ec976d3bebb2",
+        "dev": 64769,
+        "ino": 827112,
+        "size": 15811096
+      },
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-node": {
+        "sha256": "d54c2dc27f7915aaf907f7741699f91508d2e2c147dc9445de3ed72f08279ea9",
+        "dev": 64769,
+        "ino": 827113,
+        "size": 26080848
+      }
+    }
+  },
+  "ram": {
+    "available_bytes": 7773503488,
+    "minimum_bytes": 536870912,
+    "meminfo": "MemTotal:        8113632 kB\nMemFree:          596544 kB\nMemAvailable:    7591312 kB\nBuffers:           85076 kB\nCached:          6798332 kB\nSwapCached:            0 kB\nActive:           206948 kB\nInactive:        6774672 kB\nActive(anon):     106716 kB\nInactive(anon):        0 kB\nActive(file):     100232 kB\nInactive(file):  6774672 kB\nUnevictable:       26104 kB\nMlocked:           26104 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:               204 kB\nWriteback:             0 kB\nAnonPages:        124352 kB\nMapped:            81188 kB\nShmem:              1016 kB\nKReclaimable:     322888 kB\nSlab:             415932 kB\nSReclaimable:     322888 kB\nSUnreclaim:        93044 kB\nKernelStack:        2416 kB\nShadowCallStack:     620 kB\nPageTables:         2432 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4056816 kB\nCommitted_AS:     441808 kB\nVmallocTotal:   133141626880 kB\nVmallocUsed:       11700 kB\nVmallocChunk:          0 kB\nPercpu:             2960 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:          32768 kB\nCmaFree:           29696 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\n",
+    "cgroup": "0::/user.slice/user-501.slice/session-6.scope\n",
+    "limits": [
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-501.slice/session-6.scope",
+        "maximum": "max",
+        "current": 4041023488
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-501.slice",
+        "maximum": "max",
+        "current": 5638926336
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice",
+        "maximum": "max",
+        "current": 5656064000
+      }
+    ]
+  },
+  "manifest": {
+    "schema": "afs.release-package.v1",
+    "name": "afs",
+    "version": "probe-7e6e00a",
+    "target": "linux-aarch64",
+    "source_commit": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d",
+    "source_date_epoch": 1791365213,
+    "features": "ownerfs,dfs",
+    "rust_toolchain": "1.95.0",
+    "binaries": {
+      "afs-meta": {
+        "sha256": "76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2"
+      },
+      "afs-node": {
+        "sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7"
+      }
+    },
+    "contains": [
+      "afs-meta",
+      "afs-node",
+      "afs-processctl",
+      "afs-trial-config",
+      "afs-selfcheck",
+      "dep02-smoke.sh",
+      "docs/guides/trial.md"
+    ],
+    "installer": "install.sh",
+    "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+  },
+  "capacity": {
+    "roots": {
+      "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1": 15110144,
+      "/opt/afs-managed-workspace-probe-remediation-20261007-r1": 0,
+      "/opt/afs-workspace-probe-remediation-20261007-r1": 6488064,
+      "/tmp/afs-workspace-probe-remediation-transfer-r1": 15089664
+    },
+    "allocated_bytes": 36687872,
+    "ceiling_bytes": 536870912,
+    "free_bytes": 8022581248,
+    "floor_bytes": 1073741824
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "status": "PASS_DEFAULT_BUILD",
+  "argv": [
+    "cargo",
+    "build",
+    "--release",
+    "--locked",
+    "--offline",
+    "--bins",
+    "--message-format=json"
+  ],
+  "rc": 0,
+  "bin_artifacts": [
+    {
+      "name": "afs-meta",
+      "executable": "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-meta",
+      "fresh": false
+    },
+    {
+      "name": "afs-node",
+      "executable": "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-node",
+      "fresh": false
+    }
+  ],
+  "helper_target": {
+    "kind": [
+      "example"
+    ],
+    "crate_types": [
+      "bin"
+    ],
+    "name": "afs-workspace-probe",
+    "src_path": "/workspace/dms/source/tests/support/workspace_probe.rs",
+    "edition": "2024",
+    "doc": false,
+    "doctest": false,
+    "test": false
+  },
+  "stale_top_level_cache_file_is_not_build_artifact": true
+}

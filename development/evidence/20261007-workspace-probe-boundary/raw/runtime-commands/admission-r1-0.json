@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-probe-remediation-20261007-r1/local-only/runtime-observations-r1.py",
+    "afs-g2-micro:/tmp/afs-workspace-probe-remediation-transfer-r1/runtime-observations-r1.py"
+  ],
+  "rc": 0
+}

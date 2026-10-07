@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-g2-micro",
+    "--",
+    "sudo",
+    "python3",
+    "-B",
+    "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/tools/development/acceptance/prepare-workspace-rootfs-linux.py",
+    "--helper",
+    "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/inputs/afs-workspace-probe",
+    "--helper-sha256",
+    "4499d7f24be16926a6564f3af7a3fe7b2e5e6bb07a36c5d907bc00cc4740c2c1",
+    "--busybox",
+    "/opt/afs-managed-orderly-recovery-20261007-r1/rootfs/bin/busybox",
+    "--busybox-sha256",
+    "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+    "--output",
+    "/opt/afs-workspace-probe-remediation-20261007-r1/rootfs",
+    "--manifest",
+    "/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1/rootfs-inputs.json"
+  ],
+  "rc": 0
+}

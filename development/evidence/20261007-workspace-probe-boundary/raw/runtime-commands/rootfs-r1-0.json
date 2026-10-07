@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-g2-micro",
+    "--",
+    "sudo",
+    "python3",
+    "-c",
+    "import pathlib,json,hashlib;G=pathlib.Path('/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1');m=json.loads((G/'tool-inputs.json').read_text());assert all(hashlib.sha256((G/'tools'/r).read_bytes()).hexdigest()==v['sha256'] for r,v in m['files'].items());print(json.dumps(m,indent=2))"
+  ],
+  "rc": 0
+}

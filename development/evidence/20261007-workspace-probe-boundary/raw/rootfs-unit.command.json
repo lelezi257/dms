@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "/workspace/dms/source/development/acceptance",
+    "-p",
+    "test_prepare_workspace_rootfs.py",
+    "-v"
+  ],
+  "rc": 0
+}

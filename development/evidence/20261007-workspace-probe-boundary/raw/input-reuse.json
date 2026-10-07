@@ -1,0 +1,9 @@
+{
+  "status": "PASS_SCOPED_REUSE",
+  "changed_inputs": [
+    "development/acceptance/prepare-workspace-rootfs-linux.py"
+  ],
+  "added_input": "development/acceptance/test_prepare_workspace_rootfs.py",
+  "compiler_inputs_unchanged": true,
+  "reason": "Only first-party Python rootfs tooling changed after Rust gates; 4 Linux targeted tests passed; no Rust re-run needed."
+}

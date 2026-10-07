@@ -1,0 +1,30 @@
+{
+  "location": "rust-distributed-memory-store/evidence/afs-delivery/workspace-probe-remediation-20261007-r1 (host archive outside Git)",
+  "files": {
+    "package.tar.gz": {
+      "sha256": "4e5b9e0200e294e72a520085073bb6d226fba1c3c4949f3bbdff5aba09cc86cd",
+      "bytes": 14429906
+    },
+    "afs-workspace-probe": {
+      "sha256": "4499d7f24be16926a6564f3af7a3fe7b2e5e6bb07a36c5d907bc00cc4740c2c1",
+      "bytes": 559992
+    },
+    "local-only/runtime-observations-r1.py": {
+      "sha256": "f053935f62c89ee35cc54d916fd11522b27b054c53b1cbde4606dfbde401206a",
+      "bytes": 6925
+    },
+    "local-only/runtime-postcheck-r1.py": {
+      "sha256": "f00adbe00f074a82433d0d9c32e7f06660e8bbf6f0508acf74d1aa43b651ccca",
+      "bytes": 9393
+    },
+    "local-only/runtime-text-export-r1.tar": {
+      "sha256": "0a0a1b09a0668b3ac4fbdfac4bac69d95d4e6fc99a4cc56b75d7c91c3305cb75",
+      "bytes": 276480
+    },
+    "local-only/runtime-tools-r1.tar": {
+      "sha256": "53c9a500504000b71668f7a10202a0eb950c9ae5a022d73fa935b82f41b45236",
+      "bytes": 81920
+    }
+  },
+  "recover_product_tools": "Fixed source7e6e00a6 and Cargo.lock; recorded Linux source commands build both product/example targets; source/compiler/tool map binds exact versions. Private runtime rootfs/TLS remains in its owned guest fixture."
+}

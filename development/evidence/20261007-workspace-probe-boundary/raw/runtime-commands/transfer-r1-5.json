@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-g2-micro",
+    "--",
+    "sudo",
+    "bash",
+    "-lc",
+    "set -eu\nG=/var/tmp/afs-managed-workspace-probe-remediation-20261007-r1\nS=/tmp/afs-workspace-probe-remediation-transfer-r1\ntest ! -e \"$G\"\ninstall -d -m 0755 \"$G\" \"$G/inputs\" /opt/afs-workspace-probe-remediation-20261007-r1\ntar -xf \"$S/tools.tar\" -C \"$G\"\ninstall -m 0644 \"$S/package.tar.gz\" \"$G/package.tar.gz\"\ninstall -m 0755 \"$S/afs-workspace-probe\" \"$G/inputs/afs-workspace-probe\"\ninstall -m 0644 \"$S/candidate.json\" \"$G/candidate.json\"\nsha256sum \"$G/package.tar.gz\" \"$G/inputs/afs-workspace-probe\" \"$G/tool-inputs.json\""
+  ],
+  "rc": 0
+}

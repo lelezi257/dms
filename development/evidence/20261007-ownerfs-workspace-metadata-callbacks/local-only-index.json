@@ -1,0 +1,37 @@
+{
+  "scope": "Invocation glue/transport/recoverable patch/package retained outside source; maintained tools tracked by Git and SHA",
+  "files": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-metadata-callbacks-20261007-r1/prepare.py",
+      "sha256": "11efe9e10a57cde5dcef07c3fcedfc6ccc1433f7842fc1b1cdd9c672a526464c",
+      "bytes": 5595
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-metadata-callbacks-20261007-r1/outer-check.py",
+      "sha256": "3d1b5e44f7ff14d238c307b29475dd60d07be36165c2f10c151363bd245d1f6c",
+      "bytes": 7862
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-metadata-callbacks-20261007-r1/transport.tar.gz",
+      "sha256": "5e4338dfc5c968bc492fb4511052614bc8cbf4dbde808d01d18ecb2fa00db8f3",
+      "bytes": 14737767
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-metadata-callbacks-20261007-r1/runtime-text.tar.gz",
+      "sha256": "02e07c6ec15fa448060f6bb07f0f57fc353bba43f629508e839786c10d3e1a6c",
+      "bytes": 28598
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-metadata-callbacks-20261007-r1/working-tools.patch",
+      "sha256": "26ea449bb11691eb62216f891a36e77a1784455df1809525ed6a5a911a63b410",
+      "bytes": 11617
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-callback-counts-20261007-r1/package.tar.gz",
+      "sha256": "3d1e68de2a57cd15f0c942fa3ee32662c283175cc0bff1f33f6e8a3cf810d390",
+      "bytes": 14767769
+    }
+  ],
+  "vm_fixture": "/opt/afs-workspace-metadata-callbacks-20261007-r1",
+  "vm_transport": "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1"
+}

@@ -1,0 +1,12 @@
+{
+  "product_commit": "b31292ac56dc3b88ec0f0dca09cbce014af1e7fb",
+  "compiler_files": 157,
+  "compiler_map_reference": "development/evidence/20261007-ownerfs-workspace-callback-source/source-inputs.json",
+  "compiler_map_sha256": "2c940014c30f5c114452a2fd667044952fbb9f78fc82170a78567256cdec2cd5",
+  "compiler_inputs_unchanged": true,
+  "package_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-callback-counts-20261007-r1/package.tar.gz",
+  "package_sha256": "3d1e68de2a57cd15f0c942fa3ee32662c283175cc0bff1f33f6e8a3cf810d390",
+  "package_bytes": 14767769,
+  "tool_base": "b005fc855ca96dbe230ffaa10da8561e4d3d79f1",
+  "rust_rebuilt": false
+}

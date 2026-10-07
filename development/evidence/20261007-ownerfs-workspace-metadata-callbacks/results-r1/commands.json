@@ -1,0 +1,373 @@
+[
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.002088326000375673,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--version"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0036087390035390854,
+    "stdout": "001.stdout",
+    "stderr": "001.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-xzf",
+      "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/package.tar.gz",
+      "-C",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/package"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.23512278498674277,
+    "stdout": "002.stdout",
+    "stderr": "002.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/package/afs-0.1.0-g2-main-b31292a-linux-aarch64/install.sh",
+      "--prefix",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/logs",
+      "--mount-root",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/mount"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.6163276070001302,
+    "stdout": "003.stdout",
+    "stderr": "003.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037313630018616095,
+    "stdout": "004.stdout",
+    "stderr": "004.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0038227369950618595,
+    "stdout": "005.stdout",
+    "stderr": "005.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-trial-config",
+      "single",
+      "--backend",
+      "local-file",
+      "--config-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/run",
+      "--mount-root",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/mount",
+      "--meta-grpc-port",
+      "24400",
+      "--meta-rest-port",
+      "24401",
+      "--node-grpc-port",
+      "24500",
+      "--node-rest-port",
+      "24501",
+      "--force"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.2988742559973616,
+    "stdout": "006.stdout",
+    "stderr": "006.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.32256922200031113,
+    "stdout": "007.stdout",
+    "stderr": "007.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0013030789996264502,
+    "stdout": "008.stdout",
+    "stderr": "008.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+      "--id",
+      "initial",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0662175390025368,
+    "stdout": "009.stdout",
+    "stderr": "009.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+      "--id",
+      "first",
+      "start",
+      "workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.16625426699465606,
+    "stdout": "010.stdout",
+    "stderr": "010.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/runtime-state",
+      "state",
+      "afs-native-first"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003744196001207456,
+    "stdout": "011.stdout",
+    "stderr": "011.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "-fsS",
+      "http://127.0.0.1:24501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.004009320997283794,
+    "stdout": "012.stdout",
+    "stderr": "012.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "-fsS",
+      "http://127.0.0.1:24501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037027799990028143,
+    "stdout": "013.stdout",
+    "stderr": "013.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "-fsS",
+      "http://127.0.0.1:24501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037901550094829872,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+      "--id",
+      "callback-native-metadata",
+      "exec",
+      "--",
+      "/bin/sh",
+      "-ec",
+      "d=/workspace/callback-native-metadata; /bin/busybox mkdir \"$d\"; i=0; while test \"$i\" -lt 12; do : > \"$d/file-$i\"; test -f \"$d/file-$i\"; test ! -s \"$d/file-$i\"; i=$((i+1)); done; set -- \"$d\"/file-*; test \"$#\" -eq 12; i=0; while test \"$i\" -lt 12; do /bin/busybox rm \"$d/file-$i\"; test ! -e \"$d/file-$i\"; i=$((i+1)); done; /bin/busybox rmdir \"$d\"; test ! -e \"$d\"; printf \"METADATA_OK files=12 dirs=1\\n\""
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06626995699480176,
+    "stdout": "015.stdout",
+    "stderr": "015.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "-fsS",
+      "http://127.0.0.1:24501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0036108209897065535,
+    "stdout": "016.stdout",
+    "stderr": "016.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+      "--id",
+      "stop-first",
+      "stop"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06617254100274295,
+    "stdout": "017.stdout",
+    "stderr": "017.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+      "--id",
+      "after-stop",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06904111600306351,
+    "stdout": "018.stdout",
+    "stderr": "018.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/runtime-state",
+      "list",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035817809985019267,
+    "stdout": "019.stdout",
+    "stderr": "019.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+      "--id",
+      "finally-stop",
+      "stop"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.036802842005272396,
+    "stdout": "020.stdout",
+    "stderr": "020.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.1680202199931955,
+    "stdout": "021.stdout",
+    "stderr": "021.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0016970779979601502,
+    "stdout": "022.stdout",
+    "stderr": "022.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-metadata-callbacks-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.001624077995074913,
+    "stdout": "023.stdout",
+    "stderr": "023.stderr"
+  }
+]

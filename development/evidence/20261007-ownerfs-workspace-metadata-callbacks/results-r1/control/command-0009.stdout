@@ -1,0 +1,10 @@
+{
+  "ociVersion": "1.3.0",
+  "id": "afs-native-first",
+  "pid": 0,
+  "status": "stopped",
+  "bundle": "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/bundle-afs-native-first",
+  "rootfs": "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/bundle-afs-native-first/rootfs",
+  "created": "2026-10-07T06:48:36.108408615Z",
+  "owner": ""
+}

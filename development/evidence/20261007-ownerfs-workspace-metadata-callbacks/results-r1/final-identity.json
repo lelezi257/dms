@@ -1,0 +1,34 @@
+{
+  "container": {
+    "ociVersion": "1.3.0",
+    "id": "afs-native-first",
+    "pid": 70867,
+    "status": "running",
+    "bundle": "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/bundle-afs-native-first",
+    "rootfs": "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/bundle-afs-native-first/rootfs",
+    "created": "2026-10-07T06:48:36.108408615Z",
+    "owner": ""
+  },
+  "observed": {
+    "flags": [
+      "rw",
+      "nosuid",
+      "nodev",
+      "relatime"
+    ],
+    "mount_id": 420,
+    "namespace": {
+      "dev": 4,
+      "ino": 4026532355
+    },
+    "scope": "final-view identity; not production READY or revocation ACK",
+    "source": {
+      "dev": 64769,
+      "ino": 827198
+    },
+    "unique_mount_id": 4294979620
+  },
+  "storage_path": [
+    "/opt/afs-workspace-metadata-callbacks-20261007-r1/state/node/ownerfs/root-776f726b7370616365-e1"
+  ]
+}

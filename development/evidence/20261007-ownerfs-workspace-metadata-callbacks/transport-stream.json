@@ -1,0 +1,20 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir",
+    "/tmp",
+    "afs-g2-micro",
+    "--",
+    "sudo",
+    "tar",
+    "-xzf",
+    "-",
+    "-C",
+    "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1"
+  ],
+  "exit": 0,
+  "stdin_sha256": "5e4338dfc5c968bc492fb4511052614bc8cbf4dbde808d01d18ecb2fa00db8f3",
+  "stdout": "",
+  "stderr": ""
+}

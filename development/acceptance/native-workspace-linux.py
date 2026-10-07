@@ -61,6 +61,8 @@ class Run(base.Run):
                    and not (self.root / 'control/controller.lock').exists(), 'absent')
 
     def preflight(self):
+        if getattr(self.args, 'fuse_counter_case', 'data') != 'data' and not self.args.fuse_counters_only:
+            raise ValueError('metadata counter case requires fuse-counters-only')
         if self.args.source_rejection_only and (self.args.semantics_only or self.args.semantics_probe):
             raise ValueError('source-rejection-only is mutually exclusive with semantics')
         if getattr(self.args, 'control_capacity_only', False) and (
@@ -182,6 +184,7 @@ class Run(base.Run):
                   'orderly_recovery_selected': self.args.orderly_recovery_only,
                   'node_shutdown_selected': self.args.node_shutdown_only,
                   'fuse_counters_selected': self.args.fuse_counters_only,
+                  'fuse_counter_case': self.args.fuse_counter_case if self.args.fuse_counters_only else None,
                   'semantic_groups': self.args.semantics_groups if self.args.semantics_probe else []}
         process = None
         try:
@@ -242,7 +245,10 @@ class Run(base.Run):
                 counter_spec.loader.exec_module(counters)
                 self.save('callback-tool.json', {'path': str(Path(counters.__file__)),
                           'sha256': base.sha(counters.__file__)})
-                counters.execute(self, workspace, seed_sha)
+                if self.args.fuse_counter_case == 'metadata':
+                    counters.execute_metadata(self, workspace)
+                else:
+                    counters.execute(self, workspace, seed_sha)
             elif self.args.node_shutdown_only:
                 response = self.native('active-read', 'exec', '--', '/bin/sh', '-ec',
                     f'test "$(/bin/busybox sha256sum /workspace/seed | /bin/busybox cut -d " " -f 1)" = {seed_sha}')
@@ -359,12 +365,16 @@ def main():
                       help='stop Node while a verified workspace is active, without public workspace Stop')
     mode.add_argument('--fuse-counters-only', action='store_true',
                       help='observe actual FUSE callback positive control and managed native bypass, omitting timing payload')
+    parser.add_argument('--fuse-counter-case', choices=('data', 'metadata'), default='data',
+                        help='select the independent callback witness; metadata omits completed data tests')
     parser.add_argument('--semantics-probe', type=Path, help='optional short mixed-path checks before normal stop')
     parser.add_argument('--semantics-groups', nargs='+',
                         choices=('locks', 'append', 'mmap_inotify', 'permissions_errno'),
                         default=['locks', 'append', 'mmap_inotify', 'permissions_errno'],
                         help='only run affected groups; omitted groups retain their original evidence')
     args = parser.parse_args()
+    if args.fuse_counter_case != 'data' and not args.fuse_counters_only:
+        parser.error('--fuse-counter-case metadata requires --fuse-counters-only')
     if (args.source_rejection_only or args.control_capacity_only or args.orderly_recovery_only or args.node_shutdown_only or args.fuse_counters_only) and args.semantics_probe:
         parser.error('control-only modes cannot be combined with --semantics-probe')
     return Run(args).run()

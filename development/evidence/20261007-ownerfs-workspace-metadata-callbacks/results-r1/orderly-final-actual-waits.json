@@ -1,0 +1,54 @@
+{
+  "meta": {
+    "path": "/opt/afs-workspace-metadata-callbacks-20261007-r1/run/meta.lifecycle.Uh51wF",
+    "child": {
+      "pid": "70518",
+      "exe": "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc/meta.toml",
+      "start_ticks": "8633308",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-metadata-callbacks-20261007-r1/run/meta.lifecycle.Uh51wF",
+      "supervisor_pid": "70502"
+    },
+    "exit": {
+      "pid": "70518",
+      "exe": "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc/meta.toml",
+      "start_ticks": "8633308",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-metadata-callbacks-20261007-r1/run/meta.lifecycle.Uh51wF",
+      "supervisor_pid": "70502",
+      "exit_code": "0"
+    },
+    "ready": {
+      "supervisor_pid": "70502"
+    },
+    "both_gone": true
+  },
+  "node": {
+    "path": "/opt/afs-workspace-metadata-callbacks-20261007-r1/run/node.lifecycle.X9BVS3",
+    "child": {
+      "pid": "70702",
+      "exe": "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc/node.toml",
+      "start_ticks": "8633325",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-metadata-callbacks-20261007-r1/run/node.lifecycle.X9BVS3",
+      "supervisor_pid": "70686"
+    },
+    "exit": {
+      "pid": "70702",
+      "exe": "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc/node.toml",
+      "start_ticks": "8633325",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-metadata-callbacks-20261007-r1/run/node.lifecycle.X9BVS3",
+      "supervisor_pid": "70686",
+      "exit_code": "0"
+    },
+    "ready": {
+      "supervisor_pid": "70686"
+    },
+    "both_gone": true
+  }
+}

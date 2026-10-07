@@ -1,0 +1,158 @@
+{
+  "template": {
+    ".": {
+      "dev": 64769,
+      "ino": 827129,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791355715582198705,
+      "ctime_ns": 1791355715582198705
+    },
+    "afs-workspace-probe": {
+      "dev": 64769,
+      "ino": 827142,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 560000,
+      "mtime_ns": 1791355715576198724,
+      "ctime_ns": 1791355715576198724,
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7"
+    },
+    "bin": {
+      "dev": 64769,
+      "ino": 827144,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791355715578198718,
+      "ctime_ns": 1791355715578198718
+    },
+    "bin/busybox": {
+      "dev": 64769,
+      "ino": 827145,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 1914704,
+      "mtime_ns": 1791355715577198721,
+      "ctime_ns": 1791355715578198718,
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933"
+    },
+    "bin/sh": {
+      "dev": 64769,
+      "ino": 827146,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 1914704,
+      "mtime_ns": 1791355715579198714,
+      "ctime_ns": 1791355715579198714,
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933"
+    },
+    "lib": {
+      "dev": 64769,
+      "ino": 827147,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791355715579198714,
+      "ctime_ns": 1791355715579198714
+    },
+    "lib/aarch64-linux-gnu": {
+      "dev": 64769,
+      "ino": 827149,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791355715580198711,
+      "ctime_ns": 1791355715580198711
+    },
+    "lib/aarch64-linux-gnu/libc.so.6": {
+      "dev": 64769,
+      "ino": 827151,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 1722920,
+      "mtime_ns": 1791355715581198708,
+      "ctime_ns": 1791355715582198705,
+      "sha256": "fe5966a43e068ad7cb389c3affa069f4ee6f296e07d7ccc0398a23cfde4f0b7e"
+    },
+    "lib/aarch64-linux-gnu/libgcc_s.so.1": {
+      "dev": 64769,
+      "ino": 827150,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 133696,
+      "mtime_ns": 1791355715580198711,
+      "ctime_ns": 1791355715580198711,
+      "sha256": "f2d3ad2bf0b61f6bc944cc37d7b6ab7f88d2582b41ff989ca164803f56cc5f20"
+    },
+    "lib/ld-linux-aarch64.so.1": {
+      "dev": 64769,
+      "ino": 827148,
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "size": 203968,
+      "mtime_ns": 1791355715579198714,
+      "ctime_ns": 1791355715579198714,
+      "sha256": "393384096ffa869e1be20d2f91fdf08dfadb9f3e531dfe724085d8501d3f85d9"
+    },
+    "proc": {
+      "dev": 64769,
+      "ino": 827153,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791355715582198705,
+      "ctime_ns": 1791355715582198705
+    },
+    "workspace": {
+      "dev": 64769,
+      "ino": 827152,
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "size": 4096,
+      "mtime_ns": 1791355715582198705,
+      "ctime_ns": 1791355715582198705
+    }
+  },
+  "config_prefix": {
+    "etc/env": "0e849043002acd1d5b91317655d87c558fcfcfd366db7e299eba7a48fd969656",
+    "etc/meta.toml": "51062363c6d333f89414dee69a1259b82f4c7ddb1929b37c1479315e77c4f28d",
+    "etc/node-dfs.toml": "540a37b17aeabb6ee00615aa81564577672960010d0eceb4838e9ff4835e049f",
+    "etc/node-ownerfs.toml": "540a37b17aeabb6ee00615aa81564577672960010d0eceb4838e9ff4835e049f",
+    "etc/node.toml": "540a37b17aeabb6ee00615aa81564577672960010d0eceb4838e9ff4835e049f",
+    "etc/tls/ca-key.pem": "0033b7c3742f13c20144d63ee73d2cfdca62235415f3d1fcc1f7641ec27facca",
+    "etc/tls/ca.pem": "7ab84a9f8372fde43b4a2847b78f2daab667c8d264696f9b9e62263c18d03834",
+    "etc/tls/ca.srl": "d87edbd02c0e62a54af73e9a8c8d9e698208b7556693b5341094349efccd6d01",
+    "etc/tls/meta-key.pem": "6dfdba3b6fe650da41de5b16985d12ef9f6d6104295351f3bb7cb0613360447e",
+    "etc/tls/meta.pem": "b7809e2c97fd4c70aae3c9f3496827b5e1d11c64e159736e8c76b212d488c000",
+    "etc/tls/node-a-key.pem": "c77242df3a85d0e5c8cef76aae505939587bb47751e55416da003b4cffdefcd7",
+    "etc/tls/node-a.pem": "b982c9720180fbd55d6a212cdcc6087d2d63910f51356ae28bcbdbdc428dff70",
+    "prefix/DEPENDENCIES.md": "23252af9e85749e0ba1bc780165a4aecb0bb040a37885654a388173864f6a8ad",
+    "prefix/bin/afs-meta": "75864631b10ec053bb3ed09cc00dbf57befc967413be721cd539ec976d3bebb2",
+    "prefix/bin/afs-node": "d54c2dc27f7915aaf907f7741699f91508d2e2c147dc9445de3ed72f08279ea9",
+    "prefix/bin/afs-processctl": "1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896",
+    "prefix/bin/afs-selfcheck": "573d174c6cae3581e080532ae59e207d92e27b730f08190b1ee99d457bedfb4a",
+    "prefix/bin/afs-trial-config": "c47783f9525826d4a0e137499bb1a779f94b3474c7355dd53aec0e615b98889b",
+    "prefix/bin/dep02-smoke.sh": "0a5d929c9a6da73235c3fe8e2e4623ea9813b5e6a59027d95a1cc9d2d886f0c2",
+    "prefix/docs/guides/trial.md": "17be09a73f99c50682d04febe0d29c096f416eeb31991c1eab926d5579fe796d",
+    "prefix/manifest.json": "8322477598540ab0118104583ed7bf03cd258cdc040f512ad242603fc8fb6ccd"
+  },
+  "meta_state_directory": {
+    "path": "/opt/afs-workspace-metadata-callbacks-20261007-r1/state/meta",
+    "dev": 64769,
+    "ino": 827169
+  }
+}

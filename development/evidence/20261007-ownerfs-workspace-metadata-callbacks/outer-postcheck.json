@@ -1,0 +1,976 @@
+{
+  "status": "PASS",
+  "checks": {
+    "admission": {
+      "status": "PASS",
+      "actual": null
+    },
+    "unchanged-selected-inputs": {
+      "status": "PASS",
+      "actual": null
+    },
+    "selected-driver": {
+      "status": "PASS",
+      "actual": {
+        "status": "PASS",
+        "scope": "single experimental managed OwnerFs workspace; not full G2.12/13",
+        "source_commit": "b31292ac56dc3b88ec0f0dca09cbce014af1e7fb",
+        "driver_sha256": "ae1d55186e2f65d87e389dd6aa8c17445977ae42d888c51adc5a0a02ec3ecfcd",
+        "basic_payload_selected": false,
+        "source_rejection_selected": false,
+        "control_capacity_selected": false,
+        "orderly_recovery_selected": false,
+        "node_shutdown_selected": false,
+        "fuse_counters_selected": true,
+        "fuse_counter_case": "metadata",
+        "semantic_groups": [],
+        "cleanup": "PASS"
+      }
+    },
+    "actual-command-exits": {
+      "status": "PASS",
+      "actual": [
+        {
+          "argv": [
+            "findmnt",
+            "-J",
+            "-T",
+            "/opt"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.002088326000375673,
+          "stdout": "000.stdout",
+          "stderr": "000.stderr"
+        },
+        {
+          "argv": [
+            "/usr/local/sbin/runc",
+            "--version"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.0036087390035390854,
+          "stdout": "001.stdout",
+          "stderr": "001.stderr"
+        },
+        {
+          "argv": [
+            "tar",
+            "-xzf",
+            "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/package.tar.gz",
+            "-C",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/package"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.23512278498674277,
+          "stdout": "002.stdout",
+          "stderr": "002.stderr"
+        },
+        {
+          "argv": [
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/package/afs-0.1.0-g2-main-b31292a-linux-aarch64/install.sh",
+            "--prefix",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix",
+            "--config-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc",
+            "--state-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/state",
+            "--run-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/run",
+            "--log-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/logs",
+            "--mount-root",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/mount"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.6163276070001302,
+          "stdout": "003.stdout",
+          "stderr": "003.stderr"
+        },
+        {
+          "argv": [
+            "ldd",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-meta"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.0037313630018616095,
+          "stdout": "004.stdout",
+          "stderr": "004.stderr"
+        },
+        {
+          "argv": [
+            "ldd",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-node"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.0038227369950618595,
+          "stdout": "005.stdout",
+          "stderr": "005.stderr"
+        },
+        {
+          "argv": [
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-trial-config",
+            "single",
+            "--backend",
+            "local-file",
+            "--config-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc",
+            "--state-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/state",
+            "--run-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/run",
+            "--mount-root",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/mount",
+            "--meta-grpc-port",
+            "24400",
+            "--meta-rest-port",
+            "24401",
+            "--node-grpc-port",
+            "24500",
+            "--node-rest-port",
+            "24501",
+            "--force"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.2988742559973616,
+          "stdout": "006.stdout",
+          "stderr": "006.stderr"
+        },
+        {
+          "argv": [
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-processctl",
+            "--prefix",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix",
+            "--config-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc",
+            "--run-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/run",
+            "--log-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/logs",
+            "start",
+            "all"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.32256922200031113,
+          "stdout": "007.stdout",
+          "stderr": "007.stderr"
+        },
+        {
+          "argv": [
+            "findmnt",
+            "-J",
+            "-o",
+            "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+            "--mountpoint",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/mount/ownerfs"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.0013030789996264502,
+          "stdout": "008.stdout",
+          "stderr": "008.stderr"
+        },
+        {
+          "argv": [
+            "python3",
+            "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+            "--socket",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+            "--id",
+            "initial",
+            "status"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.0662175390025368,
+          "stdout": "009.stdout",
+          "stderr": "009.stderr"
+        },
+        {
+          "argv": [
+            "python3",
+            "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+            "--socket",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+            "--id",
+            "first",
+            "start",
+            "workspace"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.16625426699465606,
+          "stdout": "010.stdout",
+          "stderr": "010.stderr"
+        },
+        {
+          "argv": [
+            "/usr/local/sbin/runc",
+            "--root",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/runtime-state",
+            "state",
+            "afs-native-first"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.003744196001207456,
+          "stdout": "011.stdout",
+          "stderr": "011.stderr"
+        },
+        {
+          "argv": [
+            "curl",
+            "-fsS",
+            "http://127.0.0.1:24501/metrics"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.004009320997283794,
+          "stdout": "012.stdout",
+          "stderr": "012.stderr"
+        },
+        {
+          "argv": [
+            "curl",
+            "-fsS",
+            "http://127.0.0.1:24501/metrics"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.0037027799990028143,
+          "stdout": "013.stdout",
+          "stderr": "013.stderr"
+        },
+        {
+          "argv": [
+            "curl",
+            "-fsS",
+            "http://127.0.0.1:24501/metrics"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.0037901550094829872,
+          "stdout": "014.stdout",
+          "stderr": "014.stderr"
+        },
+        {
+          "argv": [
+            "python3",
+            "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+            "--socket",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+            "--id",
+            "callback-native-metadata",
+            "exec",
+            "--",
+            "/bin/sh",
+            "-ec",
+            "d=/workspace/callback-native-metadata; /bin/busybox mkdir \"$d\"; i=0; while test \"$i\" -lt 12; do : > \"$d/file-$i\"; test -f \"$d/file-$i\"; test ! -s \"$d/file-$i\"; i=$((i+1)); done; set -- \"$d\"/file-*; test \"$#\" -eq 12; i=0; while test \"$i\" -lt 12; do /bin/busybox rm \"$d/file-$i\"; test ! -e \"$d/file-$i\"; i=$((i+1)); done; /bin/busybox rmdir \"$d\"; test ! -e \"$d\"; printf \"METADATA_OK files=12 dirs=1\\n\""
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.06626995699480176,
+          "stdout": "015.stdout",
+          "stderr": "015.stderr"
+        },
+        {
+          "argv": [
+            "curl",
+            "-fsS",
+            "http://127.0.0.1:24501/metrics"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.0036108209897065535,
+          "stdout": "016.stdout",
+          "stderr": "016.stderr"
+        },
+        {
+          "argv": [
+            "python3",
+            "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+            "--socket",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+            "--id",
+            "stop-first",
+            "stop"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.06617254100274295,
+          "stdout": "017.stdout",
+          "stderr": "017.stderr"
+        },
+        {
+          "argv": [
+            "python3",
+            "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+            "--socket",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+            "--id",
+            "after-stop",
+            "status"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.06904111600306351,
+          "stdout": "018.stdout",
+          "stderr": "018.stderr"
+        },
+        {
+          "argv": [
+            "/usr/local/sbin/runc",
+            "--root",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/runtime-state",
+            "list",
+            "--format",
+            "json"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.0035817809985019267,
+          "stdout": "019.stdout",
+          "stderr": "019.stderr"
+        },
+        {
+          "argv": [
+            "python3",
+            "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+            "--socket",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/control.sock",
+            "--id",
+            "finally-stop",
+            "stop"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.036802842005272396,
+          "stdout": "020.stdout",
+          "stderr": "020.stderr"
+        },
+        {
+          "argv": [
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-processctl",
+            "--prefix",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix",
+            "--config-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc",
+            "--run-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/run",
+            "--log-dir",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/logs",
+            "stop",
+            "all"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.1680202199931955,
+          "stdout": "021.stdout",
+          "stderr": "021.stderr"
+        },
+        {
+          "argv": [
+            "findmnt",
+            "-rn",
+            "--mountpoint",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/mount/ownerfs"
+          ],
+          "exit": 1,
+          "timeout": false,
+          "elapsed_seconds": 0.0016970779979601502,
+          "stdout": "022.stdout",
+          "stderr": "022.stderr"
+        },
+        {
+          "argv": [
+            "findmnt",
+            "-rn",
+            "--mountpoint",
+            "/opt/afs-workspace-metadata-callbacks-20261007-r1/mount/ownerfs"
+          ],
+          "exit": 1,
+          "timeout": false,
+          "elapsed_seconds": 0.001624077995074913,
+          "stdout": "023.stdout",
+          "stderr": "023.stderr"
+        }
+      ]
+    },
+    "actual-scrape-before-fuse": {
+      "status": "PASS",
+      "actual": null
+    },
+    "actual-sample-before-fuse": {
+      "status": "PASS",
+      "actual": null
+    },
+    "actual-scrape-after-fuse": {
+      "status": "PASS",
+      "actual": null
+    },
+    "actual-sample-after-fuse": {
+      "status": "PASS",
+      "actual": null
+    },
+    "actual-scrape-before-native": {
+      "status": "PASS",
+      "actual": null
+    },
+    "actual-sample-before-native": {
+      "status": "PASS",
+      "actual": null
+    },
+    "actual-scrape-after-native": {
+      "status": "PASS",
+      "actual": null
+    },
+    "actual-sample-after-native": {
+      "status": "PASS",
+      "actual": null
+    },
+    "fuse-metadata-positive": {
+      "status": "PASS",
+      "actual": {
+        "access": 0,
+        "create": 12,
+        "destroy": 0,
+        "flush": 12,
+        "forget": 13,
+        "fsync": 0,
+        "fsyncdir": 0,
+        "getattr": 268,
+        "getlk_with_options": 0,
+        "getxattr": 0,
+        "init": 0,
+        "interrupt": 0,
+        "link": 0,
+        "listxattr": 0,
+        "lookup": 39,
+        "mkdir": 1,
+        "mknod": 0,
+        "open": 0,
+        "opendir": 2,
+        "read": 0,
+        "readdir": 4,
+        "readlink": 0,
+        "release": 12,
+        "releasedir": 2,
+        "removexattr": 0,
+        "rename": 0,
+        "rmdir": 1,
+        "setattr": 0,
+        "setlk_with_options": 0,
+        "setxattr": 0,
+        "statfs": 0,
+        "symlink": 0,
+        "unlink": 12,
+        "write": 0
+      }
+    },
+    "native-metadata-zero-observed": {
+      "status": "PASS",
+      "actual": {
+        "access": 0,
+        "create": 0,
+        "destroy": 0,
+        "flush": 0,
+        "forget": 0,
+        "fsync": 0,
+        "fsyncdir": 0,
+        "getattr": 0,
+        "getlk_with_options": 0,
+        "getxattr": 0,
+        "init": 0,
+        "interrupt": 0,
+        "link": 0,
+        "listxattr": 0,
+        "lookup": 0,
+        "mkdir": 0,
+        "mknod": 0,
+        "open": 0,
+        "opendir": 0,
+        "read": 0,
+        "readdir": 0,
+        "readlink": 0,
+        "release": 0,
+        "releasedir": 0,
+        "removexattr": 0,
+        "rename": 0,
+        "rmdir": 0,
+        "setattr": 0,
+        "setlk_with_options": 0,
+        "setxattr": 0,
+        "statfs": 0,
+        "symlink": 0,
+        "unlink": 0,
+        "write": 0
+      }
+    },
+    "oracle-actual-deltas": {
+      "status": "PASS",
+      "actual": {
+        "status": "PASS",
+        "case": "metadata",
+        "files": 12,
+        "directories": 1,
+        "scope": "create/unlink/mkdir/rmdir windows within one experimental-ON Node; not OFF/ON timing qualification",
+        "fuse_delta": {
+          "access": 0,
+          "create": 12,
+          "destroy": 0,
+          "flush": 12,
+          "forget": 13,
+          "fsync": 0,
+          "fsyncdir": 0,
+          "getattr": 268,
+          "getlk_with_options": 0,
+          "getxattr": 0,
+          "init": 0,
+          "interrupt": 0,
+          "link": 0,
+          "listxattr": 0,
+          "lookup": 39,
+          "mkdir": 1,
+          "mknod": 0,
+          "open": 0,
+          "opendir": 2,
+          "read": 0,
+          "readdir": 4,
+          "readlink": 0,
+          "release": 12,
+          "releasedir": 2,
+          "removexattr": 0,
+          "rename": 0,
+          "rmdir": 1,
+          "setattr": 0,
+          "setlk_with_options": 0,
+          "setxattr": 0,
+          "statfs": 0,
+          "symlink": 0,
+          "unlink": 12,
+          "write": 0
+        },
+        "native_delta": {
+          "access": 0,
+          "create": 0,
+          "destroy": 0,
+          "flush": 0,
+          "forget": 0,
+          "fsync": 0,
+          "fsyncdir": 0,
+          "getattr": 0,
+          "getlk_with_options": 0,
+          "getxattr": 0,
+          "init": 0,
+          "interrupt": 0,
+          "link": 0,
+          "listxattr": 0,
+          "lookup": 0,
+          "mkdir": 0,
+          "mknod": 0,
+          "open": 0,
+          "opendir": 0,
+          "read": 0,
+          "readdir": 0,
+          "readlink": 0,
+          "release": 0,
+          "releasedir": 0,
+          "removexattr": 0,
+          "rename": 0,
+          "rmdir": 0,
+          "setattr": 0,
+          "setlk_with_options": 0,
+          "setxattr": 0,
+          "statfs": 0,
+          "symlink": 0,
+          "unlink": 0,
+          "write": 0
+        },
+        "node": {
+          "pid": 70702,
+          "starttick": 8633325,
+          "sha256": "d54c2dc27f7915aaf907f7741699f91508d2e2c147dc9445de3ed72f08279ea9",
+          "installed": {
+            "path": "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-node",
+            "device": 64769,
+            "inode": 827113
+          },
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd"
+        }
+      }
+    },
+    "metadata-functional-checks": {
+      "status": "PASS",
+      "actual": {
+        "metadata-empty-file-0": {
+          "status": "PASS",
+          "value": "file-0"
+        },
+        "metadata-empty-file-1": {
+          "status": "PASS",
+          "value": "file-1"
+        },
+        "metadata-empty-file-2": {
+          "status": "PASS",
+          "value": "file-2"
+        },
+        "metadata-empty-file-3": {
+          "status": "PASS",
+          "value": "file-3"
+        },
+        "metadata-empty-file-4": {
+          "status": "PASS",
+          "value": "file-4"
+        },
+        "metadata-empty-file-5": {
+          "status": "PASS",
+          "value": "file-5"
+        },
+        "metadata-empty-file-6": {
+          "status": "PASS",
+          "value": "file-6"
+        },
+        "metadata-empty-file-7": {
+          "status": "PASS",
+          "value": "file-7"
+        },
+        "metadata-empty-file-8": {
+          "status": "PASS",
+          "value": "file-8"
+        },
+        "metadata-empty-file-9": {
+          "status": "PASS",
+          "value": "file-9"
+        },
+        "metadata-empty-file-10": {
+          "status": "PASS",
+          "value": "file-10"
+        },
+        "metadata-empty-file-11": {
+          "status": "PASS",
+          "value": "file-11"
+        },
+        "metadata-unlinked-file-0": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-1": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-2": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-3": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-4": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-5": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-6": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-7": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-8": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-9": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-10": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-unlinked-file-11": {
+          "status": "PASS",
+          "value": 2
+        },
+        "metadata-directory-entries": {
+          "status": "PASS",
+          "value": [
+            "file-0",
+            "file-1",
+            "file-2",
+            "file-3",
+            "file-4",
+            "file-5",
+            "file-6",
+            "file-7",
+            "file-8",
+            "file-9",
+            "file-10",
+            "file-11"
+          ]
+        },
+        "metadata-directory-empty": {
+          "status": "PASS",
+          "value": "empty"
+        },
+        "metadata-directory-gone": {
+          "status": "PASS",
+          "value": "absent"
+        },
+        "callback-native-metadata-executed": {
+          "status": "PASS",
+          "value": {
+            "production_ready": false,
+            "status": "Executed",
+            "stdout_bytes": 28
+          }
+        },
+        "callback-same-node-incarnation": {
+          "status": "PASS",
+          "value": {
+            "pid": 70702,
+            "starttick": 8633325,
+            "sha256": "d54c2dc27f7915aaf907f7741699f91508d2e2c147dc9445de3ed72f08279ea9",
+            "installed": {
+              "path": "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-node",
+              "device": 64769,
+              "inode": 827113
+            },
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd"
+          }
+        }
+      }
+    },
+    "one-actual-metadata-exec": {
+      "status": "PASS",
+      "actual": [
+        "/var/tmp/afs-workspace-metadata-callbacks-20261007-r1/results-r1/control/command-0006.command.json"
+      ]
+    },
+    "actual-metadata-exec-exit-output": {
+      "status": "PASS",
+      "actual": {
+        "exit": {
+          "code": 0,
+          "reason": null,
+          "success": true
+        },
+        "stdout": "METADATA_OK files=12 dirs=1\n"
+      }
+    },
+    "meta-direct-wait0": {
+      "status": "PASS",
+      "actual": {
+        "child": {
+          "pid": "70518",
+          "exe": "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-meta",
+          "config": "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc/meta.toml",
+          "start_ticks": "8633308",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-metadata-callbacks-20261007-r1/run/meta.lifecycle.Uh51wF",
+          "supervisor_pid": "70502"
+        },
+        "exit": {
+          "pid": "70518",
+          "exe": "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-meta",
+          "config": "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc/meta.toml",
+          "start_ticks": "8633308",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-metadata-callbacks-20261007-r1/run/meta.lifecycle.Uh51wF",
+          "supervisor_pid": "70502",
+          "exit_code": "0"
+        },
+        "ready": {
+          "supervisor_pid": "70502"
+        },
+        "both_gone": true
+      }
+    },
+    "node-direct-wait0": {
+      "status": "PASS",
+      "actual": {
+        "child": {
+          "pid": "70702",
+          "exe": "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-node",
+          "config": "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc/node.toml",
+          "start_ticks": "8633325",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-metadata-callbacks-20261007-r1/run/node.lifecycle.X9BVS3",
+          "supervisor_pid": "70686"
+        },
+        "exit": {
+          "pid": "70702",
+          "exe": "/opt/afs-workspace-metadata-callbacks-20261007-r1/prefix/bin/afs-node",
+          "config": "/opt/afs-workspace-metadata-callbacks-20261007-r1/etc/node.toml",
+          "start_ticks": "8633325",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-metadata-callbacks-20261007-r1/run/node.lifecycle.X9BVS3",
+          "supervisor_pid": "70686",
+          "exit_code": "0"
+        },
+        "ready": {
+          "supervisor_pid": "70686"
+        },
+        "both_gone": true
+      }
+    },
+    "container-gone": {
+      "status": "PASS",
+      "actual": 70867
+    },
+    "actual-runtime-empty": {
+      "status": "PASS",
+      "actual": {
+        "argv": [
+          "/usr/local/sbin/runc",
+          "--root",
+          "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/runtime-state",
+          "list",
+          "--format",
+          "json"
+        ],
+        "rc": 0,
+        "stdout": "null\n",
+        "stderr": ""
+      }
+    },
+    "absent-control/control.sock": {
+      "status": "PASS",
+      "actual": null
+    },
+    "absent-control/controller.lock": {
+      "status": "PASS",
+      "actual": null
+    },
+    "absent-run/meta.sock": {
+      "status": "PASS",
+      "actual": null
+    },
+    "absent-run/node.sock": {
+      "status": "PASS",
+      "actual": null
+    },
+    "owned-process-mount-gone": {
+      "status": "PASS",
+      "actual": {
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "processes": [],
+        "mountinfo": [
+          "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+          "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+          "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4020012k,nr_inodes=1005003,mode=755,inode64",
+          "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+          "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811364k,mode=755,inode64",
+          "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+          "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+          "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+          "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+          "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+          "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+          "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+          "40 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3230",
+          "41 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:15 - mqueue mqueue rw",
+          "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:16 - debugfs debugfs rw",
+          "43 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:17 - hugetlbfs hugetlbfs rw,pagesize=2M",
+          "44 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:18 - tracefs tracefs rw",
+          "45 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+          "46 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+          "48 32 259:0 / /boot rw,relatime shared:30 - ext4 /dev/vda16 rw",
+          "50 48 253:15 / /boot/efi rw,relatime shared:47 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+          "52 40 0:37 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:49 - binfmt_misc binfmt_misc rw",
+          "56 32 0:44 / /workspace/dms ro,relatime shared:147 - virtiofs lima-a7a710dc212e898d ro",
+          "98 32 253:16 / /mnt/lima-cidata ro,relatime shared:350 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+          "58 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:99 - tmpfs tmpfs rw,size=811360k,nr_inodes=202840,mode=700,uid=501,gid=1000,inode64"
+        ]
+      }
+    },
+    "protected-identities-unchanged": {
+      "status": "PASS",
+      "actual": {
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "processes": [
+          {
+            "pid": 3554,
+            "exe": "/usr/bin/gpg-agent (deleted)",
+            "starttick": 4412560,
+            "argv": "gpg-agent --homedir /var/tmp/afs-runc-admission-20261007-r1/gnupg --use-standard-socket --daemon ",
+            "exe_sha256": "5bd7c61c431192d41478e288e6f5bba0287aa5e766b007db82d25f27c8b8cdd7"
+          }
+        ],
+        "mountinfo": [
+          "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+          "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+          "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4020012k,nr_inodes=1005003,mode=755,inode64",
+          "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+          "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811364k,mode=755,inode64",
+          "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+          "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+          "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+          "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+          "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+          "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+          "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+          "40 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3230",
+          "41 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:15 - mqueue mqueue rw",
+          "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:16 - debugfs debugfs rw",
+          "43 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:17 - hugetlbfs hugetlbfs rw,pagesize=2M",
+          "44 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:18 - tracefs tracefs rw",
+          "45 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+          "46 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+          "48 32 259:0 / /boot rw,relatime shared:30 - ext4 /dev/vda16 rw",
+          "50 48 253:15 / /boot/efi rw,relatime shared:47 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+          "52 40 0:37 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:49 - binfmt_misc binfmt_misc rw",
+          "56 32 0:44 / /workspace/dms ro,relatime shared:147 - virtiofs lima-a7a710dc212e898d ro",
+          "98 32 253:16 / /mnt/lima-cidata ro,relatime shared:350 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+          "58 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:99 - tmpfs tmpfs rw,size=811360k,nr_inodes=202840,mode=700,uid=501,gid=1000,inode64"
+        ]
+      }
+    },
+    "previous-installed-unchanged": {
+      "status": "PASS",
+      "actual": null
+    },
+    "capacity": {
+      "status": "PASS",
+      "actual": {
+        "allocated_bytes": 112873472,
+        "apparent_bytes": 112271979,
+        "distinct_inodes": 331,
+        "free_bytes": 8698511360,
+        "ceiling": 268435456,
+        "floor": 1073741824
+      }
+    }
+  },
+  "invocation_glue_sha256": "3d1b5e44f7ff14d238c307b29475dd60d07be36165c2f10c151363bd245d1f6c",
+  "commands": [
+    {
+      "argv": [
+        "/usr/local/sbin/runc",
+        "--root",
+        "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/runtime-state",
+        "list",
+        "--format",
+        "json"
+      ],
+      "rc": 0,
+      "stdout": "null\n",
+      "stderr": ""
+    }
+  ]
+}

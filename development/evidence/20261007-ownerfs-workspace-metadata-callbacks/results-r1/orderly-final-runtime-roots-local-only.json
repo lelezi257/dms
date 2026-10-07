@@ -1,0 +1,266 @@
+{
+  "/opt/afs-workspace-metadata-callbacks-20261007-r1/control/bundle-afs-native-first/rootfs": {
+    ".": {
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827208,
+      "rdev": 0,
+      "size": 4096,
+      "allocated_bytes": 4096
+    },
+    "afs-workspace-probe": {
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827211,
+      "rdev": 0,
+      "size": 560000,
+      "allocated_bytes": 561152,
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7"
+    },
+    "bin": {
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827209,
+      "rdev": 0,
+      "size": 4096,
+      "allocated_bytes": 4096
+    },
+    "bin/busybox": {
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827218,
+      "rdev": 0,
+      "size": 1914704,
+      "allocated_bytes": 1916928,
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933"
+    },
+    "bin/sh": {
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827219,
+      "rdev": 0,
+      "size": 1914704,
+      "allocated_bytes": 1916928,
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933"
+    },
+    "dev": {
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827226,
+      "rdev": 0,
+      "size": 4096,
+      "allocated_bytes": 4096
+    },
+    "dev/core": {
+      "mode": 41471,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827238,
+      "rdev": 0,
+      "size": 11,
+      "allocated_bytes": 0,
+      "target": "/proc/kcore"
+    },
+    "dev/fd": {
+      "mode": 41471,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827234,
+      "rdev": 0,
+      "size": 13,
+      "allocated_bytes": 0,
+      "target": "/proc/self/fd"
+    },
+    "dev/full": {
+      "mode": 8630,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827229,
+      "rdev": 263,
+      "size": 0,
+      "allocated_bytes": 0
+    },
+    "dev/null": {
+      "mode": 8630,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827227,
+      "rdev": 259,
+      "size": 0,
+      "allocated_bytes": 0
+    },
+    "dev/ptmx": {
+      "mode": 41471,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827233,
+      "rdev": 0,
+      "size": 8,
+      "allocated_bytes": 0,
+      "target": "pts/ptmx"
+    },
+    "dev/random": {
+      "mode": 8630,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827228,
+      "rdev": 264,
+      "size": 0,
+      "allocated_bytes": 0
+    },
+    "dev/stderr": {
+      "mode": 41471,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827237,
+      "rdev": 0,
+      "size": 15,
+      "allocated_bytes": 0,
+      "target": "/proc/self/fd/2"
+    },
+    "dev/stdin": {
+      "mode": 41471,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827235,
+      "rdev": 0,
+      "size": 15,
+      "allocated_bytes": 0,
+      "target": "/proc/self/fd/0"
+    },
+    "dev/stdout": {
+      "mode": 41471,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827236,
+      "rdev": 0,
+      "size": 15,
+      "allocated_bytes": 0,
+      "target": "/proc/self/fd/1"
+    },
+    "dev/tty": {
+      "mode": 8630,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827230,
+      "rdev": 1280,
+      "size": 0,
+      "allocated_bytes": 0
+    },
+    "dev/urandom": {
+      "mode": 8630,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827232,
+      "rdev": 265,
+      "size": 0,
+      "allocated_bytes": 0
+    },
+    "dev/zero": {
+      "mode": 8630,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827231,
+      "rdev": 261,
+      "size": 0,
+      "allocated_bytes": 0
+    },
+    "lib": {
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827210,
+      "rdev": 0,
+      "size": 4096,
+      "allocated_bytes": 4096
+    },
+    "lib/aarch64-linux-gnu": {
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827214,
+      "rdev": 0,
+      "size": 4096,
+      "allocated_bytes": 4096
+    },
+    "lib/aarch64-linux-gnu/libc.so.6": {
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827217,
+      "rdev": 0,
+      "size": 1722920,
+      "allocated_bytes": 1724416,
+      "sha256": "fe5966a43e068ad7cb389c3affa069f4ee6f296e07d7ccc0398a23cfde4f0b7e"
+    },
+    "lib/aarch64-linux-gnu/libgcc_s.so.1": {
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827216,
+      "rdev": 0,
+      "size": 133696,
+      "allocated_bytes": 135168,
+      "sha256": "f2d3ad2bf0b61f6bc944cc37d7b6ab7f88d2582b41ff989ca164803f56cc5f20"
+    },
+    "lib/ld-linux-aarch64.so.1": {
+      "mode": 33261,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827215,
+      "rdev": 0,
+      "size": 203968,
+      "allocated_bytes": 204800,
+      "sha256": "393384096ffa869e1be20d2f91fdf08dfadb9f3e531dfe724085d8501d3f85d9"
+    },
+    "proc": {
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827213,
+      "rdev": 0,
+      "size": 4096,
+      "allocated_bytes": 4096
+    },
+    "workspace": {
+      "mode": 16877,
+      "uid": 0,
+      "gid": 0,
+      "dev": 64769,
+      "ino": 827212,
+      "rdev": 0,
+      "size": 4096,
+      "allocated_bytes": 4096
+    }
+  }
+}

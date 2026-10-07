@@ -1,0 +1,23 @@
+...EE.
+======================================================================
+ERROR: test_metadata_missing_samples_and_leaked_callbacks_are_not_bypass (__main__.CounterGuards.test_metadata_missing_samples_and_leaked_callbacks_are_not_bypass)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/dms/source/development/acceptance/probes/test_fuse_callback_counts.py", line 18, in test_metadata_missing_samples_and_leaked_callbacks_are_not_bypass
+    counts.verify_metadata_window(before, before, native=True)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'counts' has no attribute 'verify_metadata_window'
+
+======================================================================
+ERROR: test_metadata_positive_control_requires_all_selected_operations (__main__.CounterGuards.test_metadata_positive_control_requires_all_selected_operations)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/dms/source/development/acceptance/probes/test_fuse_callback_counts.py", line 29, in test_metadata_positive_control_requires_all_selected_operations
+    self.assertEqual(counts.verify_metadata_window(before, after, native=False)['unlink'], 12)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'counts' has no attribute 'verify_metadata_window'
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.010s
+
+FAILED (errors=2)

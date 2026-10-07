@@ -1,0 +1,17 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+test_all_roles_exact_three_and_owner_workspace_off (test_dfs_r3_fixture.FixtureGuards.test_all_roles_exact_three_and_owner_workspace_off) ... ok
+test_budget_does_not_stat_or_descend_mount_subtree (test_dfs_r3_fixture.FixtureGuards.test_budget_does_not_stat_or_descend_mount_subtree) ... ok
+test_current_sha_and_arch_required_for_elf (test_dfs_r3_fixture.FixtureGuards.test_current_sha_and_arch_required_for_elf) ... ok
+test_desired_three_sync_one_and_other_weakened_policies_rejected (test_dfs_r3_fixture.FixtureGuards.test_desired_three_sync_one_and_other_weakened_policies_rejected) ... ok
+test_exclusive_backup_preserved_and_cannot_repatch (test_dfs_r3_fixture.FixtureGuards.test_exclusive_backup_preserved_and_cannot_repatch) ... ok
+test_generated_role_endpoint_r2_backend_and_exact_trust_rejected (test_dfs_r3_fixture.FixtureGuards.test_generated_role_endpoint_r2_backend_and_exact_trust_rejected) ... ok
+test_initialized_state_refused_before_original_or_config_write (test_dfs_r3_fixture.FixtureGuards.test_initialized_state_refused_before_original_or_config_write) ... ok
+test_only_exact_owned_node_uds_permitted_in_budget (test_dfs_r3_fixture.FixtureGuards.test_only_exact_owned_node_uds_permitted_in_budget) ... ok
+test_stopped_runtime_uds_also_forbids_policy_patch (test_dfs_r3_fixture.FixtureGuards.test_stopped_runtime_uds_also_forbids_policy_patch) ... ok
+test_symlink_and_escape_refused (test_dfs_r3_fixture.FixtureGuards.test_symlink_and_escape_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.005s
+
+OK

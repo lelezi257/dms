@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import os,sys;from pathlib import Path;p=Path(sys.argv[1]);assert not p.exists() and not p.is_symlink();p.mkdir(mode=0o755);q=p/'stage';q.mkdir(mode=0o700);os.chown(q,int(os.environ['SUDO_UID']),int(os.environ['SUDO_GID']))",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-20261007-r1"
+  ],
+  "timeout": 90
+}

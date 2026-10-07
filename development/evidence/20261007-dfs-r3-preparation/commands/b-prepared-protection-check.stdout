@@ -1,0 +1,1 @@
+{"status": "PASS_PREPARATION_CLOSURE_ONLY", "checks": [{"kind": "no_owned_service", "ok": true, "owned": []}, {"kind": "no_owned_mount", "ok": true}], "runtime_started": false}

@@ -1,0 +1,100 @@
+{
+  "package": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-data-perf-20261007-r1/package.tar.gz",
+  "package_bytes": 14831129,
+  "package_sha256": "c7ea49d7eb59a75275d613f44b17aaebc7b745f6488bcebd9372bc9158f2e386",
+  "compiler_input_count": 157,
+  "compiler_input_map": "9661a313fb8b433caa00d03df5be43f880ad97859fc0299cd6d397cdf55cda0f",
+  "mismatches": [],
+  "source_input_manifest_sha256": "8f76f4f681e66c4dca4815691532e717aad0b52ebf6830f61a4e3d91b037a6a6",
+  "package_root": "afs-0.1.0-g2-main-93169c8-linux-aarch64",
+  "package_members": [
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64",
+      "bytes": 0
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/DEPENDENCIES.md",
+      "bytes": 2283
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/SHA256SUMS",
+      "bytes": 1285
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/bin",
+      "bytes": 0
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/bin/afs-meta",
+      "bytes": 15882088
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/bin/afs-node",
+      "bytes": 26181088
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/bin/afs-processctl",
+      "bytes": 27095
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/bin/afs-selfcheck",
+      "bytes": 17971
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/bin/afs-trial-config",
+      "bytes": 10374
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/bin/dep02-smoke.sh",
+      "bytes": 3313
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/docs",
+      "bytes": 0
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/docs/guides",
+      "bytes": 0
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/docs/guides/trial.md",
+      "bytes": 8337
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/install.sh",
+      "bytes": 6033
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/ldd.txt",
+      "bytes": 788
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/manifest.json",
+      "bytes": 757
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/scripts",
+      "bytes": 0
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/templates",
+      "bytes": 0
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/templates/meta.toml",
+      "bytes": 846
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/templates/node-dfs.toml",
+      "bytes": 253
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/templates/node-ownerfs.toml",
+      "bytes": 261
+    },
+    {
+      "name": "afs-0.1.0-g2-main-93169c8-linux-aarch64/templates/node.toml",
+      "bytes": 1041
+    }
+  ]
+}

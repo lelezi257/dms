@@ -1,0 +1,9 @@
+/workspace/dms/source
+Linux lima-afs-build 6.8.0-142-generic #142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+uid=501(lzc) gid=1000(lzc) groups=1000(lzc)
+cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+/workspace/dms lima-a7a710dc212e898d virtiofs ro,relatime
+/      /dev/vda1 ext4   rw,relatime,discard,errors=remount-ro,commit=30
+Filesystem             Size  Used Avail Use% Mounted on
+/dev/vda1               85G   47G   38G  56% /
+lima-a7a710dc212e898d  927G  789G  138G  86% /workspace/dms

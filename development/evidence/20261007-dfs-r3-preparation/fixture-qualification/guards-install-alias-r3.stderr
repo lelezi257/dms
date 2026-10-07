@@ -1,0 +1,9 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+test_exact_installer_aliases_count_without_following (test_dfs_r3_fixture.FixtureGuards.test_exact_installer_aliases_count_without_following) ... ok
+test_installer_alias_wrong_target_escape_and_unknown_link_refused (test_dfs_r3_fixture.FixtureGuards.test_installer_alias_wrong_target_escape_and_unknown_link_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.002s
+
+OK

@@ -1,0 +1,8 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+test_only_exact_owned_node_uds_permitted_in_budget (test_dfs_r3_fixture.FixtureGuards.test_only_exact_owned_node_uds_permitted_in_budget) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+OK

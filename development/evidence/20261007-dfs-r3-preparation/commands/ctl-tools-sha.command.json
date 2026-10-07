@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "sha256sum",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-20261007-r1/tools/dfs_r3_small.py",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-20261007-r1/tools/dfs_manyread_small.py",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-20261007-r1/tools/dfs_r3_fixture.py",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-20261007-r1/tools/orderly-runtime-checks.py",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-20261007-r1/tools/dfs_unique_io"
+  ],
+  "timeout": 90
+}

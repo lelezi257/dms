@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-c",
+    "sudo",
+    "tar",
+    "-xf",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/stage/config.tar",
+    "-C",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/etc"
+  ],
+  "timeout": 90
+}

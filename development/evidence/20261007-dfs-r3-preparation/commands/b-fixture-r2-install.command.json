@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "cp",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/stage/dfs_r3_fixture.r2.py",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/tools/dfs_r3_fixture.py"
+  ],
+  "timeout": 90
+}

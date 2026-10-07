@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-build",
+    "sudo",
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "/workspace/dms/source/development/acceptance",
+    "-p",
+    "test_dfs_r3_small.py",
+    "-v"
+  ],
+  "timeout": 90
+}

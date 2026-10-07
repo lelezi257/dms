@@ -1,0 +1,182 @@
+{
+  "ctl": {
+    "status": "PASS_PREPARATION_CLOSURE_ONLY",
+    "checks": [
+      {
+        "kind": "protected_process",
+        "pid": 472165,
+        "ok": true,
+        "actual": {
+          "exe": "/var/tmp/afs-p2e-redis/pkg/redis-server",
+          "starttick": "421560",
+          "sha256": "550a5b148fb69040a437e49f762124a92064b92991d3db232e64dc01f2cd346a"
+        }
+      },
+      {
+        "kind": "protected_process",
+        "pid": 1136874,
+        "ok": true,
+        "actual": {
+          "exe": "/mnt/lima-afsctlstate/afs-delivery/p1b/bin/afs-meta",
+          "starttick": "1233842",
+          "sha256": "0cc53e784027582815be40fd89c5b9efb48235bee8061146399d7a4d20fcfac1"
+        }
+      },
+      {
+        "kind": "protected_process",
+        "pid": 1418880,
+        "ok": true,
+        "actual": {
+          "exe": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-meta",
+          "starttick": "10164420",
+          "sha256": "64d85fc3933637ccd7fdf4eafded5e5c8cb2354e73b4c8d1a27b2b8d43f4c7e7"
+        }
+      },
+      {
+        "kind": "no_owned_service",
+        "ok": true,
+        "owned": []
+      },
+      {
+        "kind": "no_owned_mount",
+        "ok": true
+      }
+    ],
+    "runtime_started": false
+  },
+  "a": {
+    "status": "PASS_PREPARATION_CLOSURE_ONLY",
+    "checks": [
+      {
+        "kind": "protected_process",
+        "pid": 150904,
+        "ok": true,
+        "actual": {
+          "exe": "/usr/sbin/fdbserver",
+          "starttick": "2268457",
+          "sha256": "cddf55256ba2ca1249f98481d6c9995fd7fda091d23bc0551b96c1ae9537128c"
+        }
+      },
+      {
+        "kind": "protected_process",
+        "pid": 706366,
+        "ok": true,
+        "actual": {
+          "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v45/bin/afs-meta",
+          "starttick": "5849843",
+          "sha256": "8bcfbcbd2f84be5029ab848c214aaff258ba8147684a141b17b262d0b6cc8d10"
+        }
+      },
+      {
+        "kind": "protected_process",
+        "pid": 707560,
+        "ok": true,
+        "actual": {
+          "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta",
+          "starttick": "6127754",
+          "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312"
+        }
+      },
+      {
+        "kind": "protected_process",
+        "pid": 722421,
+        "ok": true,
+        "actual": {
+          "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta",
+          "starttick": "6782793",
+          "sha256": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d"
+        }
+      },
+      {
+        "kind": "protected_process",
+        "pid": 723627,
+        "ok": true,
+        "actual": {
+          "exe": "/mnt/lima-afsadata/afs-delivery/repair-v55-a/prefix/bin/afs-meta",
+          "starttick": "7187988",
+          "sha256": "f08de71b873f9e9f5564acdd09ce58ab62b62472b36db7a8b0a514c2d47849fb"
+        }
+      },
+      {
+        "kind": "protected_process",
+        "pid": 724361,
+        "ok": true,
+        "actual": {
+          "exe": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-meta",
+          "starttick": "7349623",
+          "sha256": "37218622c1cfd1cfadc696269f0ea01a2570052ec460528c748d525fe982ef9d"
+        }
+      },
+      {
+        "kind": "protected_process",
+        "pid": 727122,
+        "ok": true,
+        "actual": {
+          "exe": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/prefix/bin/afs-meta",
+          "starttick": "7806618",
+          "sha256": "d10d5683935aa70c2e8d3968be9818a83df9cb1267d1b9a29f6494a1d146865c"
+        }
+      },
+      {
+        "kind": "protected_process",
+        "pid": 729413,
+        "ok": true,
+        "actual": {
+          "exe": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/prefix/bin/afs-meta",
+          "starttick": "7870207",
+          "sha256": "d10d5683935aa70c2e8d3968be9818a83df9cb1267d1b9a29f6494a1d146865c"
+        }
+      },
+      {
+        "kind": "protected_mount",
+        "row": "84 243 0:50 / /mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/mount-ownerfs rw,nosuid,nodev,noatime shared:357 - fuse afs-ownerfs rw,user_id=0,group_id=0,default_permissions,allow_other",
+        "ok": true
+      },
+      {
+        "kind": "protected_mount",
+        "row": "163 243 0:51 / /mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/mount-dfs rw,nosuid,nodev,noatime shared:367 - fuse afs-dfs rw,user_id=0,group_id=0,default_permissions,allow_other",
+        "ok": true
+      },
+      {
+        "kind": "no_owned_service",
+        "ok": true,
+        "owned": []
+      },
+      {
+        "kind": "no_owned_mount",
+        "ok": true
+      }
+    ],
+    "runtime_started": false
+  },
+  "b": {
+    "status": "PASS_PREPARATION_CLOSURE_ONLY",
+    "checks": [
+      {
+        "kind": "no_owned_service",
+        "ok": true,
+        "owned": []
+      },
+      {
+        "kind": "no_owned_mount",
+        "ok": true
+      }
+    ],
+    "runtime_started": false
+  },
+  "c": {
+    "status": "PASS_PREPARATION_CLOSURE_ONLY",
+    "checks": [
+      {
+        "kind": "no_owned_service",
+        "ok": true,
+        "owned": []
+      },
+      {
+        "kind": "no_owned_mount",
+        "ok": true
+      }
+    ],
+    "runtime_started": false
+  }
+}

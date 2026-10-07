@@ -1,0 +1,208 @@
+#define _GNU_SOURCE
+#include <errno.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <unistd.h>
+
+/*
+ * Fixed DFS one-writer/many-reader qualification payload.
+ *
+ * The file is always 64 MiB, split into 64 x 1 MiB blocks.  Every block is
+ * filled with byte 0x61, then its first eight bytes are replaced by the
+ * little-endian block counter.  This keeps the workload close to the existing
+ * constant-byte probes while giving each 4 MiB DFS chunk distinct content.
+ */
+
+enum {
+    PATTERN_BYTE = 0x61,
+    BLOCK_BYTES = 1048576,
+    OPERATIONS = 64,
+};
+
+static const uint64_t FILE_BYTES = (uint64_t)BLOCK_BYTES * (uint64_t)OPERATIONS;
+static const char *DATASET = "counter-1m-v1";
+
+static uint64_t now_ns(clockid_t clock) {
+    struct timespec value;
+    if (clock_gettime(clock, &value) != 0) {
+        perror("clock_gettime");
+        exit(2);
+    }
+    return (uint64_t)value.tv_sec * 1000000000ULL + (uint64_t)value.tv_nsec;
+}
+
+static void fail(const char *label) {
+    perror(label);
+    exit(2);
+}
+
+static void fail_text(const char *message) {
+    fprintf(stderr, "%s\n", message);
+    exit(2);
+}
+
+static void write_counter_le(unsigned char *buffer, uint64_t value) {
+    for (unsigned shift = 0; shift < 8; ++shift) {
+        buffer[shift] = (unsigned char)((value >> (shift * 8)) & 0xffU);
+    }
+}
+
+static void fill_block(unsigned char *buffer, uint64_t index) {
+    memset(buffer, PATTERN_BYTE, BLOCK_BYTES);
+    write_counter_le(buffer, index);
+}
+
+static void full_write(int fd, const unsigned char *buffer, size_t length) {
+    size_t offset = 0;
+    while (offset < length) {
+        ssize_t written = write(fd, buffer + offset, length - offset);
+        if (written < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            fail("write");
+        }
+        if (written == 0) {
+            fail_text("short write");
+        }
+        offset += (size_t)written;
+    }
+}
+
+static void full_read(int fd, unsigned char *buffer, size_t length) {
+    size_t offset = 0;
+    while (offset < length) {
+        ssize_t got = read(fd, buffer + offset, length - offset);
+        if (got < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            fail("read");
+        }
+        if (got == 0) {
+            fail_text("short read");
+        }
+        offset += (size_t)got;
+    }
+}
+
+static void emit_success(const char *operation, const char *barrier, uint64_t wall_ns,
+                         uint64_t cpu_ns, uint64_t barrier_ns) {
+    printf("{\"dataset\":\"%s\",\"operation\":\"%s\",\"file_bytes\":%llu,"
+           "\"io_bytes\":%llu,\"block_bytes\":%d,\"concurrency\":1,"
+           "\"pattern_byte\":%d,\"operations\":%d,\"barrier\":\"%s\","
+           "\"cache_requested\":\"unobserved\",\"residency_observed\":false,"
+           "\"content_ok\":true,\"wall_ns\":%llu,\"client_cpu_ns\":%llu,"
+           "\"barrier_ns\":%llu}\n",
+           DATASET, operation, (unsigned long long)FILE_BYTES,
+           (unsigned long long)FILE_BYTES, BLOCK_BYTES, PATTERN_BYTE, OPERATIONS,
+           barrier, (unsigned long long)wall_ns, (unsigned long long)cpu_ns,
+           (unsigned long long)barrier_ns);
+}
+
+static int write_file(const char *path) {
+    unsigned char *buffer = malloc(BLOCK_BYTES);
+    if (buffer == NULL) {
+        fail("malloc");
+    }
+
+    uint64_t begin = now_ns(CLOCK_MONOTONIC);
+    uint64_t cpu_begin = now_ns(CLOCK_PROCESS_CPUTIME_ID);
+    int fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (fd < 0) {
+        fail("open");
+    }
+    for (uint64_t index = 0; index < OPERATIONS; ++index) {
+        fill_block(buffer, index);
+        full_write(fd, buffer, BLOCK_BYTES);
+    }
+    uint64_t barrier_begin = now_ns(CLOCK_MONOTONIC);
+    if (fdatasync(fd) != 0) {
+        fail("fdatasync");
+    }
+    uint64_t barrier_ns = now_ns(CLOCK_MONOTONIC) - barrier_begin;
+    if (close(fd) != 0) {
+        fail("close");
+    }
+    uint64_t cpu_ns = now_ns(CLOCK_PROCESS_CPUTIME_ID) - cpu_begin;
+    uint64_t wall_ns = now_ns(CLOCK_MONOTONIC) - begin;
+    free(buffer);
+    emit_success("seq-write", "fdatasync", wall_ns, cpu_ns, barrier_ns);
+    return 0;
+}
+
+static int read_file(const char *path) {
+    unsigned char *buffer = malloc(BLOCK_BYTES);
+    unsigned char *expected = malloc(BLOCK_BYTES);
+    if (buffer == NULL || expected == NULL) {
+        fail("malloc");
+    }
+
+    uint64_t begin = now_ns(CLOCK_MONOTONIC);
+    uint64_t cpu_begin = now_ns(CLOCK_PROCESS_CPUTIME_ID);
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        fail("open");
+    }
+
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        fail("fstat");
+    }
+    if ((uint64_t)st.st_size != FILE_BYTES) {
+        fail_text("unexpected file size");
+    }
+
+    for (uint64_t index = 0; index < OPERATIONS; ++index) {
+        full_read(fd, buffer, BLOCK_BYTES);
+        fill_block(expected, index);
+        if (memcmp(buffer, expected, BLOCK_BYTES) != 0) {
+            fail_text("content mismatch");
+        }
+    }
+
+    unsigned char eof_byte;
+    ssize_t eof = read(fd, &eof_byte, 1);
+    if (eof < 0) {
+        fail("eof read");
+    }
+    if (eof != 0) {
+        fail_text("trailing data");
+    }
+
+    uint64_t barrier_begin = now_ns(CLOCK_MONOTONIC);
+    if (close(fd) != 0) {
+        fail("close");
+    }
+    uint64_t barrier_ns = now_ns(CLOCK_MONOTONIC) - barrier_begin;
+    uint64_t cpu_ns = now_ns(CLOCK_PROCESS_CPUTIME_ID) - cpu_begin;
+    uint64_t wall_ns = now_ns(CLOCK_MONOTONIC) - begin;
+    free(buffer);
+    free(expected);
+    emit_success("seq-read", "close", wall_ns, cpu_ns, barrier_ns);
+    return 0;
+}
+
+int main(int argc, char **argv) {
+    if (argc != 3) {
+        fprintf(stderr, "usage: %s write|read ABS_PATH\n", argv[0]);
+        return 2;
+    }
+    if (argv[2][0] != '/') {
+        fprintf(stderr, "path must be absolute\n");
+        return 2;
+    }
+    if (strcmp(argv[1], "write") == 0) {
+        return write_file(argv[2]);
+    }
+    if (strcmp(argv[1], "read") == 0) {
+        return read_file(argv[2]);
+    }
+    fprintf(stderr, "usage: %s write|read ABS_PATH\n", argv[0]);
+    return 2;
+}

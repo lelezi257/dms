@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-build",
+    "--",
+    "sudo",
+    "bash",
+    "-lc",
+    "cd /workspace/dms/source/development/acceptance/probes && python3 -B -m unittest -v test_dfs_r3_fixture.FixtureGuards.test_stopped_runtime_uds_also_forbids_policy_patch test_dfs_r3_fixture.FixtureGuards.test_initialized_state_refused_before_original_or_config_write && sha256sum dfs_r3_fixture.py test_dfs_r3_fixture.py"
+  ],
+  "rc": 0
+}

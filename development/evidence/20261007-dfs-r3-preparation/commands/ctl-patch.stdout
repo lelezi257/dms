@@ -1,0 +1,9 @@
+{
+  "fixture": "dfs-r3-current-20261007-r1",
+  "role": "ctl",
+  "root": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-20261007-r1",
+  "commands": [],
+  "status": "PATCHED_NOT_ADMITTED",
+  "config_sha256": "3e8e6a948ffcba30ec91852a47e61783415e9326564ddce18b8e3f07bc888fbd",
+  "original_sha256": "b12fc1e0d504b90c22b5d4ef99f5d7a0039c857375e7bb8f27d3eb45e8e98350"
+}

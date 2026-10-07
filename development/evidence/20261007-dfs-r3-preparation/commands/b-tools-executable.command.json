@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "chmod",
+    "755",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/tools/dfs_unique_io"
+  ],
+  "timeout": 90
+}

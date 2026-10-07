@@ -17,6 +17,7 @@ base = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(base)
 
 
+
 def content_matches(path, size, digest):
     return path.stat().st_size == size and base.sha(path) == digest
 
@@ -40,6 +41,8 @@ class Run(base.Run):
         return value
 
     def preflight(self):
+        if self.args.source_rejection_only and (self.args.semantics_only or self.args.semantics_probe):
+            raise ValueError('source-rejection-only is mutually exclusive with semantics')
         self.check('Linux-root', platform.system() == 'Linux' and platform.machine() == 'aarch64'
                    and os.geteuid() == 0, [platform.system(), platform.machine(), os.geteuid()])
         self.check('new-owned-root', self.root.parent == Path('/opt') and not self.root.exists(), str(self.root))
@@ -133,7 +136,8 @@ class Run(base.Run):
     def run(self):
         result = {'status': 'BLOCKED', 'scope': 'single experimental managed OwnerFs workspace; not full G2.12/13',
                   'source_commit': self.args.source_commit, 'driver_sha256': base.sha(__file__),
-                  'basic_payload_selected': not self.args.semantics_only,
+                  'basic_payload_selected': not (self.args.semantics_only or self.args.source_rejection_only),
+                  'source_rejection_selected': self.args.source_rejection_only,
                   'semantic_groups': self.args.semantics_groups if self.args.semantics_probe else []}
         process = None
         try:
@@ -146,8 +150,9 @@ class Run(base.Run):
             self.check('control-mode', stat.S_IMODE((self.root / 'control').stat().st_mode) == 0o700
                        and stat.S_IMODE((self.root / 'control/control.sock').stat().st_mode) == 0o600, '0700/0600')
             self.check('initial-idle', self.native('initial', 'status')['state'] == 'Idle', 'Idle')
-            self.native('unsafe-path', 'start', '../escape', error=True)
-            self.native('absent-root', 'start', 'absent', error=True)
+            if not self.args.source_rejection_only:
+                self.native('unsafe-path', 'start', '../escape', error=True)
+                self.native('absent-root', 'start', 'absent', error=True)
             workspace = self.root / 'mount/ownerfs/workspace'
             workspace.mkdir(mode=0o700)
             os.chown(workspace, 501, 501)
@@ -159,9 +164,10 @@ class Run(base.Run):
             seed_sha = hashlib.sha256(seed).hexdigest()
             start = self.native('first', 'start', 'workspace')
             self.check('final-verified', start.get('state') == 'FinalVerified', start)
-            self.check('start-replay', self.native('first', 'start', 'workspace') == start, start)
-            self.native('first', 'start', 'different', error=True)
-            self.native('busy', 'start', 'workspace', error=True)
+            if not self.args.source_rejection_only:
+                self.check('start-replay', self.native('first', 'start', 'workspace') == start, start)
+                self.native('first', 'start', 'different', error=True)
+                self.native('busy', 'start', 'workspace', error=True)
             state = json.loads(self.command(['/usr/local/sbin/runc', '--root', self.root / 'control/runtime-state',
                                            'state', start['container']]))
             pid = state['pid']
@@ -174,7 +180,15 @@ class Run(base.Run):
                         if p.is_dir() and (p.stat().st_dev, p.stat().st_ino) == (source.st_dev, source.st_ino)]
             self.check('real-storage-source', len(physical) == 1, physical)
             self.save('final-identity.json', {'container': state, 'observed': observed, 'storage_path': physical})
-            if not self.args.semantics_only:
+            if self.args.source_rejection_only:
+                source_spec = importlib.util.spec_from_file_location('native_source_rejection',
+                    Path(__file__).parent / 'probes/native_source_rejection.py')
+                source_rejection = importlib.util.module_from_spec(source_spec)
+                source_spec.loader.exec_module(source_rejection)
+                self.save('source-rejection-tool.json', {'path': str(Path(source_rejection.__file__)),
+                          'sha256': base.sha(source_rejection.__file__)})
+                source_rejection.execute(self, start, workspace)
+            elif not self.args.semantics_only:
                 shell = (f'/bin/busybox id; /bin/busybox grep -E "^(CapEff|NoNewPrivs):" /proc/self/status; '
                     f'test "$(/bin/busybox sha256sum /workspace/seed | /bin/busybox cut -d " " -f 1)" = {seed_sha}; '
                     '/bin/busybox dd if=/dev/zero of=/workspace/payload bs=65536 count=1024; '
@@ -205,7 +219,7 @@ class Run(base.Run):
             self.check('container-pid-gone', not Path(f'/proc/{pid}').exists(), pid)
             self.check('runtime-empty', json.loads(self.command(['/usr/local/sbin/runc', '--root',
                        self.root / 'control/runtime-state', 'list', '--format', 'json'])) in (None, []), 'empty')
-            if not self.args.semantics_only:
+            if not (self.args.semantics_only or self.args.source_rejection_only):
                 self.check('host-reopen-after-stop', content_matches(workspace / 'renamed', 64 * 2**20 + 4, expected), expected)
                 self.save('content.json', {'size': 64 * 2**20 + 4, 'sha256': expected, 'seed_sha256': seed_sha})
             result['status'] = 'PASS'
@@ -246,14 +260,20 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     for name in ('source-commit', 'package-sha256', 'runtime-sha256', 'afs-meta-sha256', 'afs-node-sha256'):
         parser.add_argument('--' + name, required=True)
-    parser.add_argument('--semantics-only', action='store_true',
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--semantics-only', action='store_true',
                         help='run selected short semantics and necessary lifecycle identity only; omit unchanged 64MiB basic payload')
+    mode.add_argument('--source-rejection-only', action='store_true',
+                      help='only reject an unknown source field on a live managed container and prove legal exec/normal stop')
     parser.add_argument('--semantics-probe', type=Path, help='optional short mixed-path checks before normal stop')
     parser.add_argument('--semantics-groups', nargs='+',
                         choices=('locks', 'append', 'mmap_inotify', 'permissions_errno'),
                         default=['locks', 'append', 'mmap_inotify', 'permissions_errno'],
                         help='only run affected groups; omitted groups retain their original evidence')
-    return Run(parser.parse_args()).run()
+    args = parser.parse_args()
+    if args.source_rejection_only and args.semantics_probe:
+        parser.error('--source-rejection-only cannot be combined with --semantics-probe')
+    return Run(args).run()
 
 
 if __name__ == '__main__':

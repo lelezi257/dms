@@ -1,0 +1,21 @@
+# Active managed workspace: reject source injection
+
+2026-10-07. User decision: leave failed 3FS baseline qualification to a separate topic and return to the container workspace lane. G1 remains historical8/8. This independent G2.12 subitem tests a presently unverified runtime boundary; it does not reopen append/locks/watch diagnostics, qualify production ON, or rerun small performance cases.
+
+## Fixed contract before execution
+
+Reuse candidate6d51aeb45c1ed8669d80f612b3817e6d1bdabe04,157 compiler inputs/map66dbbe3e, packageee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9, Meta2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e, Node2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645 and official runc1.5.2/d10ecae898361832a059be2089bab92d158aec54661b18ed7346ed79628b46b0 on existing ARM64 Linux afs-g2-micro. No Rust/vendor build or package change.
+
+Fresh root `/opt/afs-managed-source-rejection-20261007-r1`; guest raw output `/var/tmp/afs-managed-source-rejection-20261007-r1/results-r1`; research evidence `evidence/afs-delivery/native-source-rejection-20261007-r1`. The six regular rootfs inputs are restored from their existing pinned template, not copied from a live container root. Before starting, bind input/tool identities, all required dependencies, sudo/root, official runtime/ELF libraries, ext4, ports, fresh root, RAM/disk and existing process/mount inventory once. New fixture allocation ceiling256MiB and final free-space floor1GiB; existing services/mounts stay protected. No install, resize, rebuild or environment repair. An actual blocker stops only this item with evidence and a request for help.
+
+1. Establish one FinalVerified experimental container through the existing controller. Record its grant/status, container ID, actual PID/starttick, mount namespace, exact `/workspace` mount row and source directory device/inode. Normal admission checks are prerequisites, not new acceptance counts. The unchanged64MiB payload and all mixed semantic groups are unselected.
+2. Send an otherwise valid `start` request for `workspace` with a fresh operation ID and the additional `source: /etc` field, using the maintained client's public `exchange` function. Require `status=ERROR`, `production_ready=false` and an error explicitly identifying unknown field `source`. An arbitrary ERROR or malformed unrelated request is insufficient.
+3. Snapshot the same exact identity and complete controller runtime-command artifact set before and after the rejected request/status. Require unchanged grant, container/PID/starttick/namespace/mount/source and zero added/changed runtime commands. Observe actual mount/source rather than trusting the socket response alone.
+4. Execute a tiny lawful command through the controller, write/read an exact sentinel in the authorized workspace and verify its bytes from the FUSE view. Reject wrong content and nonzero command exit. No data throughput or timing claim.
+5. Normally stop, observe Idle, actual container PID absent, runtime list empty and normal final/export detach; stop Node/Meta through processctl with actual closure receipts. Save postcheck, capacity and protected identity/mount audit. Never infer successful drain from a missing PID alone; no force/lazy unmount or unrelated process cleanup.
+
+The functional claim is only: the active controller rejects this explicit source-injection request without replacing its authorized workspace, stays usable, and closes normally. Passing this subitem does not close full G2.12 or G2.13. Keep default OFF and the original append/lock/watch FAIL; no contract waiver.
+
+## Verification and stop line
+
+Add meaningful negative oracle checks for accepted injection, unrelated error, modified identity/runtime commands and wrong sentinel. Run only these affected tools/guards on Linux; reuse unchanged product/source/standard results with their original identities. Independently review the fixed tools and one-time preflight before the one product run. Preserve any first failure, exact argv, tool hashes, actual responses/command exits and cleanup; do not repeat an unchanged failed run. Git publication contains results, commands, SHA/index and fixed source provenance, no repeated scripts or binaries.

@@ -1,0 +1,55 @@
+{
+  "bytes": 20155,
+  "by_role_bytes": {
+    "ctl": 296,
+    "a": 6278,
+    "b": 6674,
+    "c": 6907
+  },
+  "classified": [
+    {
+      "level": "ERRO",
+      "kind": "NotFound",
+      "code": 34078721,
+      "message": "DFS dentry not found",
+      "count": 16
+    },
+    {
+      "level": "ERRO",
+      "kind": "FailedPrecondition",
+      "code": 67305489,
+      "message": "DFS currently supports only user.* xattrs",
+      "count": 6
+    },
+    {
+      "level": "WARN",
+      "kind": null,
+      "code": null,
+      "message": "ioctl warnings; exact text in full logs",
+      "count": 60
+    },
+    {
+      "level": "ERRO",
+      "kind": "FailedPrecondition",
+      "code": 50528257,
+      "message": "DFS metadata condition changed during commit",
+      "count": 1
+    }
+  ],
+  "generic_namespace_conflict_retained": [
+    {
+      "role": "c",
+      "record": {
+        "msg": "FUSE request failed",
+        "level": "ERRO",
+        "ts": "2026-10-07T15:20:41.173539419Z",
+        "instance": "dfs-c-r3",
+        "service_name": "afs-node",
+        "message": "DFS metadata condition changed during commit",
+        "kind": "FailedPrecondition",
+        "code": 50528257
+      }
+    }
+  ],
+  "limits": "Not a zero-error result. One generic commit conflict is not attributed to a specific syscall by INFO logs; all18 payload samples/verification succeeded. Keep as follow-up observability, no TRACE/retry to polish this case."
+}

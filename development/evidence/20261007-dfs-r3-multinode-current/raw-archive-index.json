@@ -1,0 +1,54 @@
+{
+  "archive_path": "evidence/afs-delivery/dfs-r3-multinode-f03-20261007-r1/raw-runtime-and-build-records.tar.gz",
+  "archive_sha256": "4ff33303f581703c62636b33b38d4b6762e945c412f904ca0ce364aeff04b0ef",
+  "archive_bytes": 1217143,
+  "members": 2039,
+  "member_index_path": "evidence/afs-delivery/dfs-r3-multinode-f03-20261007-r1/raw-member-index.json",
+  "member_index_sha256": "1f9b1e8f9d9b9db9ad9573ce38649f1715f228f6f6673bb287e5f0cc2caca4ef",
+  "every_member_decoded_and_checked": true,
+  "large_A_archive": {
+    "original_vm": "afs-accept-a",
+    "original_root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-multinode-f03-20261007-r1",
+    "host_archive": "evidence/afs-delivery/dfs-r3-multinode-f03-20261007-r1/a-closed-case-archive/root.tar.gz",
+    "archive_sha256": "6515dde8a0dc13aea11584297fe6642cbf1e3e953ca1d64deb697d859355a76f",
+    "manifest_sha256": "bc2fcf8821b6f06fd455a0012f9d344b6f82b2121aa901e7e5f46da31a0784d9",
+    "verified": {
+      "status": "PASS_LINUX_RESTORE",
+      "archive_sha256": "6515dde8a0dc13aea11584297fe6642cbf1e3e953ca1d64deb697d859355a76f",
+      "manifest_sha256": "bc2fcf8821b6f06fd455a0012f9d344b6f82b2121aa901e7e5f46da31a0784d9",
+      "entries": 239,
+      "regular_bytes": 500445235,
+      "content_mode_uid_gid_mtime_xattrs_links_equal": true,
+      "original_inode_not_recreated": true
+    },
+    "released": {
+      "status": "PASS_RELEASE_VERIFIED_HISTORICAL_ROOT",
+      "root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-multinode-f03-20261007-r1",
+      "archive_sha256": "6515dde8a0dc13aea11584297fe6642cbf1e3e953ca1d64deb697d859355a76f",
+      "manifest_sha256": "bc2fcf8821b6f06fd455a0012f9d344b6f82b2121aa901e7e5f46da31a0784d9",
+      "allocated_bytes_removed": 500867072,
+      "backing_free_before": 1826942976,
+      "backing_free_after": 2327810048,
+      "free_bytes_increase": 500867072,
+      "complete_mount_inventory_unchanged": true
+    },
+    "runtime_raw_root": "evidence/afs-delivery/dfs-r3-multinode-f03-20261007-r1",
+    "restore_command": [
+      "sudo",
+      "tar",
+      "--extract",
+      "--gzip",
+      "--numeric-owner",
+      "--same-owner",
+      "--same-permissions",
+      "--xattrs",
+      "--acls",
+      "--file",
+      "root.tar.gz",
+      "-C",
+      "/mnt/lima-afsadata/afs-delivery"
+    ],
+    "inode_numbers_not_preserved": true
+  },
+  "no_large_assets_or_source_snapshots_in_git": true
+}

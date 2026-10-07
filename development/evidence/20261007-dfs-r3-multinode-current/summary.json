@@ -1,0 +1,265 @@
+{
+  "status": "PASS_LIMITED_CURRENT_RUNTIME_AND_DATA_ONLY",
+  "candidate": {
+    "product_source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "compiler_input_map": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
+    "afs_meta_sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+    "afs_node_sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+    "io_sha256": "8ac3ccedabf5f648723c4048eba1f5d11416224a4dd55b4baacd1b3d2e2490ed"
+  },
+  "ordinary_package": {
+    "status": "PACKAGE_CREATED_FOR_AFFECTED_RUNTIME_ONLY",
+    "name": "afs-0.1.0-g2-main-f03dc2b-linux-aarch64.tar.gz",
+    "bytes": 14437466,
+    "sha256": "e622fdef35ca3857edfa39aba931f050a27b15c1ceb740e1108c9be1e8bebdf3",
+    "source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "release_binaries": {
+      "afs-node": {
+        "path": "/var/tmp/afs-dfs-create-contention-20261007-r1/target/release/afs-node",
+        "sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36"
+      },
+      "afs-meta": {
+        "path": "/var/tmp/afs-dfs-create-contention-20261007-r1/target/release/afs-meta",
+        "sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd"
+      }
+    },
+    "public_trial_release_unchanged": true
+  },
+  "scope": {
+    "backend": "local-file",
+    "transport": "gRPC",
+    "synchronous_durable_copies": 3,
+    "writers": 3,
+    "bytes_per_file": 67108864,
+    "warmup_batches": 1,
+    "measured_batches": 1,
+    "write_cohorts": 2,
+    "read_cohorts": 4,
+    "cross_node_routes": [
+      "A<-B,B<-C,C<-A",
+      "A<-C,B<-A,C<-B"
+    ],
+    "cache": "unobserved",
+    "same_physical_host": true
+  },
+  "verification": {
+    "status": "PASS_STORED_RUNTIME_IDENTITY_CONTENT_AND_CLOSURE_AUDIT_ONLY",
+    "source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "cohorts": 6,
+    "C_probe_samples_passed": 18,
+    "writer_files": [
+      {
+        "path": "r3-current-counter/round-00.bin",
+        "sha256": "46a900685d530d9438b3c3236964bf20210b7e612255f368e36d67b919646167",
+        "generation": 1,
+        "physical_copies": 48
+      },
+      {
+        "path": "r3-current-counter/round-01.bin",
+        "sha256": "d5042f3b00a744066a834d431a646020fdbb13f1241b98fb91d9fa4053585228",
+        "generation": 2,
+        "physical_copies": 48
+      },
+      {
+        "path": "r3-current-counter/round-02.bin",
+        "sha256": "826ffd9aa2cf4cbb2572c46e60ba00dc9352ac38ea6a7fc59b1d0cde415e3937",
+        "generation": 3,
+        "physical_copies": 48
+      },
+      {
+        "path": "r3-current-counter/round-03.bin",
+        "sha256": "757ac87574fd59cecc3016b2ab40c783496f915ee77d23c8b894db8fffc5208c",
+        "generation": 4,
+        "physical_copies": 48
+      },
+      {
+        "path": "r3-current-counter/round-04.bin",
+        "sha256": "70eb2c16061a01cfd3945f738f375a373dffc3409f194eef981c821836accc40",
+        "generation": 5,
+        "physical_copies": 48
+      },
+      {
+        "path": "r3-current-counter/round-05.bin",
+        "sha256": "15d4b46b764f02b54cf5d58a204d380a5599209d7c28193b4b82d0ad958c0f58",
+        "generation": 6,
+        "physical_copies": 48
+      }
+    ],
+    "physical_copy_observations": 288,
+    "protected_incarnations_unchanged": 11,
+    "actual_wait0": 4,
+    "owned_service_and_supervisor_PIDs_gone": 8,
+    "remote_driver_incarnations_gone": 24,
+    "timing_records": [
+      {
+        "case": "write-batch-0-route-0",
+        "measured": false,
+        "ctl_common_mib_s": 143.0760974040252,
+        "individual_C_mib_s": {
+          "A": 50.53288155337017,
+          "B": 48.27498694957386,
+          "C": 47.846380511250565
+        },
+        "overlap_diagnostic": "PROVED_CONDITIONAL",
+        "cache": "unobserved"
+      },
+      {
+        "case": "read-batch-0-route-1",
+        "measured": false,
+        "ctl_common_mib_s": 142.219262586694,
+        "individual_C_mib_s": {
+          "C": 48.14215301809122,
+          "B": 47.91347607211037,
+          "A": 47.56424069639346
+        },
+        "overlap_diagnostic": "PROVED_CONDITIONAL",
+        "cache": "unobserved"
+      },
+      {
+        "case": "read-batch-0-route-2",
+        "measured": false,
+        "ctl_common_mib_s": 143.84632210543288,
+        "individual_C_mib_s": {
+          "B": 48.12807307381591,
+          "C": 48.11285313543988,
+          "A": 48.015525243901315
+        },
+        "overlap_diagnostic": "PROVED_CONDITIONAL",
+        "cache": "unobserved"
+      },
+      {
+        "case": "write-batch-1-route-0",
+        "measured": true,
+        "ctl_common_mib_s": 103.49759564492985,
+        "individual_C_mib_s": {
+          "B": 36.23023609910008,
+          "C": 34.54560744804247,
+          "A": 36.511437692204126
+        },
+        "overlap_diagnostic": "PROVED_CONDITIONAL",
+        "cache": "unobserved"
+      },
+      {
+        "case": "read-batch-1-route-1",
+        "measured": true,
+        "ctl_common_mib_s": 142.14919354786764,
+        "individual_C_mib_s": {
+          "C": 48.17534771528248,
+          "B": 47.816503700837124,
+          "A": 47.46115931487277
+        },
+        "overlap_diagnostic": "PROVED_CONDITIONAL",
+        "cache": "unobserved"
+      },
+      {
+        "case": "read-batch-1-route-2",
+        "measured": true,
+        "ctl_common_mib_s": 143.98797578012457,
+        "individual_C_mib_s": {
+          "C": 48.85334273532199,
+          "B": 48.638424050858035,
+          "A": 48.06227015007822
+        },
+        "overlap_diagnostic": "PROVED_CONDITIONAL",
+        "cache": "unobserved"
+      }
+    ],
+    "limits": [
+      "one measured batch",
+      "no qualified baseline",
+      "cache/RPC location unobserved",
+      "no latency percentile qualification",
+      "conditional clock-rate overlap diagnosis only",
+      "not full POSIX or fault durability"
+    ]
+  },
+  "sampled_budget_max_bytes": 1608118272,
+  "aggregate_budget_bytes": 2147483648,
+  "logs": {
+    "bytes": 20155,
+    "by_role_bytes": {
+      "ctl": 296,
+      "a": 6278,
+      "b": 6674,
+      "c": 6907
+    },
+    "classified": [
+      {
+        "level": "ERRO",
+        "kind": "NotFound",
+        "code": 34078721,
+        "message": "DFS dentry not found",
+        "count": 16
+      },
+      {
+        "level": "ERRO",
+        "kind": "FailedPrecondition",
+        "code": 67305489,
+        "message": "DFS currently supports only user.* xattrs",
+        "count": 6
+      },
+      {
+        "level": "WARN",
+        "kind": null,
+        "code": null,
+        "message": "ioctl warnings; exact text in full logs",
+        "count": 60
+      },
+      {
+        "level": "ERRO",
+        "kind": "FailedPrecondition",
+        "code": 50528257,
+        "message": "DFS metadata condition changed during commit",
+        "count": 1
+      }
+    ],
+    "generic_namespace_conflict_retained": [
+      {
+        "role": "c",
+        "record": {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T15:20:41.173539419Z",
+          "instance": "dfs-c-r3",
+          "service_name": "afs-node",
+          "message": "DFS metadata condition changed during commit",
+          "kind": "FailedPrecondition",
+          "code": 50528257
+        }
+      }
+    ],
+    "limits": "Not a zero-error result. One generic commit conflict is not attributed to a specific syscall by INFO logs; all18 payload samples/verification succeeded. Keep as follow-up observability, no TRACE/retry to polish this case."
+  },
+  "recoverable_A_space_release": {
+    "status": "PASS_RELEASE_VERIFIED_HISTORICAL_ROOT",
+    "root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-multinode-f03-20261007-r1",
+    "archive_sha256": "6515dde8a0dc13aea11584297fe6642cbf1e3e953ca1d64deb697d859355a76f",
+    "manifest_sha256": "bc2fcf8821b6f06fd455a0012f9d344b6f82b2121aa901e7e5f46da31a0784d9",
+    "allocated_bytes_removed": 500867072,
+    "backing_free_before": 1826942976,
+    "backing_free_after": 2327810048,
+    "free_bytes_increase": 500867072,
+    "complete_mount_inventory_unchanged": true
+  },
+  "publication": {
+    "local_main_source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "last_confirmed_origin_main": "9a8aeeb8c36d37776ebfe1e37498b8d450a5fb4f",
+    "status": "BLOCKED_GITHUB_INTERNAL_SERVER_ERROR_TWO_NORMAL_PUSHES",
+    "user_decision": "Wait for GitHub recovery before next normal push; independent Linux verification continues"
+  },
+  "preserved_failures": [
+    "old7e6 first warmup FAIL/zero measured/zero read, unchanged",
+    "new build R1 failed to record logs to readonly share; result unavailable, R2 cached build identity qualified",
+    "observer R1 metadata had stale old ELF labels; Linux identity guard FAIL retained; R2 read-only same stopped data succeeds, no product rerun"
+  ],
+  "not_proven": [
+    "3FS parity",
+    "independent latency percentiles",
+    "full POSIX on f03",
+    "new ordinary trial independent install/recovery combination",
+    "complete bind ON",
+    "large/long/fault/backend matrix"
+  ],
+  "g1": "historical8/8 closed",
+  "g2_count": "11 limited outputs /1bind functional in progress /15unaccepted unchanged; G2.24 selected data subcase completed only"
+}

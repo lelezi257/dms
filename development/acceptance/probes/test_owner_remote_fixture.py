@@ -25,6 +25,56 @@ Options:
 
 
 class FixtureGuards(unittest.TestCase):
+    def test_current_direct_argv_does_not_mutate_legacy_cache_or_ports(self):
+        with patch.object(f, 'tool', side_effect=lambda rel: f.MOOSE / rel):
+            current = f.Fixture('a', f.CURRENT_READ_FIXTURE)
+            old = f.Fixture('a', f.WRITE_FIXTURE)
+            argv = current.moose_argv()
+            self.assertIn('mfscachemode=DIRECT', argv[argv.index('-o') + 1])
+            self.assertEqual(argv[argv.index('-P') + 1], '24942')
+            self.assertIn('mfscachemode=AUTO', old.moose_argv()[7])
+            self.assertEqual(old.port('node_grpc'), 22900)
+            self.assertNotEqual(current.root, old.root)
+
+    def test_current_config_overrides_both_on_switches_and_keeps_peer_trust(self):
+        raw = '''id = "remote-a-r1"
+fs = "all"
+experimental_native_workspace = true
+experimental_ownerfs_workspace_bind = true
+tls_ca_certificate = "/etc/afs/tls/ca.pem"
+tls_identity_certificate = "/etc/afs/tls/remote-a-r1.pem"
+tls_identity_private_key = "/etc/afs/tls/remote-a-r1-key.pem"
+trusted_node_certs = { remote-a-r1 = "/etc/afs/tls/remote-a-r1.pem", remote-b-r1 = "/etc/afs/tls/remote-b-r1.pem" }
+'''
+        fixture = f.Fixture('a', f.CURRENT_READ_FIXTURE)
+        cfg = tomllib.loads(fixture.patch_toml(raw))
+        self.assertIs(cfg['experimental_native_workspace'], False)
+        self.assertIs(cfg['experimental_ownerfs_workspace_bind'], False)
+        self.assertEqual(cfg['meta_endpoint'], 'https://192.168.109.11:24780')
+        self.assertEqual(set(cfg['trusted_node_certs']), {'remote-a-r1', 'remote-b-r1'})
+        self.assertTrue(all(str(fixture.root) in x for x in cfg['trusted_node_certs'].values()))
+        with self.assertRaisesRegex(RuntimeError, 'unexpected trust'):
+            fixture.patch_toml(raw.replace('remote-b-r1 =', 'intruder ='))
+
+    def test_current_capacity_uses_own_budget_and_keeps_free_floor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            volume = Path(tmp)
+            fixture = f.Fixture('a', f.CURRENT_READ_FIXTURE)
+            fixture.volume = volume
+            fixture.root = volume / 'fresh'
+            fixture.root.mkdir()
+            fixture.run = Mock(return_value=json.dumps({'filesystems': [{'target': str(volume), 'fstype': 'ext4'}]}))
+            info = Mock(f_bavail=1600, f_frsize=1024**2)
+            with patch.object(f.os, 'statvfs', return_value=info):
+                result = fixture.capacity(admission=True)
+                self.assertEqual(result['working_budget_bytes'], 512 * 1024**2)
+                self.assertEqual(result['remaining_free_floor_bytes'], 1024**3)
+                info.f_bavail = 1535
+                with self.assertRaisesRegex(RuntimeError, 'insufficient new case'):
+                    fixture.capacity(admission=True)
+                fixture.fixture = f.WRITE_FIXTURE
+                self.assertEqual(fixture.capacity(admission=True)['working_budget_bytes'], 256 * 1024**2)
+
     def test_owner_only_config_preserves_trust_and_removes_dfs_mount(self):
         raw = '''id = "remote-a-r1"
 fs = "all"

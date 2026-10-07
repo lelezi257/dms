@@ -27,11 +27,15 @@ from pathlib import Path
 FIXTURE = "owner-remote-6d-bhome-20261007-r1"
 WRITE_FIXTURE = "owner-remote-write-6d-bhome-20261007-r1"
 DELETE_FIXTURE = "owner-remote-delete-6d-bhome-20261007-r1"
-FIXTURES = (FIXTURE, WRITE_FIXTURE, DELETE_FIXTURE)
-MUTABLE_FIXTURES = (WRITE_FIXTURE, DELETE_FIXTURE)
+CURRENT_READ_FIXTURE = "owner-remote-read-f03-20261008-r1"
+FIXTURES = (FIXTURE, WRITE_FIXTURE, DELETE_FIXTURE, CURRENT_READ_FIXTURE)
+MUTABLE_FIXTURES = (WRITE_FIXTURE, DELETE_FIXTURE, CURRENT_READ_FIXTURE)
 VOLUMES = {"ctl": "/mnt/lima-afsctlstate", "a": "/mnt/lima-afsadata", "b": "/mnt/lima-afsbdata"}
 IPS = {"ctl": "192.168.109.11", "a": "192.168.109.12", "b": "192.168.109.13"}
 PORT_PLAN = {
+    CURRENT_READ_FIXTURE: {"ctl": {"meta_grpc": 24780, "meta_rest": 24781, "matoml": 24940, "matocs": 24941, "matocl": 24942},
+                           "a": {"node_grpc": 24880, "node_rest": 24881},
+                           "b": {"node_grpc": 24880, "node_rest": 24881, "chunk": 24943}},
     FIXTURE: {"ctl": {"meta_grpc": 22800, "meta_rest": 22801, "matoml": 23040, "matocs": 23041, "matocl": 23042},
               "a": {"node_grpc": 22900, "node_rest": 22901},
               "b": {"node_grpc": 22900, "node_rest": 22901, "chunk": 23043}},
@@ -48,6 +52,10 @@ MOOSE = Path("/opt/afs-moose-round3-v85")
 ELF = {"meta": "2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e",
        "node": "2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645",
        "io": "70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8"}
+CURRENT_READ_ELF = {"meta": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+                    "node": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+                    "io": "0d4346c99ad5ed3a7af0306c7db965eb1d6ea57595a89d639216a2be15c9fa8e"}
+CURRENT_READ_BUDGET = {"ctl": 256 * 1024**2, "a": 512 * 1024**2, "b": 1024**3}
 MOOSE_SHA = {
     "sbin/mfsmaster": "9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70",
     "sbin/mfschunkserver": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303",
@@ -186,12 +194,13 @@ class Fixture:
             for name in list(directories):
                 entry = Path(directory) / name
                 require(not entry.is_symlink() and entry.stat().st_dev == self.volume.stat().st_dev, f"nested state escape: {entry}")
+        budget = (CURRENT_READ_BUDGET if self.fixture == CURRENT_READ_FIXTURE else BUDGET)[self.role]
         require(available >= FLOOR[self.role], "case free-space floor exceeded; preserve state")
-        require(used <= BUDGET[self.role], "case working budget exceeded; preserve state")
+        require(used <= budget, "case working budget exceeded; preserve state")
         if admission:
-            require(available + used >= FLOOR[self.role] + BUDGET[self.role], "insufficient new case working budget")
+            require(available + used >= FLOOR[self.role] + budget, "insufficient new case working budget")
         return {"mount": rows[0], "available_bytes": available, "owned_allocated_bytes": used,
-                "working_budget_bytes": BUDGET[self.role], "remaining_free_floor_bytes": FLOOR[self.role]}
+                "working_budget_bytes": budget, "remaining_free_floor_bytes": FLOOR[self.role]}
 
     def empty_ports(self):
         raw = self.run(["ss", "-ltnp"])
@@ -235,6 +244,8 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         require(set(parsed["trusted_node_certs"]) == {"remote-a-r1", "remote-b-r1"}, "unexpected trust identities")
         changed = {"fs": "ownerfs", "experimental_native_workspace": False,
                    "data_dir": str(self.root / "state" / self.name), "log_level": "info", "trace_enabled": False}
+        if self.fixture == CURRENT_READ_FIXTURE:
+            changed["experimental_ownerfs_workspace_bind"] = False
         for key in ("tls_ca_certificate", "tls_identity_certificate", "tls_identity_private_key"):
             changed[key] = str(self.root / "etc/tls" / Path(parsed[key]).name)
         certs = {k: str(self.root / "etc/tls" / Path(v).name) for k, v in parsed["trusted_node_certs"].items()}
@@ -325,10 +336,11 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         self.empty_ports()
         for name in ("ownerfs", "moose"):
             require(self.exact_mount(self.root / "mount" / name) is None, "new mount already active")
-        identities = {self.name: self.check_elf(self.binary, ELF[self.name])}
+        expected_elf = CURRENT_READ_ELF if self.fixture == CURRENT_READ_FIXTURE else ELF
+        identities = {self.name: self.check_elf(self.binary, expected_elf[self.name])}
         if self.role == "a":
             safe(io_path, self.root / "tools")
-            identities["io"] = self.check_elf(io_path, ELF["io"])
+            identities["io"] = self.check_elf(io_path, expected_elf["io"])
             identities["fusermount3"] = self.inspect_unmount()
         selected = {"ctl": ["sbin/mfsmaster", "var/mfs/metadata.mfs.empty"],
                     "b": ["sbin/mfschunkserver"], "a": [p for p in MOOSE_SHA if p.startswith("bin/")]}[self.role]
@@ -342,6 +354,8 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         for key in ("id", "data_dir", "grpc_listen", "rest_listen", "tls_ca_certificate", "tls_identity_certificate", "tls_identity_private_key", "trusted_node_certs"):
             require(output.get(key) == cfg[key], f"print-config differs: {key}")
         require(output.get("ownerfs") is True and output.get("dfs") is False and output.get("experimental_native_workspace") is False, "print-config backend/native differs")
+        if self.fixture == CURRENT_READ_FIXTURE:
+            require(cfg.get("experimental_ownerfs_workspace_bind") is False and output.get("experimental_ownerfs_workspace_bind") is False, "workspace bind must be explicitly OFF")
         require(output.get("dfs_mount") is None, "unexpected DFS mount")
         if self.role != "ctl":
             for key in ("uds_path", "ownerfs_mount", "meta_endpoint", "advertise_endpoint", "data_mode"):
@@ -401,7 +415,8 @@ HDD_FSYNC_BEFORE_CLOSE = 1
             return [str(tool("sbin/mfsmaster")), "-f", "-c", str(self.root / "config/mfsmaster.cfg"), "start"]
         if self.role == "b":
             return [str(tool("sbin/mfschunkserver")), "-f", "-c", str(self.root / "config/mfschunkserver.cfg"), "start"]
-        return [str(tool("bin/mfsmount")), "-f", "-H", IPS["ctl"], "-P", str(PORT_PLAN[self.fixture]["ctl"]["matocl"]), "-o", "allow_other,mfsnice=0,mfscachemode=AUTO,mfstimeout=30", str(self.root / "mount/moose")]
+        cache = "DIRECT" if self.fixture == CURRENT_READ_FIXTURE else "AUTO"
+        return [str(tool("bin/mfsmount")), "-f", "-H", IPS["ctl"], "-P", str(PORT_PLAN[self.fixture]["ctl"]["matocl"]), "-o", f"allow_other,mfsnice=0,mfscachemode={cache},mfstimeout=30", str(self.root / "mount/moose")]
 
     def current_lifecycle(self):
         pointer = self.root / "run" / ("moose-" + self.service + ".json")

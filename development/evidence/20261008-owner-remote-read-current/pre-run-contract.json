@@ -1,0 +1,207 @@
+{
+  "schema": "afs.owner_remote_read_f03.contract.v1",
+  "frozen_at": "2026-10-07T18:48:12.500697+00:00",
+  "classification": "DIAGNOSTIC_NOT_QUALIFIED",
+  "fixture": "owner-remote-read-f03-20261008-r1",
+  "source_inputs": {
+    "base_main": "6089d81b49eb19a324a9558437de1344fe61b1e2",
+    "maintained_tool_sha256": {
+      "development/acceptance/owner_remote_small.py": "335c2358485d4acaf089c88f063291a059dba8e8db6ad049f0681ec945c04fe9",
+      "development/acceptance/probes/owner_remote_fixture.py": "796930b0eef908443ad89dee86164e0126eca758628aa0b2e73c978137407093",
+      "development/acceptance/test_owner_remote_small.py": "ab5fc2e0857d8c85acff8da12f108e2b3bee6a1d7c31aaa9469ecdca6276080c",
+      "development/acceptance/probes/test_owner_remote_fixture.py": "b1e34668a8199294b49636c1e8349d15c12a9cc5f6201db2503213a43fd6ff1c"
+    },
+    "product_source": "f03dc2b3679c31daa51caee275fb2087413e949c"
+  },
+  "candidate": "f03dc2b3679c31daa51caee275fb2087413e949c",
+  "package_sha256": "7bfc6b520e551d2281790862c2968e990e376c5c490b2135f583f4da0ccc1972",
+  "io_sha256": "0d4346c99ad5ed3a7af0306c7db965eb1d6ea57595a89d639216a2be15c9fa8e",
+  "moose_source": "ac106b2ec8661ff00def725d042cb67d3ca2184d",
+  "moose_version": "4.59.2",
+  "roles": {
+    "a": "client",
+    "b": "Owner Home and sole Moose chunkserver",
+    "ctl": "local-file Meta and Moose master"
+  },
+  "interface": "POSIX/FUSE",
+  "bytes": 67108864,
+  "block_bytes": 1048576,
+  "concurrency": 1,
+  "pattern_byte": 97,
+  "warmups": 1,
+  "measured_pairs": 5,
+  "order": "round0 owner/moose then alternating",
+  "cache": {
+    "owner": "ordinary remote direct-I/O; workspace bind OFF",
+    "moose": "stock mfscachemode=DIRECT",
+    "driver": "repeat observed residency; no global drop caches"
+  },
+  "prepare_barrier": "fdatasync; close; parent directory fsync; full SHA outside timer",
+  "operation_boundary": "pread+count+content-check",
+  "throughput_boundary": "open/thread setup/pread+content/join/close",
+  "clock": "CLOCK_MONOTONIC",
+  "latency_judge": "p95",
+  "quantile": "sorted[min(N-1,floor(N*p/100))]",
+  "raw_samples_per_measured_target": 320,
+  "throughput_judge": "median of paired ratios",
+  "thresholds": {
+    "throughput_ratio_min": 1.2,
+    "latency_ratio_max": 0.8,
+    "both_required": true
+  },
+  "replicas": "one Owner Home; one valid Moose copy on B; strong durable ACK not qualified",
+  "qualification_gaps": [
+    "backend cache equality not proved",
+    "userspace readahead policies not equal/proved",
+    "DIRECT diagnostic differs from historical default/AUTO",
+    "strong durable ACK/comparator qualification incomplete"
+  ],
+  "stop": "one case only; actual environment blocker stops affected lane, owned normal closure; no KILL/lazy unmount/restart",
+  "role_admission": {
+    "ctl": {
+      "status": "PASS_CONFIG_ADMISSION_ONLY",
+      "config_sha256": {
+        "/mnt/lima-afsctlstate/afs-delivery/owner-remote-read-f03-20261008-r1/etc/meta.toml": "5d511bf604b853e4e0daea5e02a227848366a78009f4bf946084c9039f75192c",
+        "/mnt/lima-afsctlstate/afs-delivery/owner-remote-read-f03-20261008-r1/config/mfsmaster.cfg": "0080e7fcdeadfe2d165ca4bfa579ea9f9bb1b18196833a0e4fa48367a8d5c78b",
+        "/mnt/lima-afsctlstate/afs-delivery/owner-remote-read-f03-20261008-r1/config/mfsexports.cfg": "07fd79509108b0d7aca641a6465f5107e3e61bebd6085639996009233bf856fd"
+      },
+      "capacity": {
+        "mount": {
+          "target": "/mnt/lima-afsctlstate",
+          "source": "/dev/vdb1",
+          "fstype": "ext4",
+          "options": "rw,relatime"
+        },
+        "available_bytes": 3216908288,
+        "owned_allocated_bytes": 82313216,
+        "working_budget_bytes": 268435456,
+        "remaining_free_floor_bytes": 536870912
+      },
+      "identities": {
+        "meta": {
+          "path": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-read-f03-20261008-r1/prefix/bin/afs-meta",
+          "sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+          "bytes": 15866376
+        },
+        "sbin/mfsmaster": {
+          "path": "/opt/afs-moose-round3-v85/sbin/mfsmaster",
+          "resolved_path": "/opt/afs-moose-round3-v85/sbin/mfsmaster",
+          "sha256": "9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70"
+        },
+        "var/mfs/metadata.mfs.empty": {
+          "path": "/opt/afs-moose-round3-v85/var/mfs/metadata.mfs.empty",
+          "resolved_path": "/opt/afs-moose-round3-v85/var/mfs/metadata.mfs.empty",
+          "sha256": "e3b24c138492108e195cd0b310d5cb1bbebf02baed1ab4b4d6d07d9ad682a4ed"
+        }
+      }
+    },
+    "b": {
+      "status": "PASS_CONFIG_ADMISSION_ONLY",
+      "config_sha256": {
+        "/mnt/lima-afsbdata/afs-delivery/owner-remote-read-f03-20261008-r1/etc/node.toml": "2ddab9c44438fb9902ec7728a34ce6788cb06a5421d0b47020259fbb4b5de1f4",
+        "/mnt/lima-afsbdata/afs-delivery/owner-remote-read-f03-20261008-r1/config/mfschunkserver.cfg": "cdef958344e87063223b39e8ffa0916f142ac2c9cf1b3a51230da96fbea29c99",
+        "/mnt/lima-afsbdata/afs-delivery/owner-remote-read-f03-20261008-r1/config/mfshdd.cfg": "539fd92fe3328b1165df46db91c90cc7f4a3c8071971a21a2b052b528958a021"
+      },
+      "capacity": {
+        "mount": {
+          "target": "/mnt/lima-afsbdata",
+          "source": "/dev/vdb1",
+          "fstype": "ext4",
+          "options": "rw,relatime"
+        },
+        "available_bytes": 23993143296,
+        "owned_allocated_bytes": 82198528,
+        "working_budget_bytes": 1073741824,
+        "remaining_free_floor_bytes": 4294967296
+      },
+      "identities": {
+        "node": {
+          "path": "/mnt/lima-afsbdata/afs-delivery/owner-remote-read-f03-20261008-r1/prefix/bin/afs-node",
+          "sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+          "bytes": 25026184
+        },
+        "sbin/mfschunkserver": {
+          "path": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+          "resolved_path": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+          "sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303"
+        }
+      }
+    },
+    "a": {
+      "status": "PASS_CONFIG_ADMISSION_ONLY",
+      "config_sha256": {
+        "/mnt/lima-afsadata/afs-delivery/owner-remote-read-f03-20261008-r1/etc/node.toml": "d3d5ec0bd494df45f15e59bc4e010258a10739d8df9ee4683bb535fa95a27f6e"
+      },
+      "capacity": {
+        "mount": {
+          "target": "/mnt/lima-afsadata",
+          "source": "/dev/vdb1",
+          "fstype": "ext4",
+          "options": "rw,relatime"
+        },
+        "available_bytes": 2143367168,
+        "owned_allocated_bytes": 82280448,
+        "working_budget_bytes": 536870912,
+        "remaining_free_floor_bytes": 1073741824
+      },
+      "identities": {
+        "node": {
+          "path": "/mnt/lima-afsadata/afs-delivery/owner-remote-read-f03-20261008-r1/prefix/bin/afs-node",
+          "sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+          "bytes": 25026184
+        },
+        "io": {
+          "path": "/mnt/lima-afsadata/afs-delivery/owner-remote-read-f03-20261008-r1/tools/io",
+          "sha256": "0d4346c99ad5ed3a7af0306c7db965eb1d6ea57595a89d639216a2be15c9fa8e",
+          "bytes": 72360
+        },
+        "fusermount3": {
+          "path": "/usr/bin/fusermount3",
+          "sha256": "f02a72a71fe768cfe48238e247470d6e42efe39d66b1be2509ce0a34ede978ad",
+          "device": 64769,
+          "inode": 2179
+        },
+        "bin/mfsmount": {
+          "path": "/opt/afs-moose-round3-v85/bin/mfsmount",
+          "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsmount",
+          "sha256": "5752f91e2d174cc8a0a53df7b3713b3bed31fde5fe72a6f38cd86237ae3ebc37"
+        },
+        "bin/mfscli": {
+          "path": "/opt/afs-moose-round3-v85/bin/mfscli",
+          "resolved_path": "/opt/afs-moose-round3-v85/bin/mfscli",
+          "sha256": "247194b8e45c6cbd7bf0ae95f9e5b709ee0f08e669739e4ffef46c7659ec09df"
+        },
+        "bin/mfscreatesclass": {
+          "path": "/opt/afs-moose-round3-v85/bin/mfscreatesclass",
+          "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsscadmin",
+          "sha256": "a5aaa1875d9db7bcb36e2c0456285982965ff20ab79bedce701291b2a70993d0"
+        },
+        "bin/mfslistsclass": {
+          "path": "/opt/afs-moose-round3-v85/bin/mfslistsclass",
+          "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsscadmin",
+          "sha256": "a5aaa1875d9db7bcb36e2c0456285982965ff20ab79bedce701291b2a70993d0"
+        },
+        "bin/mfssetsclass": {
+          "path": "/opt/afs-moose-round3-v85/bin/mfssetsclass",
+          "resolved_path": "/opt/afs-moose-round3-v85/bin/mfssclass",
+          "sha256": "7dc44d9383376bb456779516bb59ec65e4cc35e404c1a0ab82ffa781f703a7e3"
+        },
+        "bin/mfsgetsclass": {
+          "path": "/opt/afs-moose-round3-v85/bin/mfsgetsclass",
+          "resolved_path": "/opt/afs-moose-round3-v85/bin/mfssclass",
+          "sha256": "7dc44d9383376bb456779516bb59ec65e4cc35e404c1a0ab82ffa781f703a7e3"
+        },
+        "bin/mfsfileinfo": {
+          "path": "/opt/afs-moose-round3-v85/bin/mfsfileinfo",
+          "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsdiagtools",
+          "sha256": "d58823c1c07aa8a65c55931e6007b8c20b88ffbc4eb825ae057dfe5a452c93b6"
+        },
+        "bin/mfscheckfile": {
+          "path": "/opt/afs-moose-round3-v85/bin/mfscheckfile",
+          "resolved_path": "/opt/afs-moose-round3-v85/bin/mfsdiagtools",
+          "sha256": "d58823c1c07aa8a65c55931e6007b8c20b88ffbc4eb825ae057dfe5a452c93b6"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "/opt/afs-3fs-round3-v84/bin/admin_cli",
+    "--cfg",
+    "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/admin_cli.toml",
+    "--",
+    "create-target",
+    "--node-id",
+    "10002",
+    "--disk-index",
+    "0",
+    "--target-id",
+    "1000202001",
+    "--chain-id",
+    "2"
+  ],
+  "elapsed_seconds": 0.1674426810350269,
+  "exit": 0,
+  "stderr": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/create-r2-target-1000202001-20261007T004139Z-pid1685252.stderr",
+  "stdout": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/create-r2-target-1000202001-20261007T004139Z-pid1685252.stdout"
+}

@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/tools/threefs_namespace_fixture.py",
+    "start",
+    "ctl",
+    "--legacy-path",
+    "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/tools/round3-3fs.py"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

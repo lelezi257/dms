@@ -1,0 +1,5 @@
+TargetId    ChainId  Role  PublicState  LocalState  NodeId  DiskIndex  UsedSize
+1000001001  1        HEAD  SERVING      OFFLINE     N/A     N/A        0
+1000101001  1        TAIL  SERVING      ONLINE      10001   0          0
+1000002001  2        HEAD  SERVING      OFFLINE     N/A     N/A        0
+1000202001  2        TAIL  SERVING      OFFLINE     N/A     N/A        0

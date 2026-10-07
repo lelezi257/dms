@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,tarfile,hashlib,json;from pathlib import Path\nr=Path(sys.argv[1]);paths=[]\nfor directory in ['run','evidence','log','results']:\n p=r/directory\n if p.exists():paths.extend(x for x in p.rglob('*') if x.is_file() and not x.is_symlink())\npaths.extend(x for x in (r/'config').iterdir() if x.is_file() and x.suffix in ['.toml','.csv'])\nassert all(x.suffix!='.py' and not x.is_symlink() for x in paths)\nt=r/'stage/text-export-r1.tar';assert not t.exists();index=[]\nwith tarfile.open(t,'w') as a:\n for p in sorted(paths):\n  data=p.read_bytes();assert bytes([0]) not in data;data.decode('utf-8');name=str(p.relative_to(r));a.add(p,arcname=name,recursive=False);index.append({'path':name,'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)})\nprint(json.dumps({'status':'PASS_TEXT_ONLY_EXPORT','excluded':['tools/*.py','stage','inputs duplicate admission','config/token','data','ELF','private keys'],'tar':str(t),'transport_sha256':hashlib.sha256(t.read_bytes()).hexdigest(),'transport_bytes':t.stat().st_size,'entries':index},indent=2))",
+    "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

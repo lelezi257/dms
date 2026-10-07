@@ -1,0 +1,16 @@
+test_actual_wait0_required_not_process_disappearance (test_threefs_namespace_fixture.FixtureTests.test_actual_wait0_required_not_process_disappearance) ... ok
+test_foreign_child_refused_before_unmount_or_signal (test_threefs_namespace_fixture.FixtureTests.test_foreign_child_refused_before_unmount_or_signal) ... ok
+test_foreign_config_argv_rejected_even_with_owned_root_argument (test_threefs_namespace_fixture.FixtureTests.test_foreign_config_argv_rejected_even_with_owned_root_argument) ... ok
+test_foreign_mount_refused_before_unmount_or_signal (test_threefs_namespace_fixture.FixtureTests.test_foreign_mount_refused_before_unmount_or_signal) ... ok
+test_legacy_sha_rejects_private_patch_before_import (test_threefs_namespace_fixture.FixtureTests.test_legacy_sha_rejects_private_patch_before_import) ... ok
+test_owned_path_escape_and_symlink_rejected (test_threefs_namespace_fixture.FixtureTests.test_owned_path_escape_and_symlink_rejected) ... ok
+test_r2_target_map_has_distinct_local_a_targets (test_threefs_namespace_fixture.FixtureTests.test_r2_target_map_has_distinct_local_a_targets) ... ok
+test_rewrite_all_roles_isolates_paths_ports_and_dlopen (test_threefs_namespace_fixture.FixtureTests.test_rewrite_all_roles_isolates_paths_ports_and_dlopen) ... ok
+test_supervisor_rejects_changed_launch_before_popen (test_threefs_namespace_fixture.FixtureTests.test_supervisor_rejects_changed_launch_before_popen) ... ok
+test_unmount_failure_preserved_without_term_fallback (test_threefs_namespace_fixture.FixtureTests.test_unmount_failure_preserved_without_term_fallback) ... ok
+test_wait_receipt_from_foreign_child_is_rejected (test_threefs_namespace_fixture.FixtureTests.test_wait_receipt_from_foreign_child_is_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.007s
+
+OK

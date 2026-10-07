@@ -1,0 +1,7 @@
+cluster_id = 'afs_3fs_delete_v84_20261007_r1'
+
+[ib_devices]
+default_pkey_index = 0
+
+[mgmtd_client]
+mgmtd_server_addresses = [ 'RDMA://192.168.109.11:24101' ]

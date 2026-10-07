@@ -1,0 +1,42 @@
+--- test_threefs_namespace_fixture.py.r1
++++ test_threefs_namespace_fixture.py.r2
+@@ -1,15 +1,38 @@
+ """Small first-party 3FS identity/config/normal-wait guards; Linux only."""
+ import json
++import os
+ from pathlib import Path
+ import tempfile
+ from types import SimpleNamespace
+ import unittest
+ from unittest.mock import patch
+ 
+-from threefs_namespace_fixture import CLUSTER, Fixture, PREFIX, TARGETS, safe, validate_child, digest
++from threefs_namespace_fixture import CLUSTER, Fixture, PREFIX, TARGETS, safe, validate_child, digest, write_json
+ 
+ 
+ class FixtureTests(unittest.TestCase):
++    def test_json_publication_is_complete_when_destination_appears(self):
++        with tempfile.TemporaryDirectory() as d:
++            destination = Path(d) / "receipt.json"
++            value = {"identity": "large-value" * 10000, "exit_code": 0}
++            original_link = os.link
++            def publish(source, target):
++                self.assertFalse(destination.exists())
++                original_link(source, target)
++                self.assertEqual(json.loads(destination.read_text()), value)
++            with patch("threefs_namespace_fixture.os.link", side_effect=publish):
++                write_json(destination, value)
++            self.assertEqual(list(Path(d).iterdir()), [destination])
++
++    def test_json_publication_never_overwrites_existing_sentinel(self):
++        with tempfile.TemporaryDirectory() as d:
++            destination = Path(d) / "receipt.json"
++            destination.write_text("immutable failure sentinel")
++            with self.assertRaises(FileExistsError):
++                write_json(destination, {"exit_code": 0})
++            self.assertEqual(destination.read_text(), "immutable failure sentinel")
++            self.assertEqual(list(Path(d).iterdir()), [destination])
++
+     def test_rewrite_all_roles_isolates_paths_ports_and_dlopen(self):
+         for role in ("ctl", "a", "b", "c"):
+             f = Fixture(role, "/fixed/legacy.py")

@@ -1,5 +1,10 @@
 # AFS comparator baseline builds
 
+## Current small namespace reference — 2026-10-07
+
+[One patched3FS R2 small-delete run](../../evidence/20261007-threefs-delete-small/README.md) records all6samples and B/C600ENOENT each, median615.210/pooled509.565ops/s. Reuse priorDFS29.861/30.682 without rerun. A exceeds the predeclared1GiB allocated budget by4,067,328B (free2.99GB/floorPASS; logs1.57MB), and FDB actualwait-15 violates the9wait0 contract. Formal reference qualification stays failed/pending; no thresholds waived or environment repaired. All18ownedPIDs/mounts are gone, old10processes/all old mountIDs unchanged from raw; frozen TARGET-only postcheck falseFAIL preserved with supplemental ID audit and a repair-before-reuse TODO. Shared environment/cacheUNOBSERVED/512KiB vs4KiB allocation/explicitARM patch prohibit stock or full parity claims. User decision: defer baseline qualification to a separate topic and return to container-workspace core fixes.
+
+
 This directory owns reproducible scripts for the first-stage AFS comparator
 baselines. They prepare real MooseFS and 3FS artifacts on Linux and record
 evidence under `evidence/afs-delivery/baseline-build/`.

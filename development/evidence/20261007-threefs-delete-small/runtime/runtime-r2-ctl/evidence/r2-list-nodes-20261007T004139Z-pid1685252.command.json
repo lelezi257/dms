@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/opt/afs-3fs-round3-v84/bin/admin_cli",
+    "--cfg",
+    "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/admin_cli.toml",
+    "--",
+    "list-nodes"
+  ],
+  "elapsed_seconds": 0.03202167293056846,
+  "exit": 0,
+  "stderr": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/r2-list-nodes-20261007T004139Z-pid1685252.stderr",
+  "stdout": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/r2-list-nodes-20261007T004139Z-pid1685252.stdout"
+}

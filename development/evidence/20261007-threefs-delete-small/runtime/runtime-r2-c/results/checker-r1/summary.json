@@ -1,0 +1,46 @@
+{
+  "checker_id": "C",
+  "enoent_check": {
+    "checked": 600,
+    "expected_errno": "ENOENT",
+    "failures": [],
+    "status": "PASS"
+  },
+  "fs": {
+    "threefs_root": {
+      "device": 48,
+      "gid": 0,
+      "inode": 55296,
+      "mode": 493,
+      "path": "/mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1/mount/test",
+      "uid": 0
+    }
+  },
+  "manifest": {
+    "delete_shape": {
+      "file_bytes": 4096,
+      "files": 100,
+      "measurements": 5,
+      "warmups": 1
+    },
+    "path": "/mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1/inputs/writer-confirmed-r1.json",
+    "run_id": "1791333811628870870-853271"
+  },
+  "mount": {
+    "fstype": "fuse.hf3fs",
+    "id": 361,
+    "options": "rw,nosuid,nodev,relatime,user_id=0,group_id=0,max_read=1048576",
+    "source": "hf3fs.afs_3fs_delete_v84_20261007_r1",
+    "target": "/mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1/mount"
+  },
+  "platform": {
+    "euid": 0,
+    "machine": "aarch64",
+    "system": "Linux"
+  },
+  "role": "threefs-delete-checker",
+  "scope": "independent hf3fs mount ENOENT check for threefs-delete-writer manifest",
+  "status": "DATA_RECORDED",
+  "threefs_arm64_patch_sha256": "6c460875c6c098e0b4aacad309e099657a5daf70bdc3937060d402a5e59aad95",
+  "threefs_upstream_commit": "22fca04564c7cc230fd8b9523b8b92864e1dad47"
+}

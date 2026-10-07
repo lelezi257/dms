@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/tools",
+    "-p",
+    "test_threefs_namespace_fixture.py",
+    "-v"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

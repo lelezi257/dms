@@ -1,0 +1,48 @@
+{
+  "copy_commands": [
+    "raw/r3-copy-driver.*",
+    "raw/r3-copy-test.*",
+    "raw/copy-owner-helper.*"
+  ],
+  "current_stable": {
+    "development/acceptance/owner_remote_small.py": {
+      "bytes": 20289,
+      "sha256": "d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98"
+    },
+    "development/acceptance/test_threefs_delete_small.py": {
+      "bytes": 10247,
+      "sha256": "4ebd0f4fe9aa9764416227038461af3740d118296d2370edf2ee53ac35000f31"
+    },
+    "development/acceptance/threefs_delete_small.py": {
+      "bytes": 21444,
+      "sha256": "06d6c4321ac23ef258d4d8cac242bae6a6b32a0f9658cb4e420e512dc32783bd"
+    }
+  },
+  "guard_run": {
+    "identity": "bound to raw/r3-linux-help-sha.stdout",
+    "linux_directory": "/var/tmp/afs-threefs-delete-tools-20261007-r1",
+    "raw_exit": "raw/r3-linux-guards.exit",
+    "raw_stderr": "raw/r3-linux-guards.stderr",
+    "raw_stdout": "raw/r3-linux-guards.stdout",
+    "result": "exit 0; Ran 7 tests OK",
+    "unique_methods": 7,
+    "vm": "afs-accept-a"
+  },
+  "linux_directory": "/var/tmp/afs-threefs-delete-tools-20261007-r1",
+  "linux_sha_inventory": {
+    "raw_exit": "raw/r3-linux-help-sha.exit",
+    "raw_stderr": "raw/r3-linux-help-sha.stderr",
+    "raw_stdout": "raw/r3-linux-help-sha.stdout"
+  },
+  "policy": "No Python source snapshots copied into evidence; current source SHA plus Git diff and Linux raw SHA bind the tool version. Superseded root-unbound version is recoverable through small reverse patches only.",
+  "superseded_root_unbound_version": {
+    "delta_to_current": [
+      "r2-root-binding-fix-driver.patch",
+      "r2-root-binding-fix-test.patch"
+    ],
+    "driver_sha256": "7d1d75c511910d207be2ab1c76e8a80a672ed2c65c46ee72accaa00b68ca5c2b",
+    "reason": "checker could accept /mount/other-existing-empty and count 600 ENOENT for paths that did not correspond to writer /mount/test",
+    "test_sha256": "d73051d8ba235799e1cbd0c10563162b12c0873da6225476b4fa8b2af2090441"
+  },
+  "updated_at": "2026-10-07T08:37:56+08:00"
+}

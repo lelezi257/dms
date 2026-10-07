@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-c",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json;sys.path.insert(0,sys.argv[1]+'/tools');from threefs_namespace_fixture import Fixture;f=Fixture(sys.argv[2],sys.argv[1]+'/tools/round3-3fs.py');f.linux();print(json.dumps(f.stop_service(sys.argv[3]),indent=2))",
+    "/mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1",
+    "c",
+    "storage"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

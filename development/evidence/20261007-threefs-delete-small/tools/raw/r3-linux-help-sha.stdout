@@ -1,0 +1,19 @@
+06d6c4321ac23ef258d4d8cac242bae6a6b32a0f9658cb4e420e512dc32783bd  threefs_delete_small.py
+4ebd0f4fe9aa9764416227038461af3740d118296d2370edf2ee53ac35000f31  test_threefs_delete_small.py
+d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98  owner_remote_small.py
+21444 threefs_delete_small.py
+10247 test_threefs_delete_small.py
+20289 owner_remote_small.py
+51980 total
+usage: threefs_delete_small.py [-h] {writer,checker} ...
+
+Small 3FS namespace delete diagnostic adapter
+
+positional arguments:
+  {writer,checker}
+    writer          create/delete 100x4KiB samples on one hf3fs mount
+    checker         check 600 ENOENT paths from a writer manifest on an
+                    independent hf3fs mount
+
+options:
+  -h, --help        show this help message and exit

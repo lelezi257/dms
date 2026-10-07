@@ -1,0 +1,19 @@
+shuffle = true
+subdirs = 4
+files_per_dir = 10000
+threads = 4
+coroutines = 8
+cluster_id = 'afs_3fs_delete_v84_20261007_r1'
+
+[meta_client]
+network_type = 'RDMA'
+selection_mode = 'UniformRandom'
+
+[mgmtd_client]
+mgmtd_server_addresses = [ 'RDMA://192.168.109.11:24101' ]
+
+[net_client]
+default_timeout = '1s'
+
+[[monitor.reporters]]
+type = 'log'

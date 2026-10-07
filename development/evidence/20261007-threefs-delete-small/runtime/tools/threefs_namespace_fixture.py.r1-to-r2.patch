@@ -1,0 +1,24 @@
+--- threefs_namespace_fixture.py.r1
++++ threefs_namespace_fixture.py.r2
+@@ -42,9 +42,18 @@
+ 
+ 
+ def write_json(path, value):
+-    with Path(path).open("x") as f:
+-        json.dump(value, f, indent=2)
+-        f.write("\n")
++    path = Path(path)
++    temporary = path.with_name(path.name + ".publishing-" + str(os.getpid()) + "-" + str(time.monotonic_ns()))
++    try:
++        with temporary.open("x") as f:
++            json.dump(value, f, indent=2)
++            f.write("\n")
++        # link is atomic and refuses an existing destination. Readers observe
++        # either no destination or the complete, closed JSON inode.
++        os.link(temporary, path)
++    finally:
++        if temporary.exists():
++            temporary.unlink()
+ 
+ 
+ def safe(path, root):

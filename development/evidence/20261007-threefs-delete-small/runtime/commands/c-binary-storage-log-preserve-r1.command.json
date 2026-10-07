@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "afs-accept-c:/mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1/log/storage.log",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-runtime-20261007-r1/local-only-binary/c-storage.log"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

@@ -1,0 +1,12 @@
+{
+  "status": "PASS_RUNTIME_TOOLS_DEPLOYED_NO_SERVICE",
+  "root": "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1",
+  "entries": {
+    "tools/threefs_namespace_fixture.py": "5168078bcbf2196d4c700e5c153d5384cb17ab1b0558f1e125cc8bf7a9037520",
+    "tools/test_threefs_namespace_fixture.py": "219a014272e4195e98445ab49ae79643f8e5b2960fb55b1905fd4e3962aa102a",
+    "tools/round3-3fs.py": "16a25b5e1623e1030b631994a6799544a776828909512de4c191f06549b38f24",
+    "inputs/admission.json": "156012bc257ea46d007be1a34cc7f5825f609c6e8b8d0c3dca5c3f8ba058bf68",
+    "inputs/config-index.json": "65a7e19757480ac7bb4d5d178b80cbc532ce90b1be29a7feb7c08139ab1a7aa9"
+  },
+  "transport_sha256": "383dd562029980c622855934b049a51d0aa4db584ab2fd9b48482d2cec2882fe"
+}

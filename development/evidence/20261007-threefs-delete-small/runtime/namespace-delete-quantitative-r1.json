@@ -1,0 +1,91 @@
+{
+  "classification": "DATA_RECORDED_NOT_QUALIFIED_REFERENCE",
+  "run_id": "1791333811628870870-853271",
+  "confirmed_manifest_sha256": "84373c51e8675c48b57dd28cbc2f7f1795cee0b080a4d1fad07803400ad0f732",
+  "logical_case": "100 files x 4096B, 1 warmup + 5 measured, same unchanged Owner delete primitive",
+  "samples": [
+    {
+      "round": 0,
+      "measured": false,
+      "wall_ns": 163783716,
+      "wall_ms": 163.783716,
+      "operations": 100,
+      "ops_per_second": 610.5613087933601,
+      "prepare_fdatasync_per_file": true,
+      "fresh_open_full_content_files_checked": 100,
+      "post_unlink_status": "PASS",
+      "sample_status": "PASS"
+    },
+    {
+      "round": 1,
+      "measured": true,
+      "wall_ns": 162546056,
+      "wall_ms": 162.546056,
+      "operations": 100,
+      "ops_per_second": 615.2102515486441,
+      "prepare_fdatasync_per_file": true,
+      "fresh_open_full_content_files_checked": 100,
+      "post_unlink_status": "PASS",
+      "sample_status": "PASS"
+    },
+    {
+      "round": 2,
+      "measured": true,
+      "wall_ns": 156458960,
+      "wall_ms": 156.45896,
+      "operations": 100,
+      "ops_per_second": 639.1452429442201,
+      "prepare_fdatasync_per_file": true,
+      "fresh_open_full_content_files_checked": 100,
+      "post_unlink_status": "PASS",
+      "sample_status": "PASS"
+    },
+    {
+      "round": 3,
+      "measured": true,
+      "wall_ns": 158589116,
+      "wall_ms": 158.589116,
+      "operations": 100,
+      "ops_per_second": 630.5602964581756,
+      "prepare_fdatasync_per_file": true,
+      "fresh_open_full_content_files_checked": 100,
+      "post_unlink_status": "PASS",
+      "sample_status": "PASS"
+    },
+    {
+      "round": 4,
+      "measured": true,
+      "wall_ns": 270941580,
+      "wall_ms": 270.94158,
+      "operations": 100,
+      "ops_per_second": 369.0832540357962,
+      "prepare_fdatasync_per_file": true,
+      "fresh_open_full_content_files_checked": 100,
+      "post_unlink_status": "PASS",
+      "sample_status": "PASS"
+    },
+    {
+      "round": 5,
+      "measured": true,
+      "wall_ns": 232693055,
+      "wall_ms": 232.693055,
+      "operations": 100,
+      "ops_per_second": 429.7506859411855,
+      "prepare_fdatasync_per_file": true,
+      "fresh_open_full_content_files_checked": 100,
+      "post_unlink_status": "PASS",
+      "sample_status": "PASS"
+    }
+  ],
+  "measured_operations": 500,
+  "measured_total_wall_ns": 981228767,
+  "median_measured_ops_per_second": 615.2102515486441,
+  "pooled_measured_ops_per_second": 509.5651664684633,
+  "timer_scope": "unlink_timer covers exactly 100 Python-loop unlink syscalls; prepare, fdatasync, fresh-open verification, directory fsync, namespace checks, and cleanup are outside timer",
+  "cache_state": "UNOBSERVED",
+  "R2": "actual table1 with chains AB/AC, each exact2 distinct nodes SERVING-UPTODATE; no 3sync data barrier qualification",
+  "physical_variance": "3FS512KiB chunk class, allocation files256MiB each; AFS4096B physical chunks; exact file placement distribution UNOBSERVED",
+  "formal_g2_25": "PENDING_RESOURCE_AND_EXIT_CRITERIA_FAILED",
+  "normal_service_closure": "FAIL_FDB_ACTUAL_WAIT_MINUS15",
+  "resource": "FAIL_A_PREDECLARED_1GIB_DISK_BUDGET; FLOOR_PASS"
+}

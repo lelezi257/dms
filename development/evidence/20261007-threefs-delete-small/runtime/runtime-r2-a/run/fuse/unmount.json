@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "/usr/bin/fusermount3",
+    "-u",
+    "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/mount"
+  ],
+  "exit": 0,
+  "stdout": "",
+  "stderr": ""
+}

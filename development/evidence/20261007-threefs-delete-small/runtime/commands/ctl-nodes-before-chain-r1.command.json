@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json;from pathlib import Path\nsys.path.insert(0,sys.argv[1]+'/tools');from threefs_namespace_fixture import Fixture\nf=Fixture('ctl',sys.argv[1]+'/tools/round3-3fs.py');m=f.legacy();record=m.admin(f.root,'nodes-before-chain-r1',['list-nodes']);print(json.dumps({'record':record,'stdout':Path(record['stdout']).read_text(),'stderr':Path(record['stderr']).read_text()},indent=2))",
+    "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

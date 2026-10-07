@@ -1,0 +1,63 @@
+{
+  "review_type": "independent_readonly_minimal_repair_delta_review",
+  "reviewed_at_utc": "2026-10-07T00:39:58.262859+00:00",
+  "no_tests_services_environment_or_source_modifications_by_reviewer": true,
+  "blocking_findings": [],
+  "runtime_qualified": false,
+  "method": "Read exact frozen deltas/current implementation/selected saved Linux raw; reverse patch in memory and hash recovered bytes without running imported code or tests.",
+  "verdict": "APPROVE_BOUNDED_FIXTURE_R2_ATOMIC_PUBLICATION",
+  "reviewed_files": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/threefs_namespace_fixture.py",
+      "sha256": "dad3f86b6907cb928cc2848f21bc922443a79de8e8220753b0f1d1f8a59d8bc5",
+      "bytes": 25236,
+      "delta_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-runtime-20261007-r1/tools/threefs_namespace_fixture.py.r1-to-r2.patch",
+      "delta_sha256": "a0f9379fbc4d3fad9db72e999842bac71ebe57a2b5fe910350fbca540277877e",
+      "independently_recovered_old_sha256": "5168078bcbf2196d4c700e5c153d5384cb17ab1b0558f1e125cc8bf7a9037520"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/test_threefs_namespace_fixture.py",
+      "sha256": "d3b5382baf3881b91a4984944deedf93f3caf440db1939ea1343ce9e0e423d11",
+      "bytes": 9919,
+      "delta_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-runtime-20261007-r1/tools/test_threefs_namespace_fixture.py.r1-to-r2.patch",
+      "delta_sha256": "dc44a48f4c8a8f26bbcf305ff15c00823eba5cc8a977b01ff726850e8e3990a2",
+      "independently_recovered_old_sha256": "219a014272e4195e98445ab49ae79643f8e5b2960fb55b1905fd4e3962aa102a"
+    }
+  ],
+  "closed_original_finding": "PARTIAL_LIFECYCLE_JSON_VISIBLE_BEFORE_COMPLETION",
+  "original_FAIL_preserved": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-runtime-20261007-r1/fixture-review-r1.json",
+    "sha256": "80030372a4b735d00061c2d3bc5d3250de45fc6719521d56dd22d9e469f8cc47"
+  },
+  "delta_conclusions": [
+    "Only write_json publication behavior changed in fixture source; all previously reviewed launch/config/R2/wait/stop/closure logic is byte-preserved by recovered r1 hash.",
+    "JSON is serialized into an exclusively created same-directory temporary file and closed before os.link publishes its final path. Same-filesystem link publication exposes a complete inode and atomically refuses an existing final path.",
+    "Finally unlinks the temporary name both after success and normal failure; existing target evidence is preserved. This closes exists/read partial-content races for identity/exit consumers.",
+    "Two added guards read complete JSON exactly at final-link publication and preserve an existing non-JSON failure sentinel without leftover temporary file."
+  ],
+  "saved_Linux_validation": {
+    "new_affected_guards": 2,
+    "status": "PASS",
+    "command_exit": 0,
+    "previous_11_guards": "Reuse original r1 evidence for unchanged code; not rerun by reviewer"
+  },
+  "raw_hashes": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-runtime-20261007-r1/commands/a-fixture-json-affected-guards-r2.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-runtime-20261007-r1/commands/a-fixture-json-affected-guards-r2.stderr",
+      "sha256": "1195745fee468f86a22a49a38c192e089089bf46759a9cb65ed70d7926244b75"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-runtime-20261007-r1/commands/a-fixture-json-affected-guards-r2.command.json",
+      "sha256": "f42d36db7a250eb1e39dca4cca52ce2d1ffda738c07e4ff15323144a1181ae74"
+    }
+  ],
+  "limits": [
+    "Atomic visibility is not power-loss durability of evidence files; such a claim is outside this tool fix.",
+    "Actual nine child normal wait0, owned children/supervisors gone, exact mounts absent and protected ctl2/A8 identities/mounts unchanged remain runtime requirements.",
+    "No service namespace/performance/stock/strong-data/G2.25 result from this repair approval."
+  ]
+}

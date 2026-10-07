@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "/opt/afs-3fs-round3-v84/bin/admin_cli",
+    "--cfg",
+    "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/admin_cli.toml",
+    "--",
+    "upload-chain-table",
+    "1",
+    "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/chain-table.csv",
+    "--desc",
+    "delete-small-R2-localA-AB-AC"
+  ],
+  "elapsed_seconds": 0.06405017897486687,
+  "exit": 0,
+  "stderr": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/upload-r2-table-20261007T004139Z-pid1685252.stderr",
+  "stdout": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/upload-r2-table-20261007T004139Z-pid1685252.stdout"
+}

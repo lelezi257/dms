@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-",
+    "b"
+  ],
+  "stdin_path": "../admission-stdin-r1.txt",
+  "stdin_sha256": "8a3e2cc1baeff8bb3db76c87bccbcde9013953daacff566b2adafda71c3db154",
+  "state": "TERMINAL",
+  "exit": 0
+}

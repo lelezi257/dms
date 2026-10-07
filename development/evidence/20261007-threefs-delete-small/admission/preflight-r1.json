@@ -1,0 +1,179 @@
+{
+  "status": "PASS_READONLY_ADMISSION_ALL4",
+  "contract": "source/development/threefs-delete-small-slice.md",
+  "probe_stdin_sha256": "8a3e2cc1baeff8bb3db76c87bccbcde9013953daacff566b2adafda71c3db154",
+  "attempts_each_role": 1,
+  "mutations": "NONE_NO_INSTALL_BUILD_SERVICE_CONFIG_VM_REPAIR",
+  "roles": [
+    {
+      "role": "ctl",
+      "exit": 0,
+      "status": "PASS_READONLY_ADMISSION",
+      "blocked": [],
+      "exception": null,
+      "raw": "commands/ctl-admission-r1.stdout",
+      "memory": {
+        "MemTotal": 4095574016,
+        "MemAvailable": 3566415872,
+        "MemFree": 328716288,
+        "SwapTotal": 0,
+        "SwapFree": 0,
+        "required_initial_MemAvailable_bytes": 2684354560
+      },
+      "limits": {
+        "memlock": [
+          511946752,
+          511946752
+        ],
+        "nofile": [
+          1024,
+          1048576
+        ],
+        "effective_caps_hex": "000001ffffffffff",
+        "cap_ipc_lock": true,
+        "cap_sys_resource": true,
+        "rdma_pool_declared_bytes": 402653184,
+        "memlock_basis": "soft unlimited/>=384MiB OR effective CAP_IPC_LOCK; hard nofile>=1048576 permits same old helper process-only setrlimit before child creation; no limit changed by probe"
+      },
+      "capacity": {
+        "total": 8348200960,
+        "used": 3611049984,
+        "free": 4290981888,
+        "budget": 1073741824,
+        "floor": 536870912,
+        "required": 1610612736
+      },
+      "root_absent": true,
+      "fixed_manifest": "1608f7ba7f3fa46e9aabfef0f9fe034db827e749e1c9a147a9f75d152f84a241",
+      "protected_process_count": 2
+    },
+    {
+      "role": "a",
+      "exit": 0,
+      "status": "PASS_READONLY_ADMISSION",
+      "blocked": [],
+      "exception": null,
+      "raw": "commands/a-admission-r1.stdout",
+      "memory": {
+        "MemTotal": 6198992896,
+        "MemAvailable": 4789374976,
+        "MemFree": 166977536,
+        "SwapTotal": 0,
+        "SwapFree": 0,
+        "required_initial_MemAvailable_bytes": 3221225472
+      },
+      "limits": {
+        "memlock": [
+          774873088,
+          774873088
+        ],
+        "nofile": [
+          1024,
+          1048576
+        ],
+        "effective_caps_hex": "000001ffffffffff",
+        "cap_ipc_lock": true,
+        "cap_sys_resource": true,
+        "rdma_pool_declared_bytes": 402653184,
+        "memlock_basis": "soft unlimited/>=384MiB OR effective CAP_IPC_LOCK; hard nofile>=1048576 permits same old helper process-only setrlimit before child creation; no limit changed by probe"
+      },
+      "capacity": {
+        "total": 33633878016,
+        "used": 27828445184,
+        "free": 4070776832,
+        "budget": 1073741824,
+        "floor": 1073741824,
+        "required": 2147483648
+      },
+      "root_absent": true,
+      "fixed_manifest": "1608f7ba7f3fa46e9aabfef0f9fe034db827e749e1c9a147a9f75d152f84a241",
+      "protected_process_count": 8
+    },
+    {
+      "role": "b",
+      "exit": 0,
+      "status": "PASS_READONLY_ADMISSION",
+      "blocked": [],
+      "exception": null,
+      "raw": "commands/b-admission-r1.stdout",
+      "memory": {
+        "MemTotal": 6199001088,
+        "MemAvailable": 5759057920,
+        "MemFree": 588632064,
+        "SwapTotal": 0,
+        "SwapFree": 0,
+        "required_initial_MemAvailable_bytes": 3221225472
+      },
+      "limits": {
+        "memlock": [
+          774873088,
+          774873088
+        ],
+        "nofile": [
+          1024,
+          1048576
+        ],
+        "effective_caps_hex": "000001ffffffffff",
+        "cap_ipc_lock": true,
+        "cap_sys_resource": true,
+        "rdma_pool_declared_bytes": 402653184,
+        "memlock_basis": "soft unlimited/>=384MiB OR effective CAP_IPC_LOCK; hard nofile>=1048576 permits same old helper process-only setrlimit before child creation; no limit changed by probe"
+      },
+      "capacity": {
+        "total": 33633878016,
+        "used": 14290624512,
+        "free": 17608597504,
+        "budget": 1073741824,
+        "floor": 1073741824,
+        "required": 2147483648
+      },
+      "root_absent": true,
+      "fixed_manifest": "1608f7ba7f3fa46e9aabfef0f9fe034db827e749e1c9a147a9f75d152f84a241",
+      "protected_process_count": 0
+    },
+    {
+      "role": "c",
+      "exit": 0,
+      "status": "PASS_READONLY_ADMISSION",
+      "blocked": [],
+      "exception": null,
+      "raw": "commands/c-admission-r1.stdout",
+      "memory": {
+        "MemTotal": 6199005184,
+        "MemAvailable": 5770067968,
+        "MemFree": 3309813760,
+        "SwapTotal": 0,
+        "SwapFree": 0,
+        "required_initial_MemAvailable_bytes": 3221225472
+      },
+      "limits": {
+        "memlock": [
+          774873088,
+          774873088
+        ],
+        "nofile": [
+          1024,
+          1048576
+        ],
+        "effective_caps_hex": "000001ffffffffff",
+        "cap_ipc_lock": true,
+        "cap_sys_resource": true,
+        "rdma_pool_declared_bytes": 402653184,
+        "memlock_basis": "soft unlimited/>=384MiB OR effective CAP_IPC_LOCK; hard nofile>=1048576 permits same old helper process-only setrlimit before child creation; no limit changed by probe"
+      },
+      "capacity": {
+        "total": 33633878016,
+        "used": 1212645376,
+        "free": 30686576640,
+        "budget": 1073741824,
+        "floor": 1073741824,
+        "required": 2147483648
+      },
+      "root_absent": true,
+      "fixed_manifest": "1608f7ba7f3fa46e9aabfef0f9fe034db827e749e1c9a147a9f75d152f84a241",
+      "protected_process_count": 0
+    }
+  ],
+  "no_exclusive_resource_claim": true,
+  "scope": "read-only admission only; no workload/start/runtime strongdata qualification"
+}

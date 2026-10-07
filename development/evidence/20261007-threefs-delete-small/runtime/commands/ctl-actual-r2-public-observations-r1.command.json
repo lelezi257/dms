@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,time;from pathlib import Path\nsys.path.insert(0,sys.argv[1]+'/tools');from threefs_namespace_fixture import Fixture,write_json\nf=Fixture('ctl',sys.argv[1]+'/tools/round3-3fs.py');m=f.legacy();attempts=[];deadline=time.monotonic()+45\nfor n in range(46):\n evidence={}\n for label,argv in [('nodes',['list-nodes']),('targets',['list-targets']),('chains',['list-chains']),('tables',['list-chain-tables'])]:\n  record=m.admin(f.root,'actual-r2-ready-'+str(n)+'-'+label,argv);evidence[label]={'record':record,'stdout':Path(record['stdout']).read_text(),'stderr':Path(record['stderr']).read_text()}\n attempts.append(evidence)\n chains=evidence['chains']['stdout'];targets=evidence['targets']['stdout'];nodes=evidence['nodes']['stdout']\n if chains.count('SERVING')>=4 and all(str(t) in targets for t in [1000001001,1000101001,1000002001,1000202001]) and all(str(x) in nodes for x in [10000,10001,10002]):break\n if time.monotonic()>=deadline:break\n time.sleep(1)\nvalue={'status':'ACTUAL_PUBLIC_R2_OBSERVATIONS_FOR_EXACT_HOST_VALIDATION','attempts':attempts};write_json(f.root/'evidence/actual-r2-observations.json',value);print(json.dumps(value,indent=2))",
+    "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

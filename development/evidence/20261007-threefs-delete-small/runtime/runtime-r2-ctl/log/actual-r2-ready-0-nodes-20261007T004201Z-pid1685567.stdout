@@ -1,0 +1,6 @@
+Id     Type     Status               Hostname             Pid      Tags  LastHeartbeatTime    ConfigVersion  ReleaseVersion
+1      MGMTD    PRIMARY_MGMTD        lima-afs-accept-ctl  1685136  []    N/A                  0              250228-dev-1-999999-22fca045
+50     META     HEARTBEAT_CONNECTED  lima-afs-accept-ctl  1685162  []    2026-10-07 08:42:01  0              250228-dev-1-999999-22fca045
+10000  STORAGE  HEARTBEAT_CONNECTED  lima-afs-accept-a    852916   []    2026-10-07 08:42:01  0              250228-dev-1-999999-22fca045
+10001  STORAGE  HEARTBEAT_CONNECTED  lima-afs-accept-b    242264   []    2026-10-07 08:42:01  0              250228-dev-1-999999-22fca045
+10002  STORAGE  HEARTBEAT_CONNECTED  lima-afs-accept-c    17662    []    2026-10-07 08:41:59  0              250228-dev-1-999999-22fca045

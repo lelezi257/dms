@@ -1,0 +1,64 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "/opt/afs-3fs-round3-v84/bin/admin_cli",
+        "--cfg",
+        "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/admin_cli.toml",
+        "--",
+        "user-add",
+        "--root",
+        "--admin",
+        "--token",
+        "AADHHSOs8QA92iRe2wB1fmuL",
+        "0",
+        "root"
+      ],
+      "elapsed_seconds": 0.3687039309879765,
+      "exit": 0,
+      "stderr": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/bootstrap-user-add-root-20261007T004103Z-pid1685105.stderr",
+      "stdout": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/bootstrap-user-add-root-20261007T004103Z-pid1685105.stdout"
+    },
+    {
+      "argv": [
+        "/opt/afs-3fs-round3-v84/bin/admin_cli",
+        "--cfg",
+        "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/admin_cli.toml",
+        "--",
+        "user-set-token",
+        "--new",
+        "0"
+      ],
+      "elapsed_seconds": 0.11605127097573131,
+      "exit": 0,
+      "stderr": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/bootstrap-user-set-token-20261007T004103Z-pid1685105.stderr",
+      "stdout": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/bootstrap-user-set-token-20261007T004103Z-pid1685105.stdout"
+    },
+    {
+      "argv": [
+        "/opt/afs-3fs-round3-v84/bin/admin_cli",
+        "--cfg",
+        "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/admin_cli.toml",
+        "--",
+        "init-cluster",
+        "--mgmtd",
+        "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/mgmtd_main.toml",
+        "--meta",
+        "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/meta_main.toml",
+        "--storage",
+        "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/storage_main.toml",
+        "--fuse",
+        "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/hf3fs_fuse_main.toml",
+        "--skip-config-check",
+        "1",
+        "524288",
+        "1"
+      ],
+      "elapsed_seconds": 0.0643968500662595,
+      "exit": 0,
+      "stderr": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/bootstrap-init-cluster-20261007T004103Z-pid1685105.stderr",
+      "stdout": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/bootstrap-init-cluster-20261007T004103Z-pid1685105.stdout"
+    }
+  ],
+  "utc": "2026-10-07T00:41:12Z"
+}

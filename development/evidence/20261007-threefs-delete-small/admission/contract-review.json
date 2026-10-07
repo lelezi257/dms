@@ -1,0 +1,77 @@
+{
+  "review_type": "independent_read_only_static_contract_review",
+  "reviewed_at_utc": "2026-10-07T00:26:31.266795+00:00",
+  "verdict": "APPROVE_FOR_BOUNDED_ENVIRONMENT_ADMISSION",
+  "actual_environment_admission": "NOT_RUN_BY_REVIEWER",
+  "runtime_or_test_execution_by_reviewer": false,
+  "blocking_findings": [],
+  "reviewed_documents": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/threefs-delete-small-slice.md",
+      "sha256": "bc9988d00d78442ea847430c4223e70969160f326505eb2bbdae4e215b99e6c1"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/trial-release-goals.md",
+      "sha256": "bb34b5724a98de0d776844659abad0b8a16f7490ff17e0a6bbf3a589bd4da87d"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/dfs-delete-small-slice.md",
+      "sha256": "f002943faaa44e3d9179dbac21b9a4093d79ec613233513fcfd6ee489915fd8d"
+    }
+  ],
+  "findings": [
+    {
+      "type": "fact",
+      "topic": "G2.25 scope",
+      "conclusion": "The contract preserves G1 8/8 and historical conclusions. G2.25 requires correct deletion and a scoped quantitative comparison report, without a new hard performance ratio. The fresh qualified namespace comparison can satisfy this limited exit; candidate-only evidence cannot.",
+      "evidence": "trial-release-goals.md:59,89; dfs-delete-small-slice.md:3,11,15; reviewed contract opening and Exit paragraph"
+    },
+    {
+      "type": "fact",
+      "topic": "patched R2 reference",
+      "conclusion": "The upstream commit and retained ARM64 StampedPtr patch are explicitly fixed. Fresh two-target chains A+B and A+C use distinct A targets and require actual identities and two SERVING targets per chain before timing. This matches replica count for the selected namespace case while declaring placement/allocation differences. It does not claim stock upstream, patch performance neutrality, or qualified R3 data durability.",
+      "upstream_commit": "22fca04564c7cc230fd8b9523b8b92864e1dad47",
+      "retained_patch_sha256": "6c460875c6c098e0b4aacad309e099657a5daf70bdc3937060d402a5e59aad95"
+    },
+    {
+      "type": "fact",
+      "topic": "same Python case",
+      "conclusion": "The fixed Owner primitive SHA is reused through a first-party exact-mount adapter. Both sides retain 100 distinct 4KiB files per sample, one warmup and five measured rounds, preparation/readback/full-content/EOF outside the timer, and only the 100 Python unlink loop in the timer. Independent B/C checkers require 600 actual ENOENT checks each with exact run/round/path binding. Failed and partial samples must remain recorded.",
+      "owner_primitive_sha256": "d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98"
+    },
+    {
+      "type": "fact",
+      "topic": "historical candidate reuse",
+      "conclusion": "The contract explicitly reuses the fixed 6d51aeb candidate measurement and describes the new comparison as sequential. This is consistent with reuse of unchanged evidence and avoids pretending that the new baseline and historical candidate were paired/interleaved runs."
+    },
+    {
+      "type": "fact",
+      "topic": "namespace barrier boundary",
+      "conclusion": "The namespace contract uses awaited Meta/FDB commit and actual cross-mount absence. It does not treat a successful directory fsync as an independently implemented directory barrier. Strong three-synchronous durable data ACK, physical GC, cached concurrent visibility and power-loss recovery remain unqualified and are not new deletion prerequisites."
+    },
+    {
+      "type": "fact",
+      "topic": "nine actual waits",
+      "conclusion": "Nine children correspond to FDB/mgmtd/meta, three storage services and three FUSE mounts. Exact incarnation ownership, official non-lazy unmount, normal TERM, real wait0 receipts and unchanged protected identities are necessary bounded lifecycle evidence. They do not enlarge the workload or reliability matrix. A failure to obtain those receipts must remain a failure rather than be waived."
+    },
+    {
+      "type": "fact",
+      "topic": "once-only resource admission",
+      "conclusion": "Dependencies, all 39 artifact manifest entries, dynamically loaded FDB client, Linux/ext4/FUSE/RXE access, limits, resources and protected identities are checked before startup; actual SERVING targets/mount identities and resource observations are checked before timing. The predeclared 1GiB per-role fresh allocation budget, total 4GiB cap, free-space floors and RAM envelopes are bounded admission rules. RAM envelopes are observational, not enforced hard limits or proof of resource isolation. Existing FDB memory arguments are retained. No threshold lowering, resizing, installation or repair after failure is authorized."
+    }
+  ],
+  "implementation_preconditions": [
+    "Environment admission must actually pass before implementing/running the adapter; this static approval is not an environment or product PASS.",
+    "Affected Linux adapter/supervisor guards must verify exact identity/path failure handling and actual wait receipts before runtime; no unchanged unrelated suite reruns are required.",
+    "Final report must preserve the historical candidate identity/date and new baseline identity/date, disclose sequential sampling, observed resources, placement/allocation differences, Python-loop overhead and inherited UNOBSERVED cache status.",
+    "Only a completed qualified same-shape baseline measurement, complete content/absence evidence and normal closure may support closing the limited G2.25 item. Any real prerequisite failure stops this comparison with evidence while independent tasks remain eligible."
+  ],
+  "claim_limits": [
+    "No actual environment admission, Linux test, service, mount or performance measurement was performed by this reviewer.",
+    "No stock/unmodified 3FS, paired fairness, patch neutrality, overall DFS parity or strong R3 synchronous data qualification claim.",
+    "Cross-mount post-delete ENOENT can include missing ancestors and does not prove independent per-unlink physical replica deletion or chunk garbage collection.",
+    "G2.21/G2.23 strong-durability performance goals and other pending items are unchanged; G1 is not reopened."
+  ],
+  "prior_namespace_code_review": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-admission-20261007-r1/namespace-contract-review.json",
+  "scope_conclusion": "No material unnecessary expansion or weakening found for the agreed limited namespace deletion item. Proceed with once-only admission; only after its PASS proceed with the bounded first-party adapter."
+}

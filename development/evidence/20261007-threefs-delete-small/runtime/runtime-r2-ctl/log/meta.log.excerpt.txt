@@ -1,0 +1,149 @@
+Full log retained locally; sha256=81cd48c14ce393aa327bbe83845ae1799e5648f0e19ac9301a5955a9dce85c49; bytes=1809220; raw_path=evidence/afs-delivery/threefs-delete-runtime-20261007-r1/runtime-r2-ctl/log/meta.log
+First and last 8192 bytes follow; middle omitted.
+[2026-10-07T08:41:13.342216856+08:00 meta_main:1685162 Utils.cc:168 INFO] Version: v250228-dev-1-999999-22fca045
+[2026-10-07T08:41:13.342223522+08:00 meta_main:1685162 Utils.cc:170 INFO] Init waiter singleton 0xaf945ea4b5d8
+[2026-10-07T08:41:13.347450552+08:00 meta_main:1685162 Utils.cc:202 WARNING] dynamically linked jemalloc
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] Full Config:
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] [[common.log.categories]]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] categories = [ '.' ]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] handlers = [ 'normal' ]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] inherit = true
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] level = 'INFO'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] propagate = 'NONE'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] 
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] [[common.log.handlers]]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] async = true
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] file_path = '/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/meta.log'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] max_file_size = '10MB'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] max_files = 100
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] name = 'normal'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] rotate = true
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] rotate_on_open = false
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] start_level = 'NONE'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] stream_type = 'STDERR'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] writer_type = 'FILE'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] 
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] [common.memory]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] prof_active = false
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] prof_prefix = ''
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] 
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] [common.monitor]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] collect_period = '1s'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] num_collectors = 1
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] reporters = []
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] 
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] [server]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] use_memkv = false
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] 
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] [server.background_client]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] default_compression_level = 0
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] default_compression_threshold = '128KB'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] default_log_long_running_threshold = '0ns'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] default_report_metrics = false
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] default_send_retry_times = 1
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] default_timeout = '1s'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] enable_rdma_control = false
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] force_use_tcp = false
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] 
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] [server.background_client.io_worker]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] num_event_loop = 1
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] rdma_connect_timeout = '5s'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] read_write_rdma_in_event_thread = false
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] read_write_tcp_in_event_thread = false
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] tcp_connect_timeout = '1s'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] wait_to_retry_send = '100ms'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] 
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] [server.background_client.io_worker.connect_concurrency_limiter]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] max_concurrency = 4
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] 
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] [server.background_client.io_worker.ibsocket]
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] buf_ack_batch = 8
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] buf_signal_batch = 8
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] buf_size = 16384
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] drain_timeout = '5s'
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] drop_connections = 0
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] event_ack_batch = 128
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] max_rd_atomic = 16
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] max_rdma_wr = 128
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] max_rdma_wr_per_post = 32
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] max_sge = 16
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] min_rnr_timer = 1
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] record_bytes_per_peer = false
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] record_latency_per_peer = false
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] retry_cnt = 7
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] rnr_retry = 0
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] send_buf_cnt = 32
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] sl = 0
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] start_psn = 0
+[2026-10-07T08:41:13.347655718+08:00 meta_main:1685162 TwoPhaseApplication.h:54 INFO] timeout = 14
+[2026-10-07T08:41:13.3476
+[... middle omitted ...]
+ead pool group SvrI@0xfffffba508b8 join connThreadPool
+[2026-10-07T08:45:51.356326474+08:00 meta_main:1685162 ThreadPoolGroup.cc:49 WARNING] All thread pools of 'SvrI@0xfffffba508b8' stopped
+[2026-10-07T08:45:51.356330766+08:00 meta_main:1685162 Server.cc:63 INFO] Stop independentTpg finished
+[2026-10-07T08:45:51.356331724+08:00 meta_main:1685162 ApplicationBase.cc:280 INFO] Stop server finished.
+[2026-10-07T08:45:51.356588765+08:00 meta_main:1685162 IBSocket.cc:1204 INFO] IBSocketManager::stopAndJoin
+[2026-10-07T08:45:51.356593682+08:00 meta_main:1685162 IBSocket.cc:1218 INFO] IBSocketManager stopped!
+[2026-10-07T08:45:51.356608099+08:00 IBManager:1685165 EventLoop.cc:159 INFO] EventLoop::loop() stopped.
+[2026-10-07T08:45:51.356833015+08:00 meta_main:1685162 MetaServer.cc:23 INFO] Destructor MetaServer
+[2026-10-07T08:45:51.357217847+08:00 meta_main:1685162 SessionManager.cc:249 INFO] SessionManager stopped.
+[2026-10-07T08:45:51.357230097+08:00 meta_main:1685162 StorageClientImpl.cc:1468 INFO] Stopping storage client ClientId(b1710afb-10f0-41ed-b54b-c75ec086d197)@lima-afs-accept-ctl
+[2026-10-07T08:45:51.357234013+08:00 meta_main:1685162 StorageClientImpl.cc:1481 INFO] Stopping storage messenger of ClientId(b1710afb-10f0-41ed-b54b-c75ec086d197)@lima-afs-accept-ctl
+[2026-10-07T08:45:51.357242722+08:00 StorageMsgrEL0:1685222 EventLoop.cc:159 INFO] EventLoop::loop() stopped.
+[2026-10-07T08:45:51.357403971+08:00 meta_main:1685162 ThreadPoolGroup.cc:30 WARNING] Stopping thread pool group 'Cli@0xfffffba5c3f0'
+[2026-10-07T08:45:51.357411346+08:00 meta_main:1685162 ThreadPoolGroup.cc:41 INFO] thread pool group Cli@0xfffffba5c3f0 join procThreadPool
+[2026-10-07T08:45:51.357603387+08:00 meta_main:1685162 ThreadPoolGroup.cc:43 INFO] thread pool group Cli@0xfffffba5c3f0 join ioThreadPool
+[2026-10-07T08:45:51.357873470+08:00 meta_main:1685162 ThreadPoolGroup.cc:45 INFO] thread pool group Cli@0xfffffba5c3f0 join bgThreadPool
+[2026-10-07T08:45:51.358181636+08:00 meta_main:1685162 ThreadPoolGroup.cc:47 INFO] thread pool group Cli@0xfffffba5c3f0 join connThreadPool
+[2026-10-07T08:45:51.358590801+08:00 meta_main:1685162 ThreadPoolGroup.cc:49 WARNING] All thread pools of 'Cli@0xfffffba5c3f0' stopped
+[2026-10-07T08:45:51.358596426+08:00 meta_main:1685162 StorageClientImpl.cc:1491 INFO] Storage client ClientId(b1710afb-10f0-41ed-b54b-c75ec086d197)@lima-afs-accept-ctl stopped
+[2026-10-07T08:45:51.359526340+08:00 meta_main:1685162 ThreadPoolGroup.cc:30 WARNING] Stopping thread pool group 'Cli@0xfffffba5de68'
+[2026-10-07T08:45:51.359530090+08:00 meta_main:1685162 ThreadPoolGroup.cc:41 INFO] thread pool group Cli@0xfffffba5de68 join procThreadPool
+[2026-10-07T08:45:51.359745464+08:00 meta_main:1685162 ThreadPoolGroup.cc:43 INFO] thread pool group Cli@0xfffffba5de68 join ioThreadPool
+[2026-10-07T08:45:51.359896381+08:00 meta_main:1685162 ThreadPoolGroup.cc:45 INFO] thread pool group Cli@0xfffffba5de68 join bgThreadPool
+[2026-10-07T08:45:51.360524087+08:00 meta_main:1685162 ThreadPoolGroup.cc:47 INFO] thread pool group Cli@0xfffffba5de68 join connThreadPool
+[2026-10-07T08:45:51.360838086+08:00 meta_main:1685162 ThreadPoolGroup.cc:49 WARNING] All thread pools of 'Cli@0xfffffba5de68' stopped
+[2026-10-07T08:45:51.360854919+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.360860419+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.360861961+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.360862586+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct net::ThreadPoolGroup
+[2026-10-07T08:45:51.362383457+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct serde::Services
+[2026-10-07T08:45:51.362389373+08:00 meta_main:1685162 ThreadPoolGroup.cc:30 WARNING] Stopping thread pool group 'Cli@0xfffffba5c3f0'
+[2026-10-07T08:45:51.362398540+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.362447665+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.362451665+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.362452206+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct net::ThreadPoolGroup
+[2026-10-07T08:45:51.364281201+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct serde::Services
+[2026-10-07T08:45:51.364576784+08:00 meta_main:1685162 Distributor.cc:75 INFO] NodeId(50) stop, update map true
+[2026-10-07T08:45:51.364583200+08:00 meta_main:1685162 Distributor.cc:81 INFO] NodeId(50) update map on stop
+[2026-10-07T08:45:51.364597867+08:00 meta_main:1685162 Distributor.cc:219 INFO] NodeId(50) update, exit true
+[2026-10-07T08:45:51.364964074+08:00 meta_main:1685162 Distributor.cc:176 INFO] NodeId(50) get new server map: {"active":[]}, versionstamp: 0,0,0,0,16,163,62,5,0,0, update true
+[2026-10-07T08:45:51.365085990+08:00 meta_main:1685162 Distributor.cc:296 INFO] NodeId(50) exiting, create a new map
+[2026-10-07T08:45:51.365088990+08:00 meta_main:1685162 Distributor.cc:185 INFO] NodeId(50) try set new server map: {"active":[]}
+[2026-10-07T08:45:51.366549278+08:00 meta_main:1685162 Distributor.cc:206 INFO] NodeId(50) updated map, new true, exit true
+[2026-10-07T08:45:51.366551611+08:00 meta_main:1685162 Distributor.cc:85 INFO] NodeId(50) stopped
+[2026-10-07T08:45:51.366553320+08:00 meta_main:1685162 StructuredTraceLog.h:248 INFO] Disabled MetaEventTrace trace log in directory .
+[2026-10-07T08:45:51.366963027+08:00 meta_main:1685675 StructuredTraceLog.h:141 INFO] Flushing 0 MetaEventTrace log writers in directory .
+[2026-10-07T08:45:51.366974902+08:00 meta_main:1685675 StructuredTraceLog.h:188 INFO] Flushed MetaEventTrace trace log in directory .
+[2026-10-07T08:45:51.367002943+08:00 meta_main:1685162 StructuredTraceLog.h:200 INFO] Closed MetaEventTrace trace log in directory .
+[2026-10-07T08:45:51.367030526+08:00 meta_main:1685162 ThreadPoolGroup.cc:30 WARNING] Stopping thread pool group 'Cli@0xfffffba5a3e0'
+[2026-10-07T08:45:51.367051235+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.367065276+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.367073401+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.367078026+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct net::ThreadPoolGroup
+[2026-10-07T08:45:51.368085398+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct serde::Services
+[2026-10-07T08:45:51.368755771+08:00 meta_main:1685162 Server.cc:50 INFO] Server 0xf127b85c0000 is already stopped
+[2026-10-07T08:45:51.369936018+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct serde::Services
+[2026-10-07T08:45:51.369943018+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct net::ServiceGroup
+[2026-10-07T08:45:51.372319553+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct serde::Services
+[2026-10-07T08:45:51.372330803+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct net::ServiceGroup
+[2026-10-07T08:45:51.372612760+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.372617677+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.372618969+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.372619510+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct net::ThreadPoolGroup
+[2026-10-07T08:45:51.372631844+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.372654552+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.372673177+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:51.372676635+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct net::ThreadPoolGroup
+[2026-10-07T08:45:51.372677510+08:00 meta_main:1685162 ConstructLog.h:12 INFO] Destruct net::Server
+[2026-10-07T08:45:51.372679177+08:00 meta_main:1685162 TwoPhaseApplication.h:79 INFO] Stop TwoPhaseApplication finished

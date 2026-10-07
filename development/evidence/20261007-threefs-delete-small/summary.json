@@ -1,0 +1,25 @@
+{
+  "status": "DATA_COLLECTION_COMPLETE_REFERENCE_QUALIFICATION_FAILED",
+  "formal_G2_25": "PENDING",
+  "candidate_source": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "canonical_tools_git": "f8c13f699e382e59b878ab66b466b82b8983485e",
+  "reference_source": "22fca04564c7cc230fd8b9523b8b92864e1dad47",
+  "reference_patch": "6c460875c6c098e0b4aacad309e099657a5daf70bdc3937060d402a5e59aad95",
+  "reference_median_ops_s": 615.2102515486441,
+  "reference_pooled_ops_s": 509.5651664684633,
+  "candidate_median_ops_s": 29.861202146303764,
+  "candidate_pooled_ops_s": 30.68188575999647,
+  "comparison": "sequential diagnostic only; shared environment/UNOBSERVED cache/different chunk allocation; no fair parity ratio",
+  "functional_scope": "6x100 distinct4KiB/full contents+EOF and deletion; B/C each600 real ENOENT same confirmedmanifest",
+  "failures": [
+    "A allocated1077809152 exceeds1073741824 budget by4067328; free2992967680 exceeds1GiB floor",
+    "FDB actualwait -15,8others0; original9wait0 criterion unmet",
+    "frozen postcheck TARGET-only dict falseFAIL; unchanged mounts proved from existing raw by ID/TARGET, no helper late-edit"
+  ],
+  "closure": "all18 child/supervisor PIDs gone; fresh mounts gone; old10processes/all protected mountincarnations unchanged",
+  "total_new_allocated_bytes": 2392875008,
+  "total_budget_bytes": 4294967296,
+  "environment": "no diskfull/install/build/repair/resize/repeat; selected reference qualification stopped",
+  "remaining": "User decision: baseline qualification deferred to a separate topic; return to container workspace. Known postcheck stacked-mount comparison defect must be repaired before any fixture reuse.",
+  "counts": "G1 historical8/8;G2 10limited completed/2performanceFAIL/2bind inprogress/13pending unchanged"
+}

@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,hashlib,json;from pathlib import Path;r=Path(sys.argv[1]);b=(r/'stage/writer-confirmed-r1.json').read_bytes();assert hashlib.sha256(b).hexdigest()==sys.argv[2];t=r/'inputs/writer-confirmed-r1.json';assert not t.exists();t.write_bytes(b);print(json.dumps({'sha256':sys.argv[2],'path':str(t)}))",
+    "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1",
+    "84373c51e8675c48b57dd28cbc2f7f1795cee0b080a4d1fad07803400ad0f732"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

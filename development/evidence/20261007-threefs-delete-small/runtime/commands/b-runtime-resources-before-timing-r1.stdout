@@ -1,0 +1,129 @@
+{
+  "status": "PASS_ACTUAL_RESOURCES_AND_CHILD_MOUNT_IDENTITIES",
+  "role": "b",
+  "observed_monotonic_ns": 573499925828895,
+  "services": [
+    {
+      "service": "storage",
+      "processes": [
+        {
+          "identity": {
+            "pid": 242264,
+            "state": "S",
+            "start_ticks": "57339337",
+            "exe": "/opt/afs-3fs-round3-v84/bin/storage_main",
+            "exe_dev": 64769,
+            "exe_ino": 276962,
+            "exe_sha256": "bb8c2546f609059cf419a2e06ec0297d44084ca4570b313569a93d505e18ca85",
+            "argv": [
+              "/opt/afs-3fs-round3-v84/bin/storage_main",
+              "--app_cfg",
+              "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/config/storage_main_app.toml",
+              "--launcher_cfg",
+              "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/config/storage_main_launcher.toml",
+              "--cfg",
+              "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/config/storage_main.toml"
+            ],
+            "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb"
+          },
+          "rss_bytes": 1587884032,
+          "threads": "232"
+        },
+        {
+          "identity": {
+            "pid": 242263,
+            "state": "S",
+            "start_ticks": "57339334",
+            "exe": "/usr/bin/python3.12",
+            "exe_dev": 64769,
+            "exe_ino": 8165,
+            "exe_sha256": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "argv": [
+              "/usr/bin/python3",
+              "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/tools/threefs_namespace_fixture.py",
+              "__supervise",
+              "b",
+              "--legacy-path",
+              "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/tools/round3-3fs.py",
+              "--service",
+              "storage"
+            ],
+            "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb"
+          },
+          "rss_bytes": 19427328,
+          "threads": "1"
+        }
+      ]
+    },
+    {
+      "service": "fuse",
+      "processes": [
+        {
+          "identity": {
+            "pid": 242534,
+            "state": "S",
+            "start_ticks": "57345925",
+            "exe": "/opt/afs-3fs-round3-v84/bin/hf3fs_fuse_main",
+            "exe_dev": 64769,
+            "exe_ino": 277000,
+            "exe_sha256": "45f09c3b808bfb8ab77d06c0fd0de12b9d7176e4db35d33b0b3783f86e5f3fbf",
+            "argv": [
+              "/opt/afs-3fs-round3-v84/bin/hf3fs_fuse_main",
+              "--launcher_cfg",
+              "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/config/hf3fs_fuse_main_launcher.toml",
+              "--cfg",
+              "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/config/hf3fs_fuse_main.toml",
+              "--launcher_config.mountpoint=/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/mount"
+            ],
+            "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb"
+          },
+          "rss_bytes": 276537344,
+          "threads": "37"
+        },
+        {
+          "identity": {
+            "pid": 242533,
+            "state": "S",
+            "start_ticks": "57345920",
+            "exe": "/usr/bin/python3.12",
+            "exe_dev": 64769,
+            "exe_ino": 8165,
+            "exe_sha256": "c86f21d0da9290ece2d7d49a3f7ed52aed59cb029abdf0ea25c79634f6cbe960",
+            "argv": [
+              "/usr/bin/python3",
+              "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/tools/threefs_namespace_fixture.py",
+              "__supervise",
+              "b",
+              "--legacy-path",
+              "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/tools/round3-3fs.py",
+              "--service",
+              "fuse"
+            ],
+            "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb"
+          },
+          "rss_bytes": 19341312,
+          "threads": "1"
+        }
+      ]
+    }
+  ],
+  "rss_total_bytes": 1903190016,
+  "rss_envelope_bytes": 2684354560,
+  "memory_available_bytes": 3892113408,
+  "minimum_headroom_bytes": 536870912,
+  "capacity": {
+    "allocated": 1900544,
+    "available": 17606696960,
+    "budget": 1073741824,
+    "floor": 1073741824
+  },
+  "mount": {
+    "target": "/mnt/lima-afsbdata/afs-delivery/threefs-delete-v84-20261007-r1/mount",
+    "source": "hf3fs.afs_3fs_delete_v84_20261007_r1",
+    "fstype": "fuse.hf3fs",
+    "id": 92,
+    "options": "rw,nosuid,nodev,relatime,user_id=0,group_id=0,max_read=1048576"
+  },
+  "protected_processes_unchanged": [],
+  "scope": "coexistence; not exclusive fair VM"
+}

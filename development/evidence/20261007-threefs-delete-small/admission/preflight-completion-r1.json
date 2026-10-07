@@ -1,0 +1,32 @@
+{
+  "status": "PASS_READONLY_ADMISSION_ALL4_COMPLETE_IDENTITIES",
+  "main_admission": "preflight-r1.json",
+  "tool_identity_completion": [
+    {
+      "role": "ctl",
+      "exit": 0,
+      "raw": "commands/ctl-tool-identities-r1.stdout"
+    },
+    {
+      "role": "a",
+      "exit": 0,
+      "raw": "commands/a-tool-identities-r1.stdout"
+    },
+    {
+      "role": "b",
+      "exit": 0,
+      "raw": "commands/b-tool-identities-r1.stdout"
+    },
+    {
+      "role": "c",
+      "exit": 0,
+      "raw": "commands/c-tool-identities-r1.stdout"
+    }
+  ],
+  "no_resource_checks_repeated": true,
+  "contract_sha256": "bc9988d00d78442ea847430c4223e70969160f326505eb2bbdae4e215b99e6c1",
+  "fixed_reference_helper_sha256": "16a25b5e1623e1030b631994a6799544a776828909512de4c191f06549b38f24",
+  "unchanged_delete_core_sha256": "d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98",
+  "no_services_started": true,
+  "no_environment_mutation": true
+}

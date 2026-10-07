@@ -1,0 +1,485 @@
+{
+  "review_type": "independent_read_only_saved_environment_admission_evidence",
+  "reviewed_at_utc": "2026-10-07T00:32:01.562105+00:00",
+  "verdict": "APPROVE_BOUNDED_READONLY_ENVIRONMENT_ADMISSION_EVIDENCE",
+  "blocking_findings": [],
+  "no_Linux_probe_test_service_or_environment_operation_by_reviewer": true,
+  "roles": [
+    {
+      "role": "ctl",
+      "observed_utc": "2026-10-07T00:26:10.977937+00:00",
+      "hostname": "lima-afs-accept-ctl",
+      "boot_id": "18c9c087-49d6-458f-817b-0f84c0effd7a",
+      "manifest_entry_count": 39,
+      "fixed_manifest_sha256": "1608f7ba7f3fa46e9aabfef0f9fe034db827e749e1c9a147a9f75d152f84a241",
+      "ELF_dependency_checks": 39,
+      "tool_identity_count": 8,
+      "provider_dependency_check_count": 2,
+      "active_locked_IP_gid": {
+        "device": "rxe0",
+        "port": "1",
+        "index": "1",
+        "value": "0000:0000:0000:0000:0000:ffff:c0a8:6d0b",
+        "ndev": "eth0",
+        "type": "RoCE v2"
+      },
+      "memory_available_bytes": 3566415872,
+      "memory_required_bytes": 2684354560,
+      "ext4_volume": {
+        "target": "/mnt/lima-afsctlstate",
+        "source": "/dev/vdb1",
+        "fstype": "ext4",
+        "id": 100,
+        "options": "rw,relatime"
+      },
+      "capacity": {
+        "total": 8348200960,
+        "used": 3611049984,
+        "free": 4290981888,
+        "budget": 1073741824,
+        "floor": 536870912,
+        "required": 1610612736
+      },
+      "root_absent": true,
+      "new_ports": [
+        {
+          "port": 24100,
+          "protocol": "TCP",
+          "bind_available": true
+        },
+        {
+          "port": 24100,
+          "protocol": "UDP",
+          "bind_available": true
+        },
+        {
+          "port": 24101,
+          "protocol": "TCP",
+          "bind_available": true
+        },
+        {
+          "port": 24101,
+          "protocol": "UDP",
+          "bind_available": true
+        },
+        {
+          "port": 24102,
+          "protocol": "TCP",
+          "bind_available": true
+        },
+        {
+          "port": 24102,
+          "protocol": "UDP",
+          "bind_available": true
+        }
+      ],
+      "fuse_device": {
+        "path": "/dev/fuse",
+        "exists": true,
+        "read_write_access": true
+      },
+      "protected_process_count": 2,
+      "protected_pids": [
+        1136874,
+        1418880
+      ],
+      "protected_fuse_mounts": [],
+      "command_proof": [
+        {
+          "kind": "admission",
+          "command": "commands/ctl-admission-r1.command.json",
+          "exit": 0,
+          "stdin_sha256": "8a3e2cc1baeff8bb3db76c87bccbcde9013953daacff566b2adafda71c3db154",
+          "stderr_bytes": 0
+        },
+        {
+          "kind": "tool-identities",
+          "command": "commands/ctl-tool-identities-r1.command.json",
+          "exit": 0,
+          "stdin_sha256": "3c666e554b187b21cb5f90816410cafe23712fd4c44585add77bc065dc4ec1da",
+          "stderr_bytes": 0
+        }
+      ]
+    },
+    {
+      "role": "a",
+      "observed_utc": "2026-10-07T00:26:10.982279+00:00",
+      "hostname": "lima-afs-accept-a",
+      "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+      "manifest_entry_count": 39,
+      "fixed_manifest_sha256": "1608f7ba7f3fa46e9aabfef0f9fe034db827e749e1c9a147a9f75d152f84a241",
+      "ELF_dependency_checks": 39,
+      "tool_identity_count": 8,
+      "provider_dependency_check_count": 2,
+      "active_locked_IP_gid": {
+        "device": "rxe0",
+        "port": "1",
+        "index": "1",
+        "value": "0000:0000:0000:0000:0000:ffff:c0a8:6d0c",
+        "ndev": "eth0",
+        "type": "RoCE v2"
+      },
+      "memory_available_bytes": 4789374976,
+      "memory_required_bytes": 3221225472,
+      "ext4_volume": {
+        "target": "/mnt/lima-afsadata",
+        "source": "/dev/vdb1",
+        "fstype": "ext4",
+        "id": 243,
+        "options": "rw,relatime"
+      },
+      "capacity": {
+        "total": 33633878016,
+        "used": 27828445184,
+        "free": 4070776832,
+        "budget": 1073741824,
+        "floor": 1073741824,
+        "required": 2147483648
+      },
+      "root_absent": true,
+      "new_ports": [
+        {
+          "port": 24103,
+          "protocol": "TCP",
+          "bind_available": true
+        },
+        {
+          "port": 24103,
+          "protocol": "UDP",
+          "bind_available": true
+        }
+      ],
+      "fuse_device": {
+        "path": "/dev/fuse",
+        "exists": true,
+        "read_write_access": true
+      },
+      "protected_process_count": 8,
+      "protected_pids": [
+        150904,
+        706366,
+        707560,
+        722421,
+        723627,
+        724361,
+        727122,
+        729413
+      ],
+      "protected_fuse_mounts": [
+        {
+          "target": "/mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/mount-ownerfs",
+          "source": "afs-ownerfs",
+          "fstype": "fuse",
+          "id": 84,
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+        },
+        {
+          "target": "/mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/mount-dfs",
+          "source": "afs-dfs",
+          "fstype": "fuse",
+          "id": 163,
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other"
+        }
+      ],
+      "command_proof": [
+        {
+          "kind": "admission",
+          "command": "commands/a-admission-r1.command.json",
+          "exit": 0,
+          "stdin_sha256": "8a3e2cc1baeff8bb3db76c87bccbcde9013953daacff566b2adafda71c3db154",
+          "stderr_bytes": 0
+        },
+        {
+          "kind": "tool-identities",
+          "command": "commands/a-tool-identities-r1.command.json",
+          "exit": 0,
+          "stdin_sha256": "3c666e554b187b21cb5f90816410cafe23712fd4c44585add77bc065dc4ec1da",
+          "stderr_bytes": 0
+        }
+      ]
+    },
+    {
+      "role": "b",
+      "observed_utc": "2026-10-07T00:26:10.993816+00:00",
+      "hostname": "lima-afs-accept-b",
+      "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+      "manifest_entry_count": 39,
+      "fixed_manifest_sha256": "1608f7ba7f3fa46e9aabfef0f9fe034db827e749e1c9a147a9f75d152f84a241",
+      "ELF_dependency_checks": 39,
+      "tool_identity_count": 8,
+      "provider_dependency_check_count": 2,
+      "active_locked_IP_gid": {
+        "device": "rxe0",
+        "port": "1",
+        "index": "1",
+        "value": "0000:0000:0000:0000:0000:ffff:c0a8:6d0d",
+        "ndev": "eth0",
+        "type": "RoCE v2"
+      },
+      "memory_available_bytes": 5759057920,
+      "memory_required_bytes": 3221225472,
+      "ext4_volume": {
+        "target": "/mnt/lima-afsbdata",
+        "source": "/dev/vdb1",
+        "fstype": "ext4",
+        "id": 100,
+        "options": "rw,relatime"
+      },
+      "capacity": {
+        "total": 33633878016,
+        "used": 14290624512,
+        "free": 17608597504,
+        "budget": 1073741824,
+        "floor": 1073741824,
+        "required": 2147483648
+      },
+      "root_absent": true,
+      "new_ports": [
+        {
+          "port": 24103,
+          "protocol": "TCP",
+          "bind_available": true
+        },
+        {
+          "port": 24103,
+          "protocol": "UDP",
+          "bind_available": true
+        }
+      ],
+      "fuse_device": {
+        "path": "/dev/fuse",
+        "exists": true,
+        "read_write_access": true
+      },
+      "protected_process_count": 0,
+      "protected_pids": [],
+      "protected_fuse_mounts": [],
+      "command_proof": [
+        {
+          "kind": "admission",
+          "command": "commands/b-admission-r1.command.json",
+          "exit": 0,
+          "stdin_sha256": "8a3e2cc1baeff8bb3db76c87bccbcde9013953daacff566b2adafda71c3db154",
+          "stderr_bytes": 0
+        },
+        {
+          "kind": "tool-identities",
+          "command": "commands/b-tool-identities-r1.command.json",
+          "exit": 0,
+          "stdin_sha256": "3c666e554b187b21cb5f90816410cafe23712fd4c44585add77bc065dc4ec1da",
+          "stderr_bytes": 0
+        }
+      ]
+    },
+    {
+      "role": "c",
+      "observed_utc": "2026-10-07T00:26:10.990206+00:00",
+      "hostname": "lima-afs-accept-c",
+      "boot_id": "0cf26d13-bc67-4f98-999e-7aeac4cc9b30",
+      "manifest_entry_count": 39,
+      "fixed_manifest_sha256": "1608f7ba7f3fa46e9aabfef0f9fe034db827e749e1c9a147a9f75d152f84a241",
+      "ELF_dependency_checks": 39,
+      "tool_identity_count": 8,
+      "provider_dependency_check_count": 2,
+      "active_locked_IP_gid": {
+        "device": "rxe0",
+        "port": "1",
+        "index": "1",
+        "value": "0000:0000:0000:0000:0000:ffff:c0a8:6d0e",
+        "ndev": "eth0",
+        "type": "RoCE v2"
+      },
+      "memory_available_bytes": 5770067968,
+      "memory_required_bytes": 3221225472,
+      "ext4_volume": {
+        "target": "/mnt/lima-afscdata",
+        "source": "/dev/vdb1",
+        "fstype": "ext4",
+        "id": 100,
+        "options": "rw,relatime"
+      },
+      "capacity": {
+        "total": 33633878016,
+        "used": 1212645376,
+        "free": 30686576640,
+        "budget": 1073741824,
+        "floor": 1073741824,
+        "required": 2147483648
+      },
+      "root_absent": true,
+      "new_ports": [
+        {
+          "port": 24103,
+          "protocol": "TCP",
+          "bind_available": true
+        },
+        {
+          "port": 24103,
+          "protocol": "UDP",
+          "bind_available": true
+        }
+      ],
+      "fuse_device": {
+        "path": "/dev/fuse",
+        "exists": true,
+        "read_write_access": true
+      },
+      "protected_process_count": 0,
+      "protected_pids": [],
+      "protected_fuse_mounts": [],
+      "command_proof": [
+        {
+          "kind": "admission",
+          "command": "commands/c-admission-r1.command.json",
+          "exit": 0,
+          "stdin_sha256": "8a3e2cc1baeff8bb3db76c87bccbcde9013953daacff566b2adafda71c3db154",
+          "stderr_bytes": 0
+        },
+        {
+          "kind": "tool-identities",
+          "command": "commands/c-tool-identities-r1.command.json",
+          "exit": 0,
+          "stdin_sha256": "3c666e554b187b21cb5f90816410cafe23712fd4c44585add77bc065dc4ec1da",
+          "stderr_bytes": 0
+        }
+      ]
+    }
+  ],
+  "proven_scope": [
+    "Four locked ARM64 Linux/root identities, boot IDs and one saved resource/device/port admission attempt per role.",
+    "39/39 fixed manifest file SHA identities and 39 ARM64 ELF dependency checks per role, including fixed FDB client library SHA and dependency resolution.",
+    "Eight required tool realpaths/hashes per role and RXE provider dependency checks completed separately without repeating resource admission.",
+    "Active RXE port with the matching role IPv4 RoCE v2 GID on eth0; readable/writable uverbs and rdma_cm nodes and provider files.",
+    "Predeclared MemAvailable and disk free budget-plus-floor checks pass; non-root cgroup ancestors report unlimited memory.max/high. All role volumes are exact ext4 mounts and fresh root is absent.",
+    "Locked IPv4 addresses/routes, availability bind checks for declared new TCP/UDP ports, FUSE device access, official fusermount3 version/help capabilities and saved listener/mount inventories.",
+    "Summary role memory/limits/capacity/protected counts exactly match raw output. All eight command receipts are terminal exit0 with correct VM binding, exact stdin hash and empty stderr."
+  ],
+  "limits": [
+    "FDB dlopen identity is a fixed library path/hash and ldd result, not an actual dlopen/API-success probe. New externalClientPath binding and actual process library use remain runtime/configuration checks.",
+    "Fresh service configurations do not yet exist in this readonly admission. Their exact contents/identity, actual SERVING R2 target chains, actual FUSE mounts and nine normal wait0 receipts remain runtime requirements.",
+    "/sys/fs/cgroup root memory/pids control files are absent and that fact is recorded as FileNotFoundError. Non-root ancestors are observed; do not claim those root files were read successfully or that hard resource isolation exists.",
+    "Unused RXE GID slots record EINVAL for attributes. The actual matching nonzero GID is valid and active; do not describe every possible slot as qualified.",
+    "Device access, provider presence/ldd and route checks do not establish successful RDMA data transfer or FUSE mounting. No connectivity workload was performed.",
+    "Memory rules are observational admission/headroom checks, not enforced process hard caps. Fresh allocated-disk budget and service RSS before timing/at closure have not yet been observed.",
+    "The protected collection is ctl2/A8/B0/C0 (10 total), including the existing system FDB service on A. Do not substitute a historical count of nine or assume exclusive VMs. A retains two old product FUSE mounts IDs84/163.",
+    "New-port bind availability is a timestamped admission observation, not a permanent reservation. Actual startup/mount identity and final protected-state preservation must still be recorded.",
+    "No runtime workload, namespace deletion, performance comparison, strong three-sync durability or G2.25 completion is established here."
+  ],
+  "source_hashes": [
+    {
+      "path": "preflight-r1.json",
+      "sha256": "56fb62fc159e7827d2ac5ff193ff9e5599069f746e683c18fda55c2885809aa7"
+    },
+    {
+      "path": "preflight-completion-r1.json",
+      "sha256": "b623bcc35710e54cdcb7e57ed706d708d110849fcdd8ecaa1437ea476f4dca46"
+    },
+    {
+      "path": "admission-stdin-r1.txt",
+      "sha256": "8a3e2cc1baeff8bb3db76c87bccbcde9013953daacff566b2adafda71c3db154"
+    },
+    {
+      "path": "tool-identity-stdin-r1.txt",
+      "sha256": "3c666e554b187b21cb5f90816410cafe23712fd4c44585add77bc065dc4ec1da"
+    }
+  ],
+  "raw_hashes": [
+    {
+      "path": "commands/ctl-admission-r1.command.json",
+      "sha256": "f5fab1c85b47124097b507c4c45b0ed7ad3e75b4ada2c9a1244c98fadff91e77"
+    },
+    {
+      "path": "commands/ctl-admission-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/ctl-tool-identities-r1.command.json",
+      "sha256": "7cef66bf368704de56483bb14158bc1d3111be51bbacede418e5eb11fc01fc4c"
+    },
+    {
+      "path": "commands/ctl-tool-identities-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/ctl-admission-r1.stdout",
+      "sha256": "586a0c9b3fca5fa4d252a6e117bec4d4bbac6fde5ead67bc521baf48fbf921bf"
+    },
+    {
+      "path": "commands/ctl-tool-identities-r1.stdout",
+      "sha256": "a8fdd241d03de3e77710b7fab6443a2611bdcddb11ca948a96a64a5f2bd862fd"
+    },
+    {
+      "path": "commands/a-admission-r1.command.json",
+      "sha256": "2c02509064d96fd306ba0a860ffc459b3b7e8e43e7ca2fe382b3a0d8f28082cc"
+    },
+    {
+      "path": "commands/a-admission-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/a-tool-identities-r1.command.json",
+      "sha256": "99ec3b9d89ab97c413f3e3c9ed07b9868f072f96250ae8ac3fbcb6c1a127f9da"
+    },
+    {
+      "path": "commands/a-tool-identities-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/a-admission-r1.stdout",
+      "sha256": "156012bc257ea46d007be1a34cc7f5825f609c6e8b8d0c3dca5c3f8ba058bf68"
+    },
+    {
+      "path": "commands/a-tool-identities-r1.stdout",
+      "sha256": "de77e630aea4a77f0bd377a27a7ec89bba684b5184a4ace2d7b111ad7f682904"
+    },
+    {
+      "path": "commands/b-admission-r1.command.json",
+      "sha256": "8da7b24c5b5a949bee0fb6332276527df0dd5edb72a269d119c87ba0a195e3eb"
+    },
+    {
+      "path": "commands/b-admission-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/b-tool-identities-r1.command.json",
+      "sha256": "931755575282c136e1150c020e6418d48ee8b7f538076dc40dd63baaa8e82589"
+    },
+    {
+      "path": "commands/b-tool-identities-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/b-admission-r1.stdout",
+      "sha256": "22324789b2176a5da0ca8cb0f6b776403311fc14daa42f0ae118a5d679bf72c2"
+    },
+    {
+      "path": "commands/b-tool-identities-r1.stdout",
+      "sha256": "522aa1000dda635c68d1d41df2cd68ad2ca20f5e7a5e757474627175c9181a21"
+    },
+    {
+      "path": "commands/c-admission-r1.command.json",
+      "sha256": "93d845e6c79ce8c6e1720edb3597a78065ef62ceaac80a586c4e770c52779a12"
+    },
+    {
+      "path": "commands/c-admission-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/c-tool-identities-r1.command.json",
+      "sha256": "bc1a889bf825ff157577dbdd90c8f27cdac4424cf6811431b5759fca7135cc60"
+    },
+    {
+      "path": "commands/c-tool-identities-r1.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "commands/c-admission-r1.stdout",
+      "sha256": "cc737f3de49def5475239a91d613c00198fd576ab5c17cc56effb1100d9fd2e8"
+    },
+    {
+      "path": "commands/c-tool-identities-r1.stdout",
+      "sha256": "d12fcf7b9f8916f217afce2928ffc15bd2db7f0a75aafb4949604596a2536f7d"
+    }
+  ],
+  "next_authorized_step": "Implement and validate the bounded first-party adapter/supervisor in the parent-assigned files; preserve actual saved admission identities and proceed to runtime only after affected Linux tool guards pass."
+}

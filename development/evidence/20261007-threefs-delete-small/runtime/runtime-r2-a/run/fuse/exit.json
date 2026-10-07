@@ -1,0 +1,89 @@
+{
+  "exit_code": 0,
+  "pid": 853189,
+  "supervisor_pid": 853188,
+  "identity": {
+    "role": "a",
+    "fixture": "threefs-delete-v84-20261007-r1",
+    "root": "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1",
+    "service": "fuse",
+    "argv": [
+      "/opt/afs-3fs-round3-v84/bin/hf3fs_fuse_main",
+      "--launcher_cfg",
+      "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/config/hf3fs_fuse_main_launcher.toml",
+      "--cfg",
+      "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/config/hf3fs_fuse_main.toml",
+      "--launcher_config.mountpoint=/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/mount"
+    ],
+    "env": {
+      "LD_PRELOAD": "/opt/afs-3fs-round3-v84/lib/libjemalloc.so.2"
+    },
+    "config_sha256": {
+      "admin_cli.toml": "46bcaac42dacbfad899c0826a37af245e0493c4edd66bd013eecac10d594b04d",
+      "hf3fs_fuse_main.toml": "6afac294fc15dfd22856e3b913f55fe656af6e1cf02b80783e9650081591d857",
+      "hf3fs_fuse_main_launcher.toml": "4831c92a79a3be292087fed4534283443bd12624039ee165e5837aa29c684d80",
+      "meta_bench.toml": "2f8397d1581afeec86c28f991cb18fb1ea45c57f98bc9c146de19fb7f2829a2f",
+      "meta_main.toml": "d30b7c7a8c74e26919fa5134be483bf16ab45f35ed591ded4c45ad900b636401",
+      "meta_main_app.toml": "5148b9064846010e146277beb412b596479d0d743251299488982e2eb7364cef",
+      "meta_main_launcher.toml": "cecad0f1c287c1b57c29124f3dd4f354c3b42e68d3c015ab153ad9424aa0a830",
+      "mgmtd_main.toml": "7f72006d57001dea20f53119887b285b3827041118803ce3cc64eacdc31487b6",
+      "mgmtd_main_app.toml": "58323f28fad622ace0c8c5427d46ab0f5e1eea089bbad39353358a11efa02951",
+      "mgmtd_main_launcher.toml": "a8d815b1513233a87b88eb2aefa0d2be8f84deee5d15c222186428b8e4b32a5f",
+      "pjdfstest.toml": "95fb869e813219132ec01688e196b4e497b9f23f326aa054771d0dd2a93b0980",
+      "storage_main.toml": "f47854caa603f8aa60355a969c9c29adadeba470223b6af7e86febaba31956cf",
+      "storage_main_app.toml": "907f6938dd146a8ce266a067615ca6f5ae7c89d5723fb2009c4ebc7011752804",
+      "storage_main_launcher.toml": "cecad0f1c287c1b57c29124f3dd4f354c3b42e68d3c015ab153ad9424aa0a830",
+      "token": "9d41062d0ef188b3ff9e6f20648a9e9aa487bf60b0437588e30e02923d1b25c4",
+      "fdb.cluster": "2971faa3da0b1151d9a8e5c8ea9f563d0dfd4b2d688cd0fb26a07c2b8eafcb14"
+    },
+    "script_sha256": "dad3f86b6907cb928cc2848f21bc922443a79de8e8220753b0f1d1f8a59d8bc5",
+    "legacy_sha256": "16a25b5e1623e1030b631994a6799544a776828909512de4c191f06549b38f24",
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+    "pid": 853189,
+    "state": "R",
+    "start_ticks": "58279464",
+    "exe": "/opt/afs-3fs-round3-v84/bin/hf3fs_fuse_main",
+    "exe_dev": 64769,
+    "exe_ino": 266659,
+    "exe_sha256": "45f09c3b808bfb8ab77d06c0fd0de12b9d7176e4db35d33b0b3783f86e5f3fbf",
+    "supervisor_pid": 853188
+  },
+  "launch": {
+    "role": "a",
+    "fixture": "threefs-delete-v84-20261007-r1",
+    "root": "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1",
+    "service": "fuse",
+    "argv": [
+      "/opt/afs-3fs-round3-v84/bin/hf3fs_fuse_main",
+      "--launcher_cfg",
+      "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/config/hf3fs_fuse_main_launcher.toml",
+      "--cfg",
+      "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/config/hf3fs_fuse_main.toml",
+      "--launcher_config.mountpoint=/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/mount"
+    ],
+    "env": {
+      "LD_PRELOAD": "/opt/afs-3fs-round3-v84/lib/libjemalloc.so.2"
+    },
+    "config_sha256": {
+      "admin_cli.toml": "46bcaac42dacbfad899c0826a37af245e0493c4edd66bd013eecac10d594b04d",
+      "hf3fs_fuse_main.toml": "6afac294fc15dfd22856e3b913f55fe656af6e1cf02b80783e9650081591d857",
+      "hf3fs_fuse_main_launcher.toml": "4831c92a79a3be292087fed4534283443bd12624039ee165e5837aa29c684d80",
+      "meta_bench.toml": "2f8397d1581afeec86c28f991cb18fb1ea45c57f98bc9c146de19fb7f2829a2f",
+      "meta_main.toml": "d30b7c7a8c74e26919fa5134be483bf16ab45f35ed591ded4c45ad900b636401",
+      "meta_main_app.toml": "5148b9064846010e146277beb412b596479d0d743251299488982e2eb7364cef",
+      "meta_main_launcher.toml": "cecad0f1c287c1b57c29124f3dd4f354c3b42e68d3c015ab153ad9424aa0a830",
+      "mgmtd_main.toml": "7f72006d57001dea20f53119887b285b3827041118803ce3cc64eacdc31487b6",
+      "mgmtd_main_app.toml": "58323f28fad622ace0c8c5427d46ab0f5e1eea089bbad39353358a11efa02951",
+      "mgmtd_main_launcher.toml": "a8d815b1513233a87b88eb2aefa0d2be8f84deee5d15c222186428b8e4b32a5f",
+      "pjdfstest.toml": "95fb869e813219132ec01688e196b4e497b9f23f326aa054771d0dd2a93b0980",
+      "storage_main.toml": "f47854caa603f8aa60355a969c9c29adadeba470223b6af7e86febaba31956cf",
+      "storage_main_app.toml": "907f6938dd146a8ce266a067615ca6f5ae7c89d5723fb2009c4ebc7011752804",
+      "storage_main_launcher.toml": "cecad0f1c287c1b57c29124f3dd4f354c3b42e68d3c015ab153ad9424aa0a830",
+      "token": "9d41062d0ef188b3ff9e6f20648a9e9aa487bf60b0437588e30e02923d1b25c4",
+      "fdb.cluster": "2971faa3da0b1151d9a8e5c8ea9f563d0dfd4b2d688cd0fb26a07c2b8eafcb14"
+    },
+    "script_sha256": "dad3f86b6907cb928cc2848f21bc922443a79de8e8220753b0f1d1f8a59d8bc5",
+    "legacy_sha256": "16a25b5e1623e1030b631994a6799544a776828909512de4c191f06549b38f24",
+    "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8"
+  }
+}

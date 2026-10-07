@@ -1,0 +1,191 @@
+[2026-10-07T08:42:20.430801653+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:38 INFO] Full AppConfig:
+[2026-10-07T08:42:20.430801653+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:38 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] Full LauncherConfig:
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] allow_other = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] cluster_id = 'afs_3fs_delete_v84_20261007_r1'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] mountpoint = '/mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1/mount'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] token_file = '/mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1/config/token'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] [client]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] default_compression_level = 0
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] default_compression_threshold = '128KB'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] default_log_long_running_threshold = '0ns'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] default_report_metrics = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] default_send_retry_times = 1
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] default_timeout = '1s'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] enable_rdma_control = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] force_use_tcp = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] [client.io_worker]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] num_event_loop = 1
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] rdma_connect_timeout = '5s'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] read_write_rdma_in_event_thread = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] read_write_tcp_in_event_thread = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] tcp_connect_timeout = '1s'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] wait_to_retry_send = '100ms'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] [client.io_worker.connect_concurrency_limiter]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] max_concurrency = 4
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] [client.io_worker.ibsocket]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] buf_ack_batch = 8
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] buf_signal_batch = 8
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] buf_size = 16384
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] drain_timeout = '5s'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] drop_connections = 0
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] event_ack_batch = 128
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] max_rd_atomic = 16
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] max_rdma_wr = 128
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] max_rdma_wr_per_post = 32
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] max_sge = 16
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] min_rnr_timer = 1
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] record_bytes_per_peer = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] record_latency_per_peer = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] retry_cnt = 7
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] rnr_retry = 0
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] send_buf_cnt = 32
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] sl = 0
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] start_psn = 0
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] timeout = 14
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] [client.io_worker.transport_pool]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] max_connections = 1
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] [client.processor]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] enable_coroutines_pool = true
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] max_coroutines_num = 256
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] max_processing_requests_num = 4096
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] response_compression_level = 1
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] response_compression_threshold = '128KB'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] [client.rdma_control]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] max_concurrent_transmission = 64
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] [client.thread_pool]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] bg_thread_pool_stratetry = 'SHARED_QUEUE'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] collect_stats = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] enable_work_stealing = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] io_thread_pool_stratetry = 'SHARED_QUEUE'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] num_bg_threads = 2
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] num_connect_threads = 2
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] num_io_threads = 2
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] num_proc_threads = 2
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] proc_thread_pool_stratetry = 'SHARED_QUEUE'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] [ib_devices]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] allow_no_usable_devices = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] allow_unknown_zone = true
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] default_network_zone = 'UNKNOWN'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] default_pkey_index = 0
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] default_roce_pkey_index = 0
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] default_traffic_class = 0
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] device_filter = []
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] fork_safe = true
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] prefer_ibdevice = true
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] skip_inactive_ports = true
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] skip_unusable_device = true
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] subnets = []
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] 
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] [mgmtd_client]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] accept_incomplete_routing_info_during_mgmtd_bootstrapping = true
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] auto_extend_client_session_interval = '10s'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] auto_heartbeat_interval = '10s'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] auto_refresh_interval = '10s'
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] enable_auto_extend_client_session = true
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] enable_auto_heartbeat = false
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] enable_auto_refresh = true
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] mgmtd_server_addresses = [ 'RDMA://192.168.109.11:24101' ]
+[2026-10-07T08:42:20.430946819+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:39 INFO] work_queue_size = 100
+[2026-10-07T08:42:20.431457276+08:00 hf3fs_fuse_main:17932 IfAddrs.h:102 INFO] Get ifaddr of eth0, addr 192.168.109.14/24, subnet 192.168.109.0/24, up true
+[2026-10-07T08:42:20.433459939+08:00 hf3fs_fuse_main:17932 IBDevice.cc:467 WARNING] IBDevice rxe0:1's netdev is unknown, maybe running in container.
+[2026-10-07T08:42:20.433481189+08:00 hf3fs_fuse_main:17932 IBDevice.cc:528 CRITICAL] IBDevice rxe0:1 can't set zone by IP, fallback to UNKNOWN
+[2026-10-07T08:42:20.433596897+08:00 hf3fs_fuse_main:17932 IBDevice.cc:454 INFO] IBDevice rxe0 add active port 1, linklayer ETHERNET, addrs , zones UNKNOWN, RoCE v2 GID 0:0:0:0:0:0:0:0:0:0:ff:ff:c0:a8:6d:e
+[2026-10-07T08:42:20.433604731+08:00 hf3fs_fuse_main:17932 IBDevice.cc:343 INFO] IBDevice add rxe0, id 0, 1 available ports
+[2026-10-07T08:42:20.434729937+08:00 hf3fs_fuse_main:17932 ServerLauncher.h:43 INFO] IBDevice inited
+[2026-10-07T08:42:20.434747479+08:00 hf3fs_fuse_main:17932 Utils.cc:239 INFO] Start load AppInfo from launcher
+[2026-10-07T08:42:20.434757229+08:00 hf3fs_fuse_main:17932 ConstructLog.h:11 INFO] Construct serde::Services
+[2026-10-07T08:42:20.434686437+08:00 IBManager:17933 EventLoop.cc:116 INFO] EventLoop::loop() started.
+[2026-10-07T08:42:20.436562100+08:00 hf3fs_fuse_main:17932 ConstructLog.h:11 INFO] Construct net::ThreadPoolGroup
+[2026-10-07T08:42:20.456826063+08:00 hf3fs_fuse_main:17932 ConstructLog.h:11 INFO] Construct CPUExecutorGroup
+[2026-10-07T08:42:20.459141309+08:00 hf3fs_fuse_main:17932 ConstructLog.h:11 INFO] Construct CPUExecutorGroup
+[2026-10-07T08:42:20.462846343+08:00 hf3fs_fuse_main:17932 ConstructLog.h:11 INFO] Construct CPUExecutorGroup
+[2026-10-07T08:42:20.468170334+08:00 hf3fs_fuse_main:17932 Semaphore.h:27 INFO] usableTokens: 64, maxTokens: 4096, availableTokens: 64
+[2026-10-07T08:42:20.469280957+08:00 launcherEL0:17942 EventLoop.cc:116 INFO] EventLoop::loop() started.
+[2026-10-07T08:42:20.469314082+08:00 hf3fs_fuse_main:17932 MgmtdClient.cc:222 INFO] MgmtdClient: started
+[2026-10-07T08:42:20.469347498+08:00 CliBG1:17939 MgmtdClient.cc:390 INFO] [MgmtdClientOp RefreshRoutingInfo force=false No.1] start execution. from:
+[2026-10-07T08:42:20.469389831+08:00 CliBG1:17939 MgmtdClient.cc:424 INFO] MgmtdClient: start probe for connecting ...
+[2026-10-07T08:42:20.469395498+08:00 CliBG1:17939 MgmtdClient.cc:542 INFO] MgmtdClient: start probe from unknown address RDMA://192.168.109.11:24101
+[2026-10-07T08:42:20.469413123+08:00 CliBG1:17939 MgmtdClient.cc:504 INFO] MgmtdClient: probePrimary NodeId(0) via RDMA://192.168.109.11:24101 ...
+[2026-10-07T08:42:20.475880069+08:00 CliConn1:17941 IBConnect.cc:386 INFO] IBSocket [connect RDMA://192.168.109.11:24101] connect with dev {local rxe0:1, remote rxe0:1, zone UNKNOWN}
+[2026-10-07T08:42:20.480635186+08:00 CliConn0:17940 IBConnect.cc:443 INFO] IBSocket RDMA://lima-afs-accept-ctl/rxe0:1/846 connected
+[2026-10-07T08:42:20.480969352+08:00 launcherEL0:17942 IBSocket.cc:509 INFO] IBSocket RDMA://lima-afs-accept-ctl/rxe0:1/846 turn to READY from CONNECTING.
+[2026-10-07T08:42:20.481523559+08:00 CliBG1:17939 MgmtdClient.cc:585 INFO] MgmtdClient: found new mgmtd NodeId(1) RDMA://192.168.109.11:24101
+[2026-10-07T08:42:20.481541434+08:00 CliBG1:17939 MgmtdClient.cc:532 INFO] MgmtdClient: probePrimary succeeded at NodeId(1)
+[2026-10-07T08:42:20.481545601+08:00 CliBG1:17939 MgmtdClient.cc:428 INFO] MgmtdClient: found new primary NodeId(1)
+[2026-10-07T08:42:20.482092975+08:00 CliBG1:17939 MgmtdClient.cc:183 INFO] MgmtdClient: RefreshRoutingInfo finished
+[2026-10-07T08:42:20.482110766+08:00 CliBG1:17939 MgmtdClient.cc:612 INFO] MgmtdClient: get new routing info version 12
+[2026-10-07T08:42:20.482131725+08:00 CliBG1:17939 MgmtdClient.cc:390 INFO] [MgmtdClientOp RefreshRoutingInfo force=false No.1] succeeded. latency: 0ns
+[2026-10-07T08:42:20.482219599+08:00 CliBG1:17939 MgmtdClient.cc:203 INFO] [MgmtdClientOp GetUniversalTags No.2] start execution. from:
+[2026-10-07T08:42:20.482839848+08:00 CliBG1:17939 MgmtdClient.cc:183 INFO] MgmtdClient: GetUniversalTags finished
+[2026-10-07T08:42:20.482854140+08:00 CliBG1:17939 MgmtdClient.cc:203 INFO] [MgmtdClientOp GetUniversalTags No.2] succeeded. latency: 0ns
+[2026-10-07T08:42:20.482920556+08:00 hf3fs_fuse_main:17932 Utils.cc:250 INFO] Load AppInfo from launcher finished. AppInfo: {"nodeId":0,"hostname":"lima-afs-accept-c","pid":17932,"serviceGroups":[],"releaseVersion":{"majorVersion":1,"minorVersion":0,"patchVersion":0,"commitHashShort":586981445,"buildTimeInSeconds":1074721076543489,"buildPipelineId":999999},"podname":""}
+[2026-10-07T08:42:20.482920556+08:00 hf3fs_fuse_main:17932 Utils.cc:250 INFO] clusterId: afs_3fs_delete_v84_20261007_r1
+[2026-10-07T08:42:20.482920556+08:00 hf3fs_fuse_main:17932 Utils.cc:250 INFO] tags: []
+[2026-10-07T08:42:20.482925681+08:00 hf3fs_fuse_main:17932 Utils.cc:263 INFO] Use local server config file: /mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1/config/hf3fs_fuse_main.toml
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] Full Config Template:
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] attr_timeout = 2
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] entry_timeout = 2
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] fsync_length_hint = false
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] fdatasync_update_length = true
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] enable_read_cache = true
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] 
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] [[common.log.categories]]
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] categories = [ '.' ]
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] handlers = [ 'normal' ]
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] 
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] [[common.log.handlers]]
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] async = true
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] name = 'normal'
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] start_level = 'NONE'
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] writer_type = 'FILE'
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] file_path = '/mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1/log/fuse.log'
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] 
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] [mgmtd]
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] mgmtd_server_addresses = [ 'RDMA://192.168.109.11:24101' ]
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] 
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] [periodic_sync]
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] enable = true
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] interval = '500ms'
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] limit = 16
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] 
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] [io_bufs]
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] max_buf_size = '1MB'
+[2026-10-07T08:42:20.482970848+08:00 hf3fs_fuse_main:17932 Utils.cc:285 INFO] 
+[2026-10-07T08:42:20.483353014+08:00 hf3fs_fuse_main:17932 FuseApplication.cc:66 INFO] Server config inited
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO] Folly log json configure: {
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]   "categories": {
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]     ".": {
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]       "level": "INFO",
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]       "inherit": true,
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]       "propagate": "NONE",
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]       "handlers": [
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]         "normal"
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]       ]
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]     }
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]   },
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]   "handlers": {
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]     "normal": {
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]       "type": "file",
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]       "options": {
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]         "path": "/mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1/log/fuse.log",
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]         "async": "true",
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]         "rotate": "true",
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]         "max_files": "100",
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]         "max_file_size": "10485760",
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]         "rotate_on_open": "false"
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]       }
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]     }
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO]   }
+[2026-10-07T08:42:20.483376097+08:00 hf3fs_fuse_main:17932 LogConfig.cc:96 INFO] }
+[2026-10-07T08:42:20.483383722+08:00 hf3fs_fuse_main:17932 Utils.cc:161 INFO] LogConfig: {"categories":{".":{"level":"INFO","inherit":true,"propagate":"NONE","handlers":["normal"]}},"handlers":{"normal":{"type":"file","options":{"path":"/mnt/lima-afscdata/afs-delivery/threefs-delete-v84-20261007-r1/log/fuse.log","async":"true","rotate":"true","max_files":"100","max_file_size":"10485760","rotate_on_open":"false"}}}}
+Ignoring invalid max threads value 4294967295 > max (100000).

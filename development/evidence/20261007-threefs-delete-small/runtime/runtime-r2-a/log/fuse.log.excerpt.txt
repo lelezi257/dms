@@ -1,0 +1,142 @@
+Full log retained locally; sha256=45841501d760b80bedf33c3acabf5e4afd4e78209f033bd22fcf53bdef417d18; bytes=329901; raw_path=evidence/afs-delivery/threefs-delete-runtime-20261007-r1/runtime-r2-a/log/fuse.log
+First and last 8192 bytes follow; middle omitted.
+[2026-10-07T08:42:20.650192730+08:00 hf3fs_fuse_main:853189 Utils.cc:168 INFO] Version: v250228-dev-1-999999-22fca045
+[2026-10-07T08:42:20.650211146+08:00 hf3fs_fuse_main:853189 Utils.cc:170 INFO] Init waiter singleton 0xca3d3e736c38
+[2026-10-07T08:42:20.654676124+08:00 hf3fs_fuse_main:853189 Utils.cc:202 WARNING] dynamically linked jemalloc
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] Full Config:
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] attr_timeout = 2.0
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] batch_io_coros = 128
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] check_rmrf = true
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] chunk_size_limit = '0'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] dryrun_bench_mode = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] enable_interrupt = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] enable_priority = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] enable_read_cache = true
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] enable_writeback_cache = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] entry_timeout = 2.0
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] fdatasync_update_length = true
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] flush_on_stat = true
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] fsync_length_hint = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] io_job_deq_timeout = '1ms'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] io_jobq_size = 1024
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] iov_limit = '1MB'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_background = 32
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_idle_threads = -1
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_jobs_per_ioring = 32
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_readahead = '16MB'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_threads = 256
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_uid = '1M'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] memset_before_read = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] negative_timeout = 5.0
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] notify_inval_threads = 32
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] rdma_buf_pool_size = 1024
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] readonly = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] submit_wait_jitter = '1ms'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] symlink_timeout = 5.0
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] sync_on_stat = true
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] time_granularity = '1s'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] 
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] [client]
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] default_compression_level = 0
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] default_compression_threshold = '128KB'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] default_log_long_running_threshold = '0ns'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] default_report_metrics = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] default_send_retry_times = 1
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] default_timeout = '1s'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] enable_rdma_control = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] force_use_tcp = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] 
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] [client.io_worker]
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] num_event_loop = 1
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] rdma_connect_timeout = '5s'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] read_write_rdma_in_event_thread = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] read_write_tcp_in_event_thread = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] tcp_connect_timeout = '1s'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] wait_to_retry_send = '100ms'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] 
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] [client.io_worker.connect_concurrency_limiter]
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_concurrency = 4
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] 
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] [client.io_worker.ibsocket]
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] buf_ack_batch = 8
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] buf_signal_batch = 8
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] buf_size = 16384
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] drain_timeout = '5s'
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] drop_connections = 0
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] event_ack_batch = 128
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_rd_atomic = 16
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_rdma_wr = 128
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_rdma_wr_per_post = 32
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] max_sge = 16
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] min_rnr_timer = 1
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] record_bytes_per_peer = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] record_latency_per_peer = false
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] retry_cnt = 7
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] rnr_retry = 0
+[2026-10-07T08:42:20.654900165+08:00 hf3fs_fuse_main:853189 FuseApplication.cc:73 INFO] send_buf_cnt = 32
+
+[... middle omitted ...]
+BackgroundRunner.cc:111 INFO] BackgroundRunner: PeriodSync stopped
+[2026-10-07T08:45:49.243754237+08:00 hf3fs_fuse_main:853189 CoroutinesPool.h:84 INFO] coroutines pool 0xecef872467e0 is stopped
+[2026-10-07T08:45:49.244477217+08:00 CliBG0:853208 BackgroundRunner.cc:111 INFO] BackgroundRunner: ScanCloseTask stopped
+[2026-10-07T08:45:49.244489301+08:00 CliBG1:853209 BackgroundRunner.cc:111 INFO] BackgroundRunner: CheckServer stopped
+[2026-10-07T08:45:49.245491705+08:00 hf3fs_fuse_main:853189 CoroutinesPool.h:84 INFO] coroutines pool 0xecef87240ba0 is stopped
+[2026-10-07T08:45:49.245662669+08:00 hf3fs_fuse_main:853189 MetaClient.cc:177 INFO] MetaClient stopped
+[2026-10-07T08:45:49.245723087+08:00 hf3fs_fuse_main:853189 StorageClientImpl.cc:1468 INFO] Stopping storage client ClientId(01e2c894-12ec-4215-8e07-f521da8b6dba)@lima-afs-accept-a
+[2026-10-07T08:45:49.245765339+08:00 hf3fs_fuse_main:853189 StorageClientImpl.cc:1481 INFO] Stopping storage messenger of ClientId(01e2c894-12ec-4215-8e07-f521da8b6dba)@lima-afs-accept-a
+[2026-10-07T08:45:49.245818840+08:00 StorageMsgrEL0:853230 EventLoop.cc:159 INFO] EventLoop::loop() stopped.
+[2026-10-07T08:45:49.246229436+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:30 WARNING] Stopping thread pool group 'Cli@0xecef8746f8e8'
+[2026-10-07T08:45:49.246257186+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:41 INFO] thread pool group Cli@0xecef8746f8e8 join procThreadPool
+[2026-10-07T08:45:49.246439984+08:00 IBManager:853190 IBSocket.cc:1180 INFO] IBSocket RDMA://lima-afs-accept-a/rxe0:1/2731 closed.
+[2026-10-07T08:45:49.246570987+08:00 IBManager:853190 IBSocket.cc:1180 INFO] IBSocket RDMA://lima-afs-accept-c/rxe0:1/245 closed.
+[2026-10-07T08:45:49.246640031+08:00 IBManager:853190 IBSocket.cc:1180 INFO] IBSocket RDMA://lima-afs-accept-b/rxe0:1/2177 closed.
+[2026-10-07T08:45:49.247163963+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:43 INFO] thread pool group Cli@0xecef8746f8e8 join ioThreadPool
+[2026-10-07T08:45:49.247935528+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:45 INFO] thread pool group Cli@0xecef8746f8e8 join bgThreadPool
+[2026-10-07T08:45:49.248245912+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:47 INFO] thread pool group Cli@0xecef8746f8e8 join connThreadPool
+[2026-10-07T08:45:49.250409351+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:49 WARNING] All thread pools of 'Cli@0xecef8746f8e8' stopped
+[2026-10-07T08:45:49.250490270+08:00 hf3fs_fuse_main:853189 StorageClientImpl.cc:1491 INFO] Storage client ClientId(01e2c894-12ec-4215-8e07-f521da8b6dba)@lima-afs-accept-a stopped
+[2026-10-07T08:45:49.250538438+08:00 hf3fs_fuse_main:853189 StorageClientImpl.cc:1468 INFO] Stopping storage client ClientId(01e2c894-12ec-4215-8e07-f521da8b6dba)@lima-afs-accept-a
+[2026-10-07T08:45:49.250550814+08:00 hf3fs_fuse_main:853189 StorageClientImpl.cc:1471 INFO] Storage client ClientId(01e2c894-12ec-4215-8e07-f521da8b6dba)@lima-afs-accept-a already stopped or not started
+[2026-10-07T08:45:49.254513223+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:30 WARNING] Stopping thread pool group 'Cli@0xecef87471360'
+[2026-10-07T08:45:49.254610309+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:41 INFO] thread pool group Cli@0xecef87471360 join procThreadPool
+[2026-10-07T08:45:49.255414208+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:43 INFO] thread pool group Cli@0xecef87471360 join ioThreadPool
+[2026-10-07T08:45:49.256486323+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:45 INFO] thread pool group Cli@0xecef87471360 join bgThreadPool
+[2026-10-07T08:45:49.257145176+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:47 INFO] thread pool group Cli@0xecef87471360 join connThreadPool
+[2026-10-07T08:45:49.257976701+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:49 WARNING] All thread pools of 'Cli@0xecef87471360' stopped
+[2026-10-07T08:45:49.258041453+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:49.258058536+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:49.258069287+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:49.258076954+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct net::ThreadPoolGroup
+[2026-10-07T08:45:49.259757004+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct serde::Services
+[2026-10-07T08:45:49.259794296+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:30 WARNING] Stopping thread pool group 'Cli@0xecef8746f8e8'
+[2026-10-07T08:45:49.259822547+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:49.259850506+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:49.259871299+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:49.259879715+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct net::ThreadPoolGroup
+[2026-10-07T08:45:49.261037083+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct serde::Services
+[2026-10-07T08:45:49.261480180+08:00 CliBG0:853208 MgmtdClient.cc:381 INFO] MgmtdClient: receive ExitItem
+[2026-10-07T08:45:49.261486930+08:00 hf3fs_fuse_main:853189 MgmtdClient.cc:271 INFO] MgmtdClient: wait for stop
+[2026-10-07T08:45:49.261663227+08:00 CliBG1:853209 BackgroundRunner.cc:111 INFO] BackgroundRunner: AutoRefresh stopped
+[2026-10-07T08:45:49.261676144+08:00 CliBG0:853208 BackgroundRunner.cc:111 INFO] BackgroundRunner: AutoExtendClientSession stopped
+[2026-10-07T08:45:49.261684477+08:00 hf3fs_fuse_main:853189 MgmtdClient.cc:277 INFO] MgmtdClient: stopped
+[2026-10-07T08:45:49.261705603+08:00 CliEL0:853212 EventLoop.cc:159 INFO] EventLoop::loop() stopped.
+[2026-10-07T08:45:49.261968902+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:30 WARNING] Stopping thread pool group 'Cli@0xecef8746d8d8'
+[2026-10-07T08:45:49.261980528+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:41 INFO] thread pool group Cli@0xecef8746d8d8 join procThreadPool
+[2026-10-07T08:45:49.262241327+08:00 IBManager:853190 IBSocket.cc:1180 INFO] IBSocket RDMA://lima-afs-accept-ctl/rxe0:1/851 closed.
+[2026-10-07T08:45:49.262508043+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:43 INFO] thread pool group Cli@0xecef8746d8d8 join ioThreadPool
+[2026-10-07T08:45:49.262595713+08:00 IBManager:853190 IBSocket.cc:1180 INFO] IBSocket RDMA://lima-afs-accept-ctl/rxe0:1/850 closed.
+[2026-10-07T08:45:49.263053893+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:45 INFO] thread pool group Cli@0xecef8746d8d8 join bgThreadPool
+[2026-10-07T08:45:49.264436726+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:47 INFO] thread pool group Cli@0xecef8746d8d8 join connThreadPool
+[2026-10-07T08:45:49.265563426+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:49 WARNING] All thread pools of 'Cli@0xecef8746d8d8' stopped
+[2026-10-07T08:45:49.265585551+08:00 hf3fs_fuse_main:853189 ThreadPoolGroup.cc:30 WARNING] Stopping thread pool group 'Cli@0xecef8746d8d8'
+[2026-10-07T08:45:49.265696305+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:49.265706263+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:49.265716597+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct CPUExecutorGroup
+[2026-10-07T08:45:49.265720472+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct net::ThreadPoolGroup
+[2026-10-07T08:45:49.268230380+08:00 hf3fs_fuse_main:853189 ConstructLog.h:12 INFO] Destruct serde::Services
+[2026-10-07T08:45:49.268274256+08:00 hf3fs_fuse_main:853189 ApplicationBase.cc:276 INFO] Stop the server...
+[2026-10-07T08:45:49.268281923+08:00 hf3fs_fuse_main:853189 ApplicationBase.cc:280 INFO] Stop server finished.
+[2026-10-07T08:45:49.270192396+08:00 hf3fs_fuse_main:853189 IBSocket.cc:1204 INFO] IBSocketManager::stopAndJoin
+[2026-10-07T08:45:49.270222231+08:00 hf3fs_fuse_main:853189 IBSocket.cc:1218 INFO] IBSocketManager stopped!
+[2026-10-07T08:45:49.271596480+08:00 IBManager:853190 EventLoop.cc:159 INFO] EventLoop::loop() stopped.
+[2026-10-07T08:45:49.275897149+08:00 hf3fs_fuse_main:853189 IBDevice.h:99 CRITICAL] ibv_dealloc_pd failed 16

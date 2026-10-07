@@ -1,0 +1,79 @@
+{
+  "review_type": "independent_readonly_bounded_fixture_review",
+  "reviewed_at_utc": "2026-10-07T00:38:30.937266+00:00",
+  "verdict": "FAIL_BLOCKED_PARTIAL_JSON_PUBLICATION_RACE",
+  "reviewed_files": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/threefs_namespace_fixture.py",
+      "sha256": "5168078bcbf2196d4c700e5c153d5384cb17ab1b0558f1e125cc8bf7a9037520",
+      "bytes": 24829,
+      "identity_basis": "Read original frozen source and computed this hash before reporting defect to parent; canonical files changed afterward and are not substituted into this review."
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/test_threefs_namespace_fixture.py",
+      "sha256": "219a014272e4195e98445ab49ae79643f8e5b2960fb55b1905fd4e3962aa102a",
+      "bytes": 8695,
+      "identity_basis": "Read original frozen source and computed this hash before reporting defect to parent; canonical files changed afterward and are not substituted into this review."
+    }
+  ],
+  "canonical_identity_at_report_write": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/threefs_namespace_fixture.py",
+      "sha256": "dad3f86b6907cb928cc2848f21bc922443a79de8e8220753b0f1d1f8a59d8bc5"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/test_threefs_namespace_fixture.py",
+      "sha256": "d3b5382baf3881b91a4984944deedf93f3caf440db1939ea1343ce9e0e423d11"
+    }
+  ],
+  "no_tests_services_or_environment_operations_by_reviewer": true,
+  "findings": [
+    {
+      "severity": "P2_blocking_tool_protocol",
+      "id": "PARTIAL_LIFECYCLE_JSON_VISIBLE_BEFORE_COMPLETION",
+      "location": "threefs_namespace_fixture.py:38-41; start_service identity wait/read; stop_service exit wait/read",
+      "fact": "Original write_json creates the final path with open(x), then dumps JSON directly. Consumers treat path existence as completion and parse immediately. Opening the final file publishes existence before content is complete.",
+      "failure_interleaving": "Producer opens identity.json or exit.json; consumer observes exists=True and reads empty/partial content before producer finishes. JSONDecodeError falsely fails otherwise normal startup/termination. exit.json presence can also make stop_service skip signalling before parsing its incomplete receipt.",
+      "minimal_fix": "Use one unique same-directory temporary file and atomically publish completed JSON without overwriting any existing final evidence (e.g. link then unlink temporary name). Guard complete-at-visibility and existing-sentinel preservation. No service/environment rerun needed for this helper repair.",
+      "scope": "First-party producer/consumer protocol defect, not product or environment failure. Preserve original FAIL and identities."
+    }
+  ],
+  "positive_findings": [
+    "Legacy SHA checked before import, thin first-party fresh root/cluster/key/port/start ownership adaptations without editing retained helper.",
+    "Config validation binds explicit fixed FDB library path, fresh FDB cluster file, ports, mgmtd endpoints, node/cluster identities, storage paths and FUSE sync settings; retained template index and prepared hashes are checked.",
+    "Fixed manifest identity and fixed-helper full artifact verification are present; actual 39-entry facts already exist in readonly admission, not runtime service qualification.",
+    "Two public R2 chains A+B/A+C use distinct A targets. chains explicitly returns NEEDS_ACTUAL_SERVING_PROOF; actual targets/table/layout remain to verify before timing.",
+    "All nine intended children have persistent supervisor ownership, exact boot/start/executable hash/argv/config/script identity, actual child.wait() and identity-bound real wait0 receipts. No disappearance-to-exit0 substitution.",
+    "Stop uses pidfd-only TERM, exact identity before signal, exact mount incarnation and official non-lazy unmount. Failed unmount is retained without TERM/KILL fallback.",
+    "Postcheck uses saved protected identities (actual ctl2/A8, not historical9), compares boot/start/executable inode and all saved mounts, rejects remaining owned mounts and observes supervisor disappearance.",
+    "Exclusive lifecycle/log/JSON/CSV creation avoids ordinary evidence overwrite; errors are emitted as FAIL_OR_BLOCKED_STOP_WITHOUT_REPAIR with no install/build/VM repair."
+  ],
+  "saved_Linux_guard_evidence": {
+    "scope": "Read saved command/stdout/stderr only",
+    "guard_count": 11,
+    "result": "PASS",
+    "exit": 0,
+    "limitations": "Selected mostly mocked guards do not cover concurrent partial JSON publication and are not runtime acceptance."
+  },
+  "raw_hashes": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-runtime-20261007-r1/commands/a-fixture-guards-r1.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-runtime-20261007-r1/commands/a-fixture-guards-r1.stderr",
+      "sha256": "1b7fa012812da35a8db6fd91d23a5d99f8a2c991b38b10cc925906f6dcb2ef6a"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/threefs-delete-runtime-20261007-r1/commands/a-fixture-guards-r1.command.json",
+      "sha256": "4e25f440b60b3a3e5d0305d03e719f85edfd422daf7978656bdd00dbbaea5fe0"
+    }
+  ],
+  "runtime_requirements_unchanged": [
+    "After repair/affected Linux guards PASS, collect actual executable/config/library/mount identities and R2 SERVING targets/table/layout before timing.",
+    "Require nine real wait0 receipts, all owned children/supervisors gone, owned mounts absent, protected ctl2/A8 identities and prior mounts unchanged.",
+    "Observe disk/RSS budgets, retain actual errors/timeouts/residual ownership and stop without lazy unmount/KILL/environment repair.",
+    "Do not claim namespace workload, G2.25 complete, stock/fair 3FS, strong data durability or physical GC from this static/guard review."
+  ],
+  "preservation": "Keep this r1 FAIL immutable. Canonical source was being repaired during report write; this review does not approve that new identity. A repaired frozen pair needs separate review."
+}

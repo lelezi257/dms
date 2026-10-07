@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-",
+    "{\"dependencies\": {\"python3\": \"/usr/bin/python3\", \"findmnt\": \"/usr/bin/findmnt\", \"ldd\": \"/usr/bin/ldd\", \"sha256sum\": \"/usr/bin/sha256sum\", \"ip\": \"/usr/sbin/ip\", \"ss\": \"/usr/bin/ss\", \"fusermount3\": \"/usr/bin/fusermount3\", \"rdma\": \"/usr/bin/rdma\"}, \"prefix\": \"/opt/afs-3fs-round3-v84\", \"rxe_provider\": {\"driver_config\": [{\"path\": \"/etc/libibverbs.d/rxe.driver\", \"text\": \"driver rxe\\n\", \"sha256\": \"e859b597a231e03a5a71fe6a61017092fadf9d2531bc9fb3ce0fb8b1f1cbd655\"}], \"libraries\": [{\"path\": \"/usr/lib/aarch64-linux-gnu/libibverbs/librxe-rdmav34.so\", \"realpath\": \"/usr/lib/aarch64-linux-gnu/libibverbs/librxe-rdmav34.so\", \"sha256\": \"9d4125ef4088b5f13af3ec829fd36ddf7a89af72c623b98e4cb5228cd847f090\"}, {\"path\": \"/lib/aarch64-linux-gnu/libibverbs/librxe-rdmav34.so\", \"realpath\": \"/usr/lib/aarch64-linux-gnu/libibverbs/librxe-rdmav34.so\", \"sha256\": \"9d4125ef4088b5f13af3ec829fd36ddf7a89af72c623b98e4cb5228cd847f090\"}]}}"
+  ],
+  "stdin_path": "../tool-identity-stdin-r1.txt",
+  "stdin_sha256": "3c666e554b187b21cb5f90816410cafe23712fd4c44585add77bc065dc4ec1da",
+  "exit": 0,
+  "state": "TERMINAL",
+  "scope": "complete requiredtool/provideridentity without repeatedadmission"
+}

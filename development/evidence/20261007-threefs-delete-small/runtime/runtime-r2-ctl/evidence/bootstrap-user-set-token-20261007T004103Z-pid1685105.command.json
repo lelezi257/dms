@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "/opt/afs-3fs-round3-v84/bin/admin_cli",
+    "--cfg",
+    "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/config/admin_cli.toml",
+    "--",
+    "user-set-token",
+    "--new",
+    "0"
+  ],
+  "elapsed_seconds": 0.11605127097573131,
+  "exit": 0,
+  "stderr": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/bootstrap-user-set-token-20261007T004103Z-pid1685105.stderr",
+  "stdout": "/mnt/lima-afsctlstate/afs-delivery/threefs-delete-v84-20261007-r1/log/bootstrap-user-set-token-20261007T004103Z-pid1685105.stdout"
+}

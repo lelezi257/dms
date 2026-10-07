@@ -1,0 +1,14 @@
+--- verify-packet-r1.py
++++ verify-packet-r2.py
+@@ -32,8 +32,9 @@
+  for role,value in read(E/('runtime/'+cohort+'-actual-waits.json')).items():
+   check(value['exit']==dict(value['child'],exit_code='0') and value['both_gone'] is True);waits.append(value)
+ check(len(waits)==4);check(len({v['child']['pid'] for v in waits})==4)
+-for line in (M/'SHA256SUMS').read_text().splitlines():
+- digest,name=line.split('  ',1);check(sha(M/name)==digest)
++mfiles=read(M/'manifest.json')['files']
++for name,entry in mfiles.items():check(sha(M/name)==entry['sha256'] and (M/name).stat().st_size==entry['bytes'])
++check(set(mfiles)=={str(f.relative_to(M)) for f in M.rglob('*') if f.is_file() and f.name!='manifest.json'})
+ mexpected=read(M/'expected.json');check(all(expected[k]==mexpected[k] for k in ('source_commit','package_sha256','afs_meta_sha256','afs_node_sha256','runtime_sha256')));check(sha(E/'rootfs-inputs.json')==sha(M/'rootfs-inputs.json'))
+ combo=read(E/'combined-core-acceptance.json');check(combo['status']=='PASS' and len(combo['cases'])==8)
+ for case in combo['cases']:

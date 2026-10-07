@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "/workspace/dms/evidence/afs-delivery/workspace-bind-data-current-7e6-20261007-r1/local-only/verify-packet.py", line 35, in <module>
+    for line in (M/'SHA256SUMS').read_text().splitlines():
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1029, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/workspace/dms/source/development/evidence/20261007-workspace-bind-metadata-window/SHA256SUMS'

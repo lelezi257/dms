@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-g2-micro",
+    "sudo",
+    "tar",
+    "-xzf",
+    "-",
+    "-C",
+    "/var/tmp/afs-workspace-bind-data-current-7e6-20261007-r1"
+  ]
+}

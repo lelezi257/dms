@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "child": {
+      "pid": "94998",
+      "exe": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/etc/meta.toml",
+      "start_ticks": "10310074",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/run/meta.lifecycle.Q7Aat5",
+      "supervisor_pid": "94982"
+    },
+    "ready": {
+      "supervisor_pid": "94982"
+    },
+    "exit": {
+      "pid": "94998",
+      "exe": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/etc/meta.toml",
+      "start_ticks": "10310074",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/run/meta.lifecycle.Q7Aat5",
+      "supervisor_pid": "94982",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  },
+  "node": {
+    "child": {
+      "pid": "95182",
+      "exe": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/etc/node.toml",
+      "start_ticks": "10310089",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/run/node.lifecycle.1wjf2l",
+      "supervisor_pid": "95166"
+    },
+    "ready": {
+      "supervisor_pid": "95166"
+    },
+    "exit": {
+      "pid": "95182",
+      "exe": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/etc/node.toml",
+      "start_ticks": "10310089",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-data-current-7e6-20261007-r1/run/node.lifecycle.1wjf2l",
+      "supervisor_pid": "95166",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  }
+}

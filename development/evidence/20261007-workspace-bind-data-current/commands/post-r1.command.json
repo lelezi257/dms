@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-g2-micro",
+    "sudo",
+    "python3",
+    "-B",
+    "/var/tmp/afs-workspace-bind-data-current-7e6-20261007-r1/local-only/post.py",
+    "--root",
+    "/opt/afs-workspace-bind-data-current-7e6-20261007-r1",
+    "--transport",
+    "/var/tmp/afs-workspace-bind-data-current-7e6-20261007-r1",
+    "--template-rootfs",
+    "/opt/afs-container-perf-template-20261007-r1",
+    "--results",
+    "/var/tmp/afs-workspace-bind-data-current-7e6-20261007-r1/results-r1",
+    "--report",
+    "/var/tmp/afs-workspace-bind-data-current-7e6-20261007-r1/independent-post-r1.json"
+  ]
+}

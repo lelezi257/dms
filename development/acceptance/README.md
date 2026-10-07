@@ -1,3 +1,5 @@
+**Current selected exit:** G2.13 current7e6 small-data plus same-candidate metadata eight-core performance PASS; OFF diagnostic FAIL retained, production ON/G2.12 open. [Evidence/accounting](../evidence/20261007-workspace-bind-data-current/README.md). Next current OFF standard applicability/reuse audit; no unchanged suite repeats.
+
 **当前元数据窗口修正与小项通过（2026-10-07，事实）：** 7e6/c3bb当前包，容量检查移到after快照之后；旧工具先1FAIL、修后7Linux guards通过，原931 FAIL保持。新1000×4KiB/C1六阶段各1预热5配对，ON六项>=.90×ext4通过、OFF六项FAIL留数；八选定回调ON0/OFF阳性，其它getattr24保留。190驱动/193独立检查、四wait0/十二PID正常闭合。无Rust/vendor/C变更，不升级完整ON/G2。下一当前DFS R3小一写两读内容/副本回归；历史计时不刷分。[当前证据](../evidence/20261007-workspace-bind-metadata-window/README.md)。
 
 以下为原时点记录。

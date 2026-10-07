@@ -84,6 +84,10 @@ ctl stop all
 完整参数及拓扑步骤见
 [操作指南](https://github.com/lelezi257/dms/blob/main/docs/guides/operations.md)。
 
+## 当前补充验收
+
+同一7e6/c3bb包的[DFS R3内容与Meta正常恢复](../../development/evidence/20261007-dfs-r3-current-recovery/README.md)已有新运行证据；[workspace八个小规模核心性能case](../../development/evidence/20261007-workspace-bind-data-current/README.md)达到预设>=0.90×ext4，作为限定G2.13完成。开关仍默认OFF，完整ON功能尚未资格化；普通路径性能FAIL和历史标准身份保持分列。已发布包和附带原验收快照不覆盖，最新补充以这些版本化索引为准。
+
 ## 已知边界
 
 - 本包尚未达到完整阶段二性能目标；普通读写失败和历史性能数据保留在账本中。

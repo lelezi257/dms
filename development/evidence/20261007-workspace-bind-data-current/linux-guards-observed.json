@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "bash",
+    "-lc",
+    "cd /workspace/dms/source/development/acceptance && python3 -B -m unittest test_workspace_bind_data_perf.py test_container_perf.py probes/test_fuse_callback_counts.py -v"
+  ],
+  "tool_response_exit": 0,
+  "observed_tests": 15,
+  "observed_result": "Ran 15 tests in 0.012s; OK",
+  "evidence_kind": "captured tool-response summary; not a replacement raw stderr log"
+}

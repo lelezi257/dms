@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "sudo",
+    "-n",
+    "env",
+    "TMPDIR=/var/tmp",
+    "timeout",
+    "--kill-after=5s",
+    "60s",
+    "unshare",
+    "--mount",
+    "--propagation",
+    "private",
+    "/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2",
+    "node::vfs::ownerfs::native_home_tests::native_home_authorized_bind_retains_file_and_mmap_until_normal_drain",
+    "--exact",
+    "--ignored",
+    "--test-threads=1",
+    "--nocapture"
+  ],
+  "cwd": "/workspace/dms/source"
+}

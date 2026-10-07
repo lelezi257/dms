@@ -1,0 +1,5 @@
+{
+  "failure": "rustfmt --emit stdout includes filename heading; caught before Rust compilation",
+  "correction": "remove exact filename heading; refreeze inputs; preserve original output/preflight",
+  "product_run": false
+}

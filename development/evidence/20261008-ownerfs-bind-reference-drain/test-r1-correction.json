@@ -1,0 +1,11 @@
+{
+  "failure": "fresh FUSE target lookup ENOSYS after authority invalidation; simulated Meta rejects reacquisition",
+  "passed_before_failure": [
+    "regular FD EBUSY with same identity",
+    "mapping after FD close EBUSY with same identity"
+  ],
+  "correction": "retain pre-cover FUSE directory descriptor; normal-detach mountinfo absence + original inode/outer mount identity; no reauthorization",
+  "product_changes": false,
+  "original_fixture": "/var/tmp/.tmpcuC0g7",
+  "original_failure_retained": true
+}

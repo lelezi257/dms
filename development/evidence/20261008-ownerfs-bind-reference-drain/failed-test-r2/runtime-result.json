@@ -1,0 +1,6 @@
+{
+  "returncode": 101,
+  "elapsed_seconds": 0.011083931021858007,
+  "test": "node::vfs::ownerfs::native_home_tests::native_home_authorized_bind_retains_file_and_mmap_until_normal_drain",
+  "pid": 145679
+}

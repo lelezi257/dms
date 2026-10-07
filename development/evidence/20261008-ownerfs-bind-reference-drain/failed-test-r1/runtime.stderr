@@ -1,0 +1,4 @@
+
+thread 'node::vfs::ownerfs::native_home_tests::native_home_authorized_bind_retains_file_and_mmap_until_normal_drain' (145373) panicked at src/node/vfs/ownerfs/native_home_fuse_fixture.rs:416:54:
+called `Result::unwrap()` on an `Err` value: Os { code: 38, kind: Unsupported, message: "Function not implemented" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

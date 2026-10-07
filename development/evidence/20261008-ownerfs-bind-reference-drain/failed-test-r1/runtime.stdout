@@ -1,0 +1,15 @@
+
+running 1 test
+test node::vfs::ownerfs::native_home_tests::native_home_authorized_bind_retains_file_and_mmap_until_normal_drain ... N2A_REFERENCE_DRAIN_ACTIVE root="/var/tmp/.tmpcuC0g7" mount_id=131 line="131 125 253:1 /var/tmp/.tmpcuC0g7/root-6e6174697665-e1 /var/tmp/.tmpcuC0g7/reference-drain-fuse/native rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30"
+N2A_REFERENCE_DRAIN_FILE_BUSY mount_id=131 existing_fd_readable=true authority_current=false
+N2A_REFERENCE_DRAIN_MMAP_BUSY mount_id=131 file_fd_closed=true existing_map_readable=true
+N2A_FUSE_SESSION_FORGOTTEN_AFTER_FAILURE
+FAILED
+
+failures:
+
+failures:
+    node::vfs::ownerfs::native_home_tests::native_home_authorized_bind_retains_file_and_mmap_until_normal_drain
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 600 filtered out; finished in 0.01s
+

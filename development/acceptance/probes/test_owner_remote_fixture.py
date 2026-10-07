@@ -36,6 +36,39 @@ class FixtureGuards(unittest.TestCase):
             self.assertEqual(old.port('node_grpc'), 22900)
             self.assertNotEqual(current.root, old.root)
 
+    def test_backing_hot_variant_is_auto_and_preserves_direct_history(self):
+        with patch.object(f, 'tool', side_effect=lambda rel: f.MOOSE / rel):
+            fresh = f.Fixture('a', f.BACKING_HOT_READ_FIXTURE)
+            old = f.Fixture('a', f.CURRENT_READ_FIXTURE)
+            self.assertIn('mfscachemode=AUTO', fresh.moose_argv()[7])
+            self.assertIn('mfscachemode=DIRECT', old.moose_argv()[7])
+            self.assertNotEqual(fresh.root, old.root)
+            for role in ('ctl', 'a', 'b'):
+                self.assertTrue(set(f.PORT_PLAN[f.BACKING_HOT_READ_FIXTURE][role].values()).isdisjoint(
+                    f.PORT_PLAN[f.CURRENT_READ_FIXTURE][role].values()))
+            self.assertEqual(fresh.moose_argv()[5], '25242')
+            self.assertIn(f.BACKING_HOT_READ_FIXTURE, f.MUTABLE_FIXTURES)
+            self.assertIn(f.BACKING_HOT_READ_FIXTURE, f.F03_READ_FIXTURES)
+
+    def test_backing_hot_config_uses_new_ports_and_explicitly_disables_bind(self):
+        raw = '''id = "remote-b-r1"
+fs = "all"
+experimental_native_workspace = true
+experimental_ownerfs_workspace_bind = true
+tls_ca_certificate = "/etc/afs/tls/ca.pem"
+tls_identity_certificate = "/etc/afs/tls/remote-b-r1.pem"
+tls_identity_private_key = "/etc/afs/tls/remote-b-r1-key.pem"
+trusted_node_certs = { remote-a-r1 = "/etc/afs/tls/remote-a-r1.pem", remote-b-r1 = "/etc/afs/tls/remote-b-r1.pem" }
+'''
+        fixture = f.Fixture('b', f.BACKING_HOT_READ_FIXTURE)
+        cfg = tomllib.loads(fixture.patch_toml(raw))
+        self.assertIs(cfg['experimental_native_workspace'], False)
+        self.assertIs(cfg['experimental_ownerfs_workspace_bind'], False)
+        self.assertEqual(cfg['meta_endpoint'], 'https://192.168.109.11:25080')
+        self.assertEqual(cfg['advertise_endpoint'], 'https://192.168.109.13:25180')
+        self.assertEqual(set(cfg['trusted_node_certs']), {'remote-a-r1', 'remote-b-r1'})
+        self.assertTrue(all(str(fixture.root) in x for x in cfg['trusted_node_certs'].values()))
+
     def test_current_config_overrides_both_on_switches_and_keeps_peer_trust(self):
         raw = '''id = "remote-a-r1"
 fs = "all"

@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/guest_audit.py", line 29, in <module>
+    v=run(role+'-fresh-independent-audit',role,['python3','-c',code,ROOT[role],role,json.dumps(expected),json.dumps(back)]);reports[role]=json.loads(v['stdout'])
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/live_stage.py", line 12, in run
+    if check: assert v['rc']==0,(label,v['stderr'][-1000:])
+                     ^^^^^^^^^^
+AssertionError: ('a-fresh-independent-audit', 'Traceback (most recent call last):\n  File "<string>", line 11, in <module>\n  File "<string>", line 3, in check\nAssertionError: Moose actual wait matches child\n')

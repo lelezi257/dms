@@ -28,11 +28,16 @@ FIXTURE = "owner-remote-6d-bhome-20261007-r1"
 WRITE_FIXTURE = "owner-remote-write-6d-bhome-20261007-r1"
 DELETE_FIXTURE = "owner-remote-delete-6d-bhome-20261007-r1"
 CURRENT_READ_FIXTURE = "owner-remote-read-f03-20261008-r1"
-FIXTURES = (FIXTURE, WRITE_FIXTURE, DELETE_FIXTURE, CURRENT_READ_FIXTURE)
-MUTABLE_FIXTURES = (WRITE_FIXTURE, DELETE_FIXTURE, CURRENT_READ_FIXTURE)
+BACKING_HOT_READ_FIXTURE = "owner-remote-backing-hot-f03-20261008-r1"
+F03_READ_FIXTURES = (CURRENT_READ_FIXTURE, BACKING_HOT_READ_FIXTURE)
+FIXTURES = (FIXTURE, WRITE_FIXTURE, DELETE_FIXTURE, *F03_READ_FIXTURES)
+MUTABLE_FIXTURES = (WRITE_FIXTURE, DELETE_FIXTURE, *F03_READ_FIXTURES)
 VOLUMES = {"ctl": "/mnt/lima-afsctlstate", "a": "/mnt/lima-afsadata", "b": "/mnt/lima-afsbdata"}
 IPS = {"ctl": "192.168.109.11", "a": "192.168.109.12", "b": "192.168.109.13"}
 PORT_PLAN = {
+    BACKING_HOT_READ_FIXTURE: {"ctl": {"meta_grpc": 25080, "meta_rest": 25081, "matoml": 25240, "matocs": 25241, "matocl": 25242},
+                               "a": {"node_grpc": 25180, "node_rest": 25181},
+                               "b": {"node_grpc": 25180, "node_rest": 25181, "chunk": 25243}},
     CURRENT_READ_FIXTURE: {"ctl": {"meta_grpc": 24780, "meta_rest": 24781, "matoml": 24940, "matocs": 24941, "matocl": 24942},
                            "a": {"node_grpc": 24880, "node_rest": 24881},
                            "b": {"node_grpc": 24880, "node_rest": 24881, "chunk": 24943}},
@@ -194,7 +199,7 @@ class Fixture:
             for name in list(directories):
                 entry = Path(directory) / name
                 require(not entry.is_symlink() and entry.stat().st_dev == self.volume.stat().st_dev, f"nested state escape: {entry}")
-        budget = (CURRENT_READ_BUDGET if self.fixture == CURRENT_READ_FIXTURE else BUDGET)[self.role]
+        budget = (CURRENT_READ_BUDGET if self.fixture in F03_READ_FIXTURES else BUDGET)[self.role]
         require(available >= FLOOR[self.role], "case free-space floor exceeded; preserve state")
         require(used <= budget, "case working budget exceeded; preserve state")
         if admission:
@@ -244,7 +249,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         require(set(parsed["trusted_node_certs"]) == {"remote-a-r1", "remote-b-r1"}, "unexpected trust identities")
         changed = {"fs": "ownerfs", "experimental_native_workspace": False,
                    "data_dir": str(self.root / "state" / self.name), "log_level": "info", "trace_enabled": False}
-        if self.fixture == CURRENT_READ_FIXTURE:
+        if self.fixture in F03_READ_FIXTURES:
             changed["experimental_ownerfs_workspace_bind"] = False
         for key in ("tls_ca_certificate", "tls_identity_certificate", "tls_identity_private_key"):
             changed[key] = str(self.root / "etc/tls" / Path(parsed[key]).name)
@@ -336,7 +341,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         self.empty_ports()
         for name in ("ownerfs", "moose"):
             require(self.exact_mount(self.root / "mount" / name) is None, "new mount already active")
-        expected_elf = CURRENT_READ_ELF if self.fixture == CURRENT_READ_FIXTURE else ELF
+        expected_elf = CURRENT_READ_ELF if self.fixture in F03_READ_FIXTURES else ELF
         identities = {self.name: self.check_elf(self.binary, expected_elf[self.name])}
         if self.role == "a":
             safe(io_path, self.root / "tools")
@@ -354,7 +359,7 @@ HDD_FSYNC_BEFORE_CLOSE = 1
         for key in ("id", "data_dir", "grpc_listen", "rest_listen", "tls_ca_certificate", "tls_identity_certificate", "tls_identity_private_key", "trusted_node_certs"):
             require(output.get(key) == cfg[key], f"print-config differs: {key}")
         require(output.get("ownerfs") is True and output.get("dfs") is False and output.get("experimental_native_workspace") is False, "print-config backend/native differs")
-        if self.fixture == CURRENT_READ_FIXTURE:
+        if self.fixture in F03_READ_FIXTURES:
             require(cfg.get("experimental_ownerfs_workspace_bind") is False and output.get("experimental_ownerfs_workspace_bind") is False, "workspace bind must be explicitly OFF")
         require(output.get("dfs_mount") is None, "unexpected DFS mount")
         if self.role != "ctl":

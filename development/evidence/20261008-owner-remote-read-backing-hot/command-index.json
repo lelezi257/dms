@@ -1,0 +1,81 @@
+{
+  "full_commands": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/live-commands.json",
+  "full_commands_sha256": "d978685c09346d2a4ebbb24a4727565a1031b684fc9321d89228fea19f4b0730",
+  "command_count": 120,
+  "returncodes": {
+    "zero": 119,
+    "failed": 1
+  },
+  "first_service_ns": 1791407703880583000,
+  "measured_commands": [
+    {
+      "label": "round-0-owner-timed",
+      "started_ns": 1791407709024071000,
+      "returncode": 0
+    },
+    {
+      "label": "round-0-moose-timed",
+      "started_ns": 1791407709428200000,
+      "returncode": 0
+    },
+    {
+      "label": "round-1-moose-timed",
+      "started_ns": 1791407709866979000,
+      "returncode": 0
+    },
+    {
+      "label": "round-1-owner-timed",
+      "started_ns": 1791407710710603000,
+      "returncode": 0
+    },
+    {
+      "label": "round-2-owner-timed",
+      "started_ns": 1791407711866314000,
+      "returncode": 0
+    },
+    {
+      "label": "round-2-moose-timed",
+      "started_ns": 1791407712266922000,
+      "returncode": 0
+    },
+    {
+      "label": "round-3-moose-timed",
+      "started_ns": 1791407712683343000,
+      "returncode": 0
+    },
+    {
+      "label": "round-3-owner-timed",
+      "started_ns": 1791407713569850000,
+      "returncode": 0
+    },
+    {
+      "label": "round-4-owner-timed",
+      "started_ns": 1791407714737660000,
+      "returncode": 0
+    },
+    {
+      "label": "round-4-moose-timed",
+      "started_ns": 1791407715139958000,
+      "returncode": 0
+    },
+    {
+      "label": "round-5-moose-timed",
+      "started_ns": 1791407715565202000,
+      "returncode": 0
+    },
+    {
+      "label": "round-5-owner-timed",
+      "started_ns": 1791407716409982000,
+      "returncode": 0
+    }
+  ],
+  "failed_commands": [
+    {
+      "label": "a-fresh-independent-audit",
+      "started_ns": 1791407867486546000,
+      "returncode": 1,
+      "full_argv_stdout_stderr_preserved": true
+    }
+  ],
+  "all_stdout_stderr_restored": true
+}

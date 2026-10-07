@@ -1,0 +1,70 @@
+{
+  "home": {
+    "checked_at_unix_ms": 1791407705399,
+    "home_data_addr": "https://192.168.109.13:25180",
+    "home_grpc_addr": "https://192.168.109.13:25180",
+    "home_lease_epoch": 1,
+    "home_node_id": "remote-b-r1",
+    "home_rest_addr": "http://0.0.0.0:25181",
+    "home_serving": true,
+    "home_session_expires_at_unix_ms": 1791407734254,
+    "home_session_id": "9ad64439-1665-4dd9-b26e-98ab108c6ff2",
+    "owner": "remote-b-r1",
+    "revision": 3,
+    "root_epoch": 1,
+    "root_id": "root-67322d72656d6f74652d686f742d6630332d62686f6d652d7231",
+    "status": "serving"
+  },
+  "moose_topology": {
+    "version": "4.59.2",
+    "timestamp": 1791407707.9305534,
+    "shifted_timestamp": 1791378907.9305534,
+    "timestamp_str": "Thu Oct  8 05:15:07 2026",
+    "dataset": {
+      "chunkservers": [
+        {
+          "connected": true,
+          "strver": "4.59.2",
+          "version": "4.59.2",
+          "pro": false,
+          "flags": 0,
+          "maintenance_mode_timeout": "n/a",
+          "maintenance_mode": "off",
+          "hostname": "192.168.109.13",
+          "ip": "192.168.109.13",
+          "port": 25243,
+          "csid": 1,
+          "errors": 0,
+          "gracetime": 0,
+          "load": 0,
+          "queue": 0,
+          "queue_state": 0,
+          "queue_state_msg": "normal load",
+          "labels": [],
+          "labels_str": "",
+          "hdd_regular_used": 22825922560,
+          "hdd_regular_used_human": "21 GiB",
+          "hdd_regular_total": 42039795712,
+          "hdd_regular_total_human": "39 GiB",
+          "hdd_regular_free": 19213873152,
+          "hdd_regular_free_human": "18 GiB",
+          "hdd_regular_used_percent": 54.29598829730869,
+          "hdd_regular_chunks": 0,
+          "hdd_removal_used": 0,
+          "hdd_removal_used_human": "0 B",
+          "hdd_removal_total": 0,
+          "hdd_removal_total_human": "0 B",
+          "hdd_removal_free": 0,
+          "hdd_removal_free_human": "0 B",
+          "hdd_removal_used_percent": 0.0,
+          "hdd_removal_chunks": 0,
+          "hdd_removal_stat": "-"
+        }
+      ]
+    },
+    "errors": []
+  },
+  "fileinfo": "/mnt/lima-afsadata/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/mount/moose/small-r1/payload64m.bin:\n\tchunk 0: 0000000000000001_00000001 / (id:1 ver:1) ; mtime:1791407706 (2026-10-08 05:15:06)\n\t\tcopy 1: 192.168.109.13:25243 ; status:VALID ; path: /mnt/lima-afsbdata/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/state/moose/chunks/00/chunk_0000000000000001_00000001.mfs\n",
+  "class_policy": "name: owner-remote-hot-f03-1CP-r1\n\tclassid: 5\n\tpriority: 0 ; export_group: 0\n\tadmin_only: NO ; labels_mode: STD ; arch_mode: C\n\tcreate_labels: *\n\tkeep_labels: *\n\tarch_labels: not defined - using keep settings\n\ttrash_labels: not defined - using keep/arch settings\n\n",
+  "check_file": "/mnt/lima-afsadata/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/mount/moose/small-r1/payload64m.bin:\n1 full copy (redundancy level: 0):          1\n"
+}

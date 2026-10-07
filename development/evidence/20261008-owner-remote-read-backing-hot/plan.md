@@ -1,0 +1,5 @@
+# Remote small-read independent entry
+
+Freeze one 64MiB/C1/1MiB backend-hot/default-client case before any VM service starts. Extend only the fixed acceptance fixture: fresh roots/ports, official Moose AUTO, same f03 ELFs, explicit bind OFF, existing trust/capacity/lifecycle guards. Run the affected fixture guard suite on Linux before staging. Reuse unchanged physical-observer guards. Preserve the older DIRECT/ENODEV failure.
+
+Create Home on B before A starts; verify contents, live Home/root/epoch, mTLS process/mount identities, exactly one VALID Moose copy on B. Preload client and physical payloads by full SHA before each sample; observe physical residency on B before and after, and client residency separately. Run one warmup and five alternating pairs with the unchanged C probe and raw latency intervals. Stop only owned services normally, verify actual wait receipts, protected processes/mount inventory, capacities; archive/restore raw records before publishing compact indexes. Stop an affected lane on real environment blockers; do not repair cache/kernel/vendor or broaden tests.

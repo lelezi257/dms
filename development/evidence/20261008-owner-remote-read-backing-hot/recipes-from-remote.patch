@@ -1,0 +1,38 @@
+--- live_stage.py
++++ live_stage.py
+@@ -1,5 +1,5 @@
+ import subprocess,json,pathlib,time
+-D=pathlib.Path(__file__).parent;N='owner-remote-read-f03-20261008-r1';ROOT={k:f'/mnt/lima-{v}/afs-delivery/{N}' for k,v in {'a':'afsadata','b':'afsbdata','ctl':'afsctlstate'}.items()}
++D=pathlib.Path(__file__).parent;N='owner-remote-backing-hot-f03-20261008-r1';ROOT={k:f'/mnt/lima-{v}/afs-delivery/{N}' for k,v in {'a':'afsadata','b':'afsbdata','ctl':'afsctlstate'}.items()}
+ LOG=D/'live-commands.json';rows=json.loads(LOG.read_text()) if LOG.exists() else []
+ def run(label,role,args,timeout=60,check=True):
+  argv=['limactl','shell','--workdir=/','afs-accept-'+role,'--','sudo']+[str(x) for x in args]
+@@ -18,7 +18,7 @@
+  r=ROOT[role];return run(f'{role}-{action}-moose',role,['python3',r+'/tools/owner_remote_fixture.py','moose-'+action,role,'--fixture',N,'--timeout','30'])
+ if __name__=='__main__':
+  afs('ctl','start');afs('b','start')
+- run('b-create-owner-home-payload','b',['python3','-c',"import pathlib,os,json,hashlib,sys;p=pathlib.Path(sys.argv[1]);p.parent.parent.mkdir();p.parent.mkdir();fd=os.open(p,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);b=b'a'*1048576\nfor _ in range(64):assert os.write(fd,b)==len(b)\nos.fdatasync(fd);os.close(fd)\nfor d in [p.parent,p.parent.parent,p.parent.parent.parent]:\n f=os.open(d,os.O_RDONLY|os.O_DIRECTORY);os.fsync(f);os.close(f)\nassert p.stat().st_size==67108864;sha=hashlib.sha256(p.read_bytes()).hexdigest();assert sha==hashlib.sha256(b*64).hexdigest();print(json.dumps({'status':'PASS','bytes':p.stat().st_size,'sha256':sha,'Home_creation_node':'remote-b-r1','prepare_only':True}))",ROOT['b']+'/mount/ownerfs/g2-remote-f03-bhome-r1/small-r1/payload64m.bin'])
++ run('b-create-owner-home-payload','b',['python3','-c',"import pathlib,os,json,hashlib,sys;p=pathlib.Path(sys.argv[1]);p.parent.parent.mkdir();p.parent.mkdir();fd=os.open(p,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);b=b'a'*1048576\nfor _ in range(64):assert os.write(fd,b)==len(b)\nos.fdatasync(fd);os.close(fd)\nfor d in [p.parent,p.parent.parent,p.parent.parent.parent]:\n f=os.open(d,os.O_RDONLY|os.O_DIRECTORY);os.fsync(f);os.close(f)\nassert p.stat().st_size==67108864;sha=hashlib.sha256(p.read_bytes()).hexdigest();assert sha==hashlib.sha256(b*64).hexdigest();print(json.dumps({'status':'PASS','bytes':p.stat().st_size,'sha256':sha,'Home_creation_node':'remote-b-r1','prepare_only':True}))",ROOT['b']+'/mount/ownerfs/g2-remote-hot-f03-bhome-r1/small-r1/payload64m.bin'])
+  afs('a','start')
+  for role in ['ctl','b','a']:moose(role,'start')
+  print('services ready; no measurement timer launched',flush=True)
+--- prepare_proof.py
++++ prepare_proof.py
+@@ -1,6 +1,6 @@
+ from live_stage import *
+-A=ROOT['a'];M='/opt/afs-moose-round3-v85/bin/';W='g2-remote-f03-bhome-r1';CLASS='owner-remote-f03-1CP-20261008-r1'
+-v=run('meta-live-home','ctl',['curl','--noproxy','*','--fail','--silent','--show-error','--max-time','10','http://192.168.109.11:24781/v1/roots/root-'+W.encode().hex()]);home=json.loads(v['stdout']);assert home['home_node_id']=='remote-b-r1' and home['home_serving'] is True and home['root_epoch']>0
++A=ROOT['a'];M='/opt/afs-moose-round3-v85/bin/';W='g2-remote-hot-f03-bhome-r1';CLASS='owner-remote-hot-f03-1CP-r1'
++v=run('meta-live-home','ctl',['curl','--noproxy','*','--fail','--silent','--show-error','--max-time','10','http://192.168.109.11:25081/v1/roots/root-'+W.encode().hex()]);home=json.loads(v['stdout']);assert home['home_node_id']=='remote-b-r1' and home['home_serving'] is True and home['root_epoch']>0
+ (D/'home-proof.json').write_text(json.dumps(home,indent=2)+'\n')
+ identity="import pathlib,sys,os,json,hashlib,subprocess;r=pathlib.Path(sys.argv[1]);kind=sys.argv[2];pid=int((r/'run'/f'{kind}.pid').read_text());p=pathlib.Path('/proc')/str(pid);sha=hashlib.sha256((p/'exe').read_bytes()).hexdigest();assert sha==sys.argv[3] and os.readlink(p/'exe')==str(r/'prefix/bin'/('afs-'+kind));v={'pid':pid,'exe':os.readlink(p/'exe'),'sha256':sha,'start_tick':(p/'stat').read_text().rsplit(') ',1)[1].split()[19]};\nif kind=='node':\n m=json.loads(subprocess.check_output(['findmnt','-J','-M',str(r/'mount/ownerfs'),'-o','TARGET,SOURCE,FSTYPE,OPTIONS,ID'],text=True))['filesystems'][0];assert m['source']=='afs-ownerfs' and m['fstype'].startswith('fuse') and m['target']==str(r/'mount/ownerfs');v['mount']=m\nprint(json.dumps(v))"
+ for role in ['ctl','b','a']:
+@@ -14,7 +14,7 @@
+ verify="import pathlib,sys,hashlib,os,json;r=pathlib.Path(sys.argv[1]);paths=[pathlib.Path(x) for x in sys.argv[2:]];out=[]\nfor p in paths:\n fd=os.open(p.parent,os.O_RDONLY|os.O_DIRECTORY);os.fsync(fd);os.close(fd);h=hashlib.sha256();n=0;ok=True\n with p.open('rb') as f:\n  while b:=f.read(1048576):n+=len(b);h.update(b);ok=ok and b==b'a'*len(b)\n assert n==67108864 and ok and h.hexdigest()==hashlib.sha256(b'a'*67108864).hexdigest();out.append({'file':str(p),'bytes':n,'sha256':h.hexdigest(),'content_ok':ok,'fresh_open':True})\nprint(json.dumps({'status':'PASS','files':out}))"
+ run('a-independent-content-sync','a',['python3','-c',verify,A,A+'/mount/ownerfs/'+W+'/small-r1/payload64m.bin',A+'/mount/moose/small-r1/payload64m.bin'])
+ run('b-physical-home-content','b',['python3','-c',"import pathlib,sys,hashlib,json;r=pathlib.Path(sys.argv[1]);ps=list((r/'state/node').rglob('payload64m.bin'));assert len(ps)==1;p=ps[0];n=p.stat().st_size;sha=hashlib.sha256(p.read_bytes()).hexdigest();assert n==67108864 and sha==hashlib.sha256(b'a'*67108864).hexdigest();print(json.dumps({'status':'PASS','physical_file':str(p),'bytes':n,'sha256':sha}))",ROOT['b']])
+-run('moose-live-topology','a',[M+'mfscli','-H','192.168.109.11','-P','24942','-SCS','-j'])
++run('moose-live-topology','a',[M+'mfscli','-H','192.168.109.11','-P','25242','-SCS','-j'])
+ run('moose-file-class','a',[M+'mfsgetsclass',A+'/mount/moose/small-r1/payload64m.bin'])
+ run('moose-file-info','a',[M+'mfsfileinfo','-p',A+'/mount/moose/small-r1/payload64m.bin'])
+ run('moose-check-file','a',[M+'mfscheckfile',A+'/mount/moose/small-r1/payload64m.bin'])

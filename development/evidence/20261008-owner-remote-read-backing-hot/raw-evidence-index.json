@@ -1,0 +1,61 @@
+{
+  "host_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1",
+  "archive": {
+    "archive_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/raw-runtime.tar.gz",
+    "archive_sha256": "664a0f6352bdaafcc58b65c3b44cb6569590f3d93ab079277c95c1ff4d372cc8",
+    "archive_bytes": 93538,
+    "files": 146
+  },
+  "member_index": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/raw-index.json",
+    "sha256": "beabac72cf45830278d4aa4f950d54a25102351913091835053cf676ee3674dd"
+  },
+  "reused_base": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-read-current-20261008-r1-public-evidence.tar.gz",
+    "sha256": "08c6030b7209478380f5d3b7d4ee2484ddd6765d52656b18141cd41c17859693",
+    "members": {
+      "live_stage.py": "f60e4cad55fb2bb22ea3bf26dab923a8f607b19d66c13d4df503cfbda7bea25a",
+      "prepare_proof.py": "757f4d4b1a3709ea656438ccb62489689af059912c6e8578d91d31e607fad261",
+      "postcheck_export.py": "b1b756776ac1f1365cbf3de0877c066f599a2899bdba22bcc24219d8a634d6d2"
+    },
+    "delta": "recipes-from-remote.patch"
+  },
+  "restore": {
+    "status": "PASS_ACTUAL_LINUX_RESTORE",
+    "raw_files": 146,
+    "old_recipe_bases": 3,
+    "recreated_runtime_recipes": 3,
+    "new_runtime_recipes": 2,
+    "postcase_recipes": 2,
+    "fixture_and_guard_recreated": 2,
+    "unchanged_observer_verified": true,
+    "failed_oracles_recreated": 2,
+    "checks_count": 313,
+    "no_product_rerun": true
+  },
+  "restore_result": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/restore-result.json",
+    "sha256": "57b7038183bc215ac86427a702865ed94992f8935cbadf19970544fa95bc070b"
+  },
+  "audit": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/audit-result.json",
+    "sha256": "8ed5e8d4486f6cf5bd27705241ad27c5e1fd0ce28fd032f45f88a1d68c0c7c2b",
+    "checks": 98,
+    "guest_checks": 61
+  },
+  "excluded": [
+    "ELFs",
+    "TLS keys",
+    "VM images",
+    "payload data",
+    "full repeated maintained-tool/source snapshots"
+  ],
+  "guest_data_retained": true,
+  "not_full_data_backup": true,
+  "first_restore_archive": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/raw-runtime-first.tar.gz",
+    "sha256": "e7db622888913363ad1c9f7339a60cd42c8d910164bdcd269abfff69661c42fa",
+    "member": "recipes/restore.py"
+  },
+  "unchanged_physical_observer_guards_reused": "../20261008-owner-local-read-backing-hot/guards-r3.stderr"
+}

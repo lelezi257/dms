@@ -1,0 +1,20 @@
+{
+  "status": "BLOCKED",
+  "command": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "--",
+    "python3",
+    "-B",
+    "/workspace/dms/source/development/acceptance/probes/test_owner_remote_fixture.py"
+  ],
+  "returncode": 1,
+  "discovered": 22,
+  "errors": [
+    "test_delete_fixture_has_independent_root_ports_and_commands",
+    "test_new_fixture_has_independent_root_and_propagates_to_supervisor"
+  ],
+  "cause": "Existing two integration guard cases require /opt/afs-moose-round3-v85, absent on build guest. No services launched, no environment repair. Use already proven B instead."
+}

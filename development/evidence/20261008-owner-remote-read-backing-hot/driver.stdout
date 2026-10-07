@@ -1,0 +1,143 @@
+ctl-start-meta 0
+b-start-node 0
+b-create-owner-home-payload 0
+a-start-node 0
+ctl-start-moose 0
+b-start-moose 0
+a-start-moose 0
+meta-live-home 0
+ctl-live-elf-mount 0
+b-live-elf-mount 0
+a-live-elf-mount 0
+moose-one-copy-class 0
+a-create-moose-directory 0
+moose-assign-class 0
+moose-class-policy 0
+moose-prepare64m 0
+a-independent-content-sync 0
+b-physical-home-content 0
+moose-live-topology 0
+moose-file-class 0
+moose-file-info 0
+moose-check-file 0
+prepared content and live identities captured; parent must validate topology before measurement
+owner-physical-discover 0
+moose-physical-discover 0
+round-0-owner-client-full-sha 0
+owner-physical-pre 0
+round-0-owner-timed 0
+owner-physical-post 0
+round-0-moose-client-full-sha 0
+moose-physical-pre 0
+round-0-moose-timed 0
+moose-physical-post 0
+round-0-a-capacity 0
+round-0-b-capacity 0
+round-0-ctl-capacity 0
+round-1-moose-client-full-sha 0
+moose-physical-pre 0
+round-1-moose-timed 0
+moose-physical-post 0
+round-1-owner-client-full-sha 0
+owner-physical-pre 0
+round-1-owner-timed 0
+owner-physical-post 0
+round-1-a-capacity 0
+round-1-b-capacity 0
+round-1-ctl-capacity 0
+round-2-owner-client-full-sha 0
+owner-physical-pre 0
+round-2-owner-timed 0
+owner-physical-post 0
+round-2-moose-client-full-sha 0
+moose-physical-pre 0
+round-2-moose-timed 0
+moose-physical-post 0
+round-2-a-capacity 0
+round-2-b-capacity 0
+round-2-ctl-capacity 0
+round-3-moose-client-full-sha 0
+moose-physical-pre 0
+round-3-moose-timed 0
+moose-physical-post 0
+round-3-owner-client-full-sha 0
+owner-physical-pre 0
+round-3-owner-timed 0
+owner-physical-post 0
+round-3-a-capacity 0
+round-3-b-capacity 0
+round-3-ctl-capacity 0
+round-4-owner-client-full-sha 0
+owner-physical-pre 0
+round-4-owner-timed 0
+owner-physical-post 0
+round-4-moose-client-full-sha 0
+moose-physical-pre 0
+round-4-moose-timed 0
+moose-physical-post 0
+round-4-a-capacity 0
+round-4-b-capacity 0
+round-4-ctl-capacity 0
+round-5-moose-client-full-sha 0
+moose-physical-pre 0
+round-5-moose-timed 0
+moose-physical-post 0
+round-5-owner-client-full-sha 0
+owner-physical-pre 0
+round-5-owner-timed 0
+owner-physical-post 0
+round-5-a-capacity 0
+round-5-b-capacity 0
+round-5-ctl-capacity 0
+owner-post-full-sha 0
+moose-post-full-sha 0
+a-stop-moose 0
+b-stop-moose 0
+ctl-stop-moose 0
+a-stop-node 0
+b-stop-node 0
+ctl-stop-meta 0
+{
+  "execution_status": "PASS",
+  "performance_status": "FAIL",
+  "cleanup": "PASS_COMMANDS_ONLY",
+  "throughput_status": "FAIL",
+  "latency_status": "FAIL",
+  "aggregates": {
+    "owner": {
+      "throughput_each_mib_s": [
+        381.6002632421716,
+        384.80647201676214,
+        388.1487418000849,
+        389.2697714511411,
+        381.6761183887039
+      ],
+      "throughput_median_mib_s": 384.80647201676214,
+      "operations": 320,
+      "p50_ns": 2694666,
+      "p95_ns": 3152191,
+      "p99_ns": 3316037,
+      "quantile": "nearest-rank ceil(p*N/100)-1"
+    },
+    "moose": {
+      "throughput_each_mib_s": [
+        14457.621210776078,
+        14719.499242635766,
+        13664.03719350924,
+        14855.754109414951,
+        11140.009378495395
+      ],
+      "throughput_median_mib_s": 14457.621210776078,
+      "operations": 320,
+      "p50_ns": 55128,
+      "p95_ns": 111257,
+      "p99_ns": 175928,
+      "quantile": "nearest-rank ceil(p*N/100)-1"
+    }
+  },
+  "throughput_ratio": 0.026616167791831773,
+  "p95_ratio": 28.33251840333642,
+  "content_sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5",
+  "scope": "G2.13 remote64MiB/C1 backend-hot/default-client limited case",
+  "cleanup_errors": []
+}

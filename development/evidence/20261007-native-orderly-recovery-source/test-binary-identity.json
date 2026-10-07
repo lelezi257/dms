@@ -1,0 +1,9 @@
+{
+  "path": "/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2",
+  "sha256": "884ba8f9cb3a6949354d4262542469bb626c890c11c427ab3733ea33bc06bb3c",
+  "bytes": 27532424,
+  "source_sha256": "8c6f1d5021aed4280a4c05d8bf371f624b4a8f31d9c847f4b98b1a5a2971556b",
+  "rust_version": "1.95.0",
+  "profile": "release",
+  "not_a_new_runtime_package": true
+}

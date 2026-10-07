@@ -85,7 +85,6 @@ class Run(data.Run):
                                                self.out, timeout=180)
                     payload = json.loads(raw)
                     verify_payload(payload)
-                    self.budget(label + '-' + name + '-' + str(index) + '-metadata')
                     owned = (target if name == 'experiment' else reference) / Path(path).name
                     self.check(label + '-' + name + '-' + str(index) + '-empty-directory',
                                owned.is_dir() and not any(owned.iterdir()), str(owned))
@@ -94,6 +93,8 @@ class Run(data.Run):
                     self.check(label + '-' + name + '-' + str(index) + '-directory-absent',
                                not owned.exists(), str(owned))
                     after = self.snapshot(label + '-' + name + '-' + str(index) + '-after')
+                    # Allocation traversal may enter the outer FUSE root; keep it outside this window.
+                    self.budget(label + '-' + name + '-' + str(index) + '-metadata')
                     delta = data.host.counts.delta(before, after)
                     if name == 'experiment':
                         self.check(label + '-' + str(index) + '-metadata-callbacks',

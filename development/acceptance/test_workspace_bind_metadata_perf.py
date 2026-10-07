@@ -1,8 +1,12 @@
 """Reject invalid measurement evidence and keep six phase decisions independent."""
 import copy
 import importlib.util
+import json
 from pathlib import Path
+import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('metadata_perf', Path(__file__).with_name('workspace-bind-metadata-perf-linux.py'))
 runner = importlib.util.module_from_spec(spec)
@@ -87,6 +91,94 @@ class MetadataGuards(unittest.TestCase):
                 value['phases'].reverse()
             with self.subTest(change=change), self.assertRaises(ValueError):
                 runner.verify_payload(value)
+
+
+class CohortWindowTests(unittest.TestCase):
+    def cohort_fixture(self, root, benchmark_readdir=0):
+        run = object.__new__(runner.Run)
+        run.root, run.out, run.active = root, root / 'output', []
+        target = root / 'mount/ownerfs/workspace'
+        target.mkdir(parents=True)
+        counters = dict.fromkeys(runner.CALLBACKS, 0)
+        events, saved, checks, backing = [], {}, {}, {}
+        identity = {'node': 'same incarnation', 'mount': 'same mount'}
+
+        def start(name, path, fstype):
+            backing[name] = path
+            return {'id': name}
+
+        def runc(argv, out, timeout):
+            container, operation = argv[1], argv[2]
+            owned = backing[container] / Path(argv[3] if operation == '/benchmark' else argv[4]).name
+            if operation == '/benchmark':
+                events.append(('benchmark', container))
+                owned.mkdir()
+                if container == 'on-experiment':
+                    counters['readdir'] += benchmark_readdir
+                return json.dumps(payload())
+            self.assertEqual(argv[2:4], ['/bin/busybox', 'rmdir'])
+            events.append(('rmdir', container))
+            owned.rmdir()
+            return ''
+
+        def snapshot(label):
+            events.append(('snapshot', label))
+            return dict(counters)
+
+        def budget(label):
+            events.append(('budget', label))
+            # A budget walk through the mounted workspace causes real FUSE readdir callbacks.
+            counters['readdir'] += 4
+
+        def check(label, ok, value):
+            checks[label] = {'ok': ok, 'value': copy.deepcopy(value)}
+            if not ok:
+                raise ValueError(label)
+
+        def close(label):
+            events.append(('close', label))
+            run.active.clear()
+
+        run.containers = SimpleNamespace(start_ordinary_container=start, runc=runc)
+        run.snapshot, run.budget, run.check, run.close_containers = snapshot, budget, check, close
+        run.identity = lambda: identity
+        run.save = lambda name, value: saved.update({name: copy.deepcopy(value)})
+        return run, identity, events, saved, checks
+
+    def test_budget_readdir_is_outside_on_window_and_all_six_pairs_complete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run, identity, events, saved, checks = self.cohort_fixture(Path(directory))
+            with patch.object(runner.os, 'chown'), patch.object(runner.data.perf, 'snapshot_host', return_value={}):
+                try:
+                    analysis = runner.Run.cohort(run, 'on', identity)
+                except ValueError as error:
+                    self.fail('budget observation polluted the callback window: ' + str(error))
+            self.assertEqual(len([name for name in saved if name.startswith('on-round-')]), 6)
+            self.assertEqual(len([event for event in events if event[0] == 'benchmark']), 12)
+            self.assertEqual(len([event for event in events if event[0] == 'budget']), 12)
+            self.assertTrue(all(value['status'] == 'PASS' for value in analysis.values()))
+            for index in range(6):
+                decision = checks[f'on-{index}-metadata-callbacks']
+                self.assertTrue(decision['ok'])
+                self.assertEqual(decision['value'], dict.fromkeys(runner.CALLBACKS, 0))
+                self.assertEqual(len(saved[f'on-round-{index}.json']['samples']), 2)
+                for name in ('experiment', 'reference'):
+                    self.assertLess(events.index(('snapshot', f'on-{name}-{index}-after')),
+                                    events.index(('budget', f'on-{name}-{index}-metadata')))
+            self.assertEqual(events[-1], ('close', 'on'))
+
+    def test_real_benchmark_readdir_still_rejects_on_and_closes_containers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run, identity, events, saved, checks = self.cohort_fixture(Path(directory), benchmark_readdir=1)
+            with patch.object(runner.os, 'chown'), patch.object(runner.data.perf, 'snapshot_host', return_value={}):
+                with self.assertRaisesRegex(ValueError, 'on-0-metadata-callbacks'):
+                    runner.Run.cohort(run, 'on', identity)
+            self.assertFalse(checks['on-0-metadata-callbacks']['ok'])
+            self.assertGreaterEqual(checks['on-0-metadata-callbacks']['value']['readdir'], 1)
+            self.assertIn(('benchmark', 'on-experiment'), events)
+            self.assertNotIn('on-analysis.json', saved)
+            self.assertEqual(events[-1], ('close', 'on'))
+            self.assertEqual(run.active, [])
 
 
 if __name__ == '__main__':

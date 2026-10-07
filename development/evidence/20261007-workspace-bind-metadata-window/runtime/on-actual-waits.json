@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "child": {
+      "pid": "93272",
+      "exe": "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/meta.toml",
+      "start_ticks": "9987098",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-metadata-window-20261007-r2/run/meta.lifecycle.EKJX8T",
+      "supervisor_pid": "93256"
+    },
+    "ready": {
+      "supervisor_pid": "93256"
+    },
+    "exit": {
+      "pid": "93272",
+      "exe": "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/meta.toml",
+      "start_ticks": "9987098",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-metadata-window-20261007-r2/run/meta.lifecycle.EKJX8T",
+      "supervisor_pid": "93256",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  },
+  "node": {
+    "child": {
+      "pid": "93517",
+      "exe": "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/node.toml",
+      "start_ticks": "9987115",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-metadata-window-20261007-r2/run/node.lifecycle.wen9WS",
+      "supervisor_pid": "93501"
+    },
+    "ready": {
+      "supervisor_pid": "93501"
+    },
+    "exit": {
+      "pid": "93517",
+      "exe": "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/node.toml",
+      "start_ticks": "9987115",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-metadata-window-20261007-r2/run/node.lifecycle.wen9WS",
+      "supervisor_pid": "93501",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  }
+}

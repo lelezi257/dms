@@ -1,0 +1,12 @@
+test_budget_readdir_is_outside_on_window_and_all_six_pairs_complete (test_workspace_bind_metadata_perf.CohortWindowTests.test_budget_readdir_is_outside_on_window_and_all_six_pairs_complete) ... ok
+test_real_benchmark_readdir_still_rejects_on_and_closes_containers (test_workspace_bind_metadata_perf.CohortWindowTests.test_real_benchmark_readdir_still_rejects_on_and_closes_containers) ... ok
+test_changed_shape_and_barrier_are_rejected (test_workspace_bind_metadata_perf.MetadataGuards.test_changed_shape_and_barrier_are_rejected) ... ok
+test_invalid_pairs_do_not_produce_results (test_workspace_bind_metadata_perf.MetadataGuards.test_invalid_pairs_do_not_produce_results) ... ok
+test_missing_or_reordered_phase_is_rejected (test_workspace_bind_metadata_perf.MetadataGuards.test_missing_or_reordered_phase_is_rejected) ... ok
+test_operation_latency_and_timing_accounting (test_workspace_bind_metadata_perf.MetadataGuards.test_operation_latency_and_timing_accounting) ... ok
+test_six_phase_decisions_warmup_and_ratio_direction (test_workspace_bind_metadata_perf.MetadataGuards.test_six_phase_decisions_warmup_and_ratio_direction) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.003s
+
+OK

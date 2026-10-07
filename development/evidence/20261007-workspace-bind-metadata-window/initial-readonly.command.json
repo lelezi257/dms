@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-g2-micro",
+    "sudo",
+    "python3",
+    "-B",
+    "-c",
+    "import json,os,pathlib,subprocess,hashlib,shutil,socket\np=pathlib.Path('/opt/afs-container-perf-template-20261007-r1'); names=['afs-workspace-probe','bin/busybox','bin/sh','lib/ld-linux-aarch64.so.1','lib/aarch64-linux-gnu/libgcc_s.so.1','lib/aarch64-linux-gnu/libc.so.6','io','benchmark'];ports=[]\nfor n in (22400,22401,22500,22501):\n with socket.socket() as sock:sock.bind(('127.0.0.1',n));ports.append(n)\ndef sha(p):return hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()\nprint(json.dumps({'Linux':os.uname()[:3],'boot_id':pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'free':shutil.disk_usage('/opt').free,'ports_free':ports,'root_fresh':not pathlib.Path('/opt/afs-workspace-bind-metadata-window-20261007-r2').exists(),'transport_fresh':not pathlib.Path('/var/tmp/afs-workspace-bind-metadata-window-20261007-r2').exists(),'runc_sha256':sha('/usr/local/sbin/runc'),'template':{n:{'sha256':sha(p/n),'bytes':(p/n).stat().st_size,'uid':(p/n).stat().st_uid,'mode':oct((p/n).stat().st_mode&0o777)} for n in names}},indent=2))\n"
+  ]
+}

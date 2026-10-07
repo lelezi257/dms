@@ -17,3 +17,10 @@ Targeted Linux tests guard payload validity, operation/latency accounting, warmu
 ## Recorded exit
 
 [Case FAIL and partial data](evidence/20261007-workspace-bind-metadata-perf/README.md): OFF six paired phase diagnostics retained; ON first warmup route witness failed with readdir4, no measured comparison. Allocation traversal inside the global counter window is a concrete confound; attribution remains unverified. No adjusted criterion or rerun.13 Linux tool tests/117 independent evidence checks passed; current metadata performance qualification did not. Next DFS one-writer/many-reader.
+
+## Subsequent bounded correction
+
+The historical931 exit above is unchanged. [New plan](workspace-bind-metadata-window.md)
+fixes only the allocation traversal position and binds a new current7e6 run.
+[Current six-phase small ON performance PASS / OFF FAIL data](evidence/20261007-workspace-bind-metadata-window/README.md)
+includes before-fix failure and Linux negative controls; full ON/G2 remains pending.

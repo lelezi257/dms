@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/var/tmp/afs-workspace-bind-metadata-window-20261007-r2/tools",
+    "afs-g2-micro",
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "-v",
+    "test_workspace_bind_metadata_perf"
+  ]
+}

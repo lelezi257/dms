@@ -1,3 +1,7 @@
+**当前元数据性能小项（2026-10-07，事实）：** 产品7e6e00a6/map151a/当前c3bb包，唯一工具修正为将容量遍历移到callback结束快照之后。旧工具Linux先1FAIL复现，修后7guards PASS；原931 FAIL保留。当前1000×4KiB/C1/六阶段OFF+ON各1预热5配对完成，ON中位0.964347–1.032311×ext4、六项>=.90 PASS，OFF六项FAIL留数；ON八个选定回调0、其它getattr24不冒称全0。190驱动/193独立检查PASS，四actualwait0/十二服务监督及OCI PID与mount闭合、保护库存/预算不变。无Rust/vendor/C修改或重建。不是完整ON/全G2.13/正式比较；G1历史8/8、大项计数/defaultOFF不变。下一当前7e6 DFS R3小一写两读内容/副本/正常生命周期回归，历史931五轮计时保留原身份不刷分。[版本、原始数据、失败及退出回执](evidence/20261007-workspace-bind-metadata-window/README.md)。
+
+以下保留原时点记录；旧下一动作由上方当前入口覆盖。
+
 **当前普通试用交付分项（2026-10-07，事实）：** 产品7e6e00a6/157-map151a2c6d，既有Linux release ELF两次打包字节一致；新普通包c3bb5a30不含测试探针。隔离Linux/ext4无编译器一次安装，OwnerFs+DFS各64MiB/R1/gRPC/local-file、两workspace开关OFF，43驱动检查及独立恢复/退出/保护库存检查PASS；Meta-only正常重启后完整SHA/EOF读回，三actualwait0/六服务监督PID消失、Node及两mount跨重启身份不变。15工具检查按受影响范围通过/复用，无Rust/vendor改动或重建。G1历史8/8不重开、G2大项计数不变；931 R3/旧标准与性能保留原身份，当前7e6 R3/全POSIX/完整G2.27性能及ON仍待验。固定[试用包](https://github.com/lelezi257/dms/releases/tag/afs-trial-7e6e00a)已发布，四附件远端SHA及main实际树已核对。下一回既定workspace元数据计数归因小项，普通性能FAIL与复杂可靠性后置。[当前版本、命令、结果及历史复用边界](evidence/20261007-current-trial-7e6/README.md)。
 
 以下保留原时点记录；旧下一动作由上方当前入口覆盖。

@@ -1,0 +1,27 @@
+test_budget_readdir_is_outside_on_window_and_all_six_pairs_complete (test_workspace_bind_metadata_perf.CohortWindowTests.test_budget_readdir_is_outside_on_window_and_all_six_pairs_complete) ... FAIL
+test_real_benchmark_readdir_still_rejects_on_and_closes_containers (test_workspace_bind_metadata_perf.CohortWindowTests.test_real_benchmark_readdir_still_rejects_on_and_closes_containers) ... ok
+
+======================================================================
+FAIL: test_budget_readdir_is_outside_on_window_and_all_six_pairs_complete (test_workspace_bind_metadata_perf.CohortWindowTests.test_budget_readdir_is_outside_on_window_and_all_six_pairs_complete)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/var/tmp/afs-workspace-bind-metadata-window-20261007-r2/guards-before/test_workspace_bind_metadata_perf.py", line 153, in test_budget_readdir_is_outside_on_window_and_all_six_pairs_complete
+    analysis = runner.Run.cohort(run, 'on', identity)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/tmp/afs-workspace-bind-metadata-window-20261007-r2/guards-before/workspace-bind-metadata-perf-linux.py", line 99, in cohort
+    self.check(label + '-' + str(index) + '-metadata-callbacks',
+  File "/var/tmp/afs-workspace-bind-metadata-window-20261007-r2/guards-before/test_workspace_bind_metadata_perf.py", line 136, in check
+    raise ValueError(label)
+ValueError: on-0-metadata-callbacks
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/var/tmp/afs-workspace-bind-metadata-window-20261007-r2/guards-before/test_workspace_bind_metadata_perf.py", line 155, in test_budget_readdir_is_outside_on_window_and_all_six_pairs_complete
+    self.fail('budget observation polluted the callback window: ' + str(error))
+AssertionError: budget observation polluted the callback window: on-0-metadata-callbacks
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.002s
+
+FAILED (failures=1)

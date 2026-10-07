@@ -1,3 +1,7 @@
+**当前元数据窗口修正与小项通过（2026-10-07，事实）：** 7e6/c3bb当前包，容量检查移到after快照之后；旧工具先1FAIL、修后7Linux guards通过，原931 FAIL保持。新1000×4KiB/C1六阶段各1预热5配对，ON六项>=.90×ext4通过、OFF六项FAIL留数；八选定回调ON0/OFF阳性，其它getattr24保留。190驱动/193独立检查、四wait0/十二PID正常闭合。无Rust/vendor/C变更，不升级完整ON/G2。下一当前DFS R3小一写两读内容/副本回归；历史计时不刷分。[当前证据](../evidence/20261007-workspace-bind-metadata-window/README.md)。
+
+以下为原时点记录。
+
 **当前新增元数据观察（2026-10-07，事实）：** maine903基底/产品93169c8与157编译输入/ELF包未变。OFF1000×4KiB/C1六阶段完成1预热5配对、全部性能FAIL留数；ON首个预热内容正确，但全节点计数窗口readdir4未满足预定0，停止且ON比较未完成。窗口含遍历FUSE树的容量检查，不能把回调归因于业务或改判据称PASS。135驱动检查134PASS/1FAIL；117独立证据/正常闭合检查与13 Linux工具测试PASS，不等同用例PASS。实际Meta/Node四wait0、容器/PID/mount闭合、保护对象与原预算均核实；无Rust/vendor/C改动、重建、环境修补或刷分。G1历史8/8及大项计数/defaultOFF、先前数据子项PASS不变；下一DFS一写多读，计数归因/元数据ON补测单列后置。 [版本、FAIL、全部OFF数据与闭合](../evidence/20261007-workspace-bind-metadata-perf/README.md)。main仍唯一入口，修复分支全部有效成果已纳入，旧8dirty工作树/草稿保留且HASH复核一致；无PR/审批关卡。
 
 以下按原时点保留历史身份。

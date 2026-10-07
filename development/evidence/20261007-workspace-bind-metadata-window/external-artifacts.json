@@ -1,0 +1,37 @@
+{
+  "schema": "afs.external_artifacts.v1",
+  "raw_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-window-20261007-r2",
+  "artifacts": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-window-20261007-r2/package.tar.gz",
+      "bytes": 14429532,
+      "sha256": "c3bb5a30a1dd74a4b00d45388298e0b0628bb84d8aefbddf29ed2ec633b5f8e6"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-window-20261007-r2/transport.tar.gz",
+      "bytes": 14422320,
+      "sha256": "25d125cfdb35716bd7ef4ecdc23ea863d71a94d0bc372f831e9b2cc5e4233a92"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-window-20261007-r2/results-r1.tar.gz",
+      "bytes": 282713,
+      "sha256": "ea381622bf4d1b2ccf673ed9cc531299fab4533d5569511c82d9353dab9d6d07"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-window-20261007-r2/specs.tar.gz",
+      "bytes": 713,
+      "sha256": "b9410afa75c75ebd69baa63cd4953ff22f8f6f5bf2ae8c2347a6bdeafaa92650"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-window-20261007-r2/post.py",
+      "bytes": 9497,
+      "sha256": "b5f5ebdbf156036e4f0b3fc67f3e2bf4857d748f483cea2a299076d757fe4d0b"
+    }
+  ],
+  "old_runner_recovery": {
+    "fixed_commit": "917d5210ecf833db01bbbd68799c71f3af03ead3",
+    "path": "development/acceptance/workspace-bind-metadata-perf-linux.py",
+    "sha256": "078d823294a79b33ab9b352f2ddc093b3ac388294e705a8970c3050a45f840cd"
+  },
+  "canonical_tools": "development/acceptance; no source snapshots copied into this packet"
+}

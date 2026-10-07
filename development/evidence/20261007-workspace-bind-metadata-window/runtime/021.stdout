@@ -1,0 +1,10 @@
+{
+  "ociVersion": "1.3.0",
+  "id": "off-experiment",
+  "pid": 92136,
+  "status": "running",
+  "bundle": "/opt/afs-workspace-bind-metadata-window-20261007-r2/bundle-off-experiment",
+  "rootfs": "/opt/afs-workspace-bind-metadata-window-20261007-r2/rootfs-off-experiment",
+  "created": "2026-10-07T10:34:07.113107323Z",
+  "owner": ""
+}

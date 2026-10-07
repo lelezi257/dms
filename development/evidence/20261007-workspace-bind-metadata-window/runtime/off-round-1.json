@@ -1,0 +1,228 @@
+{
+  "round": 1,
+  "measured": true,
+  "order": [
+    "reference",
+    "experiment"
+  ],
+  "samples": [
+    {
+      "target": "reference",
+      "metadata": {
+        "files": 1000,
+        "file_bytes": 4096,
+        "concurrency": 1,
+        "path_form": "absolute",
+        "barrier": "close visibility; durability unqualified",
+        "phases": [
+          {
+            "name": "create_write_close",
+            "wall_ns": 7606993,
+            "client_cpu_ns": 7582375,
+            "operations": 1000,
+            "p50_ns": 5541,
+            "p95_ns": 12959,
+            "p99_ns": 20625
+          },
+          {
+            "name": "stat",
+            "wall_ns": 470875,
+            "client_cpu_ns": 468000,
+            "operations": 1000,
+            "p50_ns": 333,
+            "p95_ns": 458,
+            "p99_ns": 542
+          },
+          {
+            "name": "read_close",
+            "wall_ns": 1247457,
+            "client_cpu_ns": 1245041,
+            "operations": 1000,
+            "p50_ns": 1084,
+            "p95_ns": 1292,
+            "p99_ns": 1459
+          },
+          {
+            "name": "readdir",
+            "wall_ns": 108167,
+            "client_cpu_ns": 107958,
+            "operations": 1
+          },
+          {
+            "name": "rename",
+            "wall_ns": 5704579,
+            "client_cpu_ns": 5696958,
+            "operations": 1000,
+            "p50_ns": 5041,
+            "p95_ns": 10208,
+            "p99_ns": 13250
+          },
+          {
+            "name": "unlink",
+            "wall_ns": 2576331,
+            "client_cpu_ns": 2572333,
+            "operations": 1000,
+            "p50_ns": 2292,
+            "p95_ns": 3166,
+            "p99_ns": 4000
+          }
+        ]
+      },
+      "callback_delta": {
+        "access": 0,
+        "create": 0,
+        "destroy": 0,
+        "flush": 0,
+        "forget": 0,
+        "fsync": 0,
+        "fsyncdir": 0,
+        "getattr": 0,
+        "getlk_with_options": 0,
+        "getxattr": 0,
+        "init": 0,
+        "interrupt": 0,
+        "link": 0,
+        "listxattr": 0,
+        "lookup": 0,
+        "mkdir": 0,
+        "mknod": 0,
+        "open": 0,
+        "opendir": 0,
+        "read": 0,
+        "readdir": 0,
+        "readlink": 0,
+        "release": 0,
+        "releasedir": 0,
+        "removexattr": 0,
+        "rename": 0,
+        "rmdir": 0,
+        "setattr": 0,
+        "setlk_with_options": 0,
+        "setxattr": 0,
+        "statfs": 0,
+        "symlink": 0,
+        "unlink": 0,
+        "write": 0
+      }
+    },
+    {
+      "target": "experiment",
+      "metadata": {
+        "files": 1000,
+        "file_bytes": 4096,
+        "concurrency": 1,
+        "path_form": "absolute",
+        "barrier": "close visibility; durability unqualified",
+        "phases": [
+          {
+            "name": "create_write_close",
+            "wall_ns": 652692038,
+            "client_cpu_ns": 60209411,
+            "operations": 1000,
+            "p50_ns": 513916,
+            "p95_ns": 1522373,
+            "p99_ns": 2821872
+          },
+          {
+            "name": "stat",
+            "wall_ns": 16963110,
+            "client_cpu_ns": 4391337,
+            "operations": 1000,
+            "p50_ns": 15708,
+            "p95_ns": 23292,
+            "p99_ns": 28666
+          },
+          {
+            "name": "read_close",
+            "wall_ns": 70158604,
+            "client_cpu_ns": 16436127,
+            "operations": 1000,
+            "p50_ns": 69750,
+            "p95_ns": 78542,
+            "p99_ns": 87833
+          },
+          {
+            "name": "readdir",
+            "wall_ns": 7515118,
+            "client_cpu_ns": 94417,
+            "operations": 1
+          },
+          {
+            "name": "rename",
+            "wall_ns": 120012100,
+            "client_cpu_ns": 20172146,
+            "operations": 1000,
+            "p50_ns": 112749,
+            "p95_ns": 140208,
+            "p99_ns": 173792
+          },
+          {
+            "name": "unlink",
+            "wall_ns": 62051110,
+            "client_cpu_ns": 9835936,
+            "operations": 1000,
+            "p50_ns": 59333,
+            "p95_ns": 76083,
+            "p99_ns": 84584
+          }
+        ]
+      },
+      "callback_delta": {
+        "access": 0,
+        "create": 1000,
+        "destroy": 0,
+        "flush": 2000,
+        "forget": 1001,
+        "fsync": 0,
+        "fsyncdir": 0,
+        "getattr": 4005,
+        "getlk_with_options": 0,
+        "getxattr": 1000,
+        "init": 0,
+        "interrupt": 0,
+        "link": 0,
+        "listxattr": 0,
+        "lookup": 2004,
+        "mkdir": 1,
+        "mknod": 0,
+        "open": 1000,
+        "opendir": 2,
+        "read": 1000,
+        "readdir": 11,
+        "readlink": 0,
+        "release": 2000,
+        "releasedir": 2,
+        "removexattr": 0,
+        "rename": 1000,
+        "rmdir": 1,
+        "setattr": 0,
+        "setlk_with_options": 0,
+        "setxattr": 0,
+        "statfs": 0,
+        "symlink": 0,
+        "unlink": 1000,
+        "write": 1000
+      }
+    }
+  ],
+  "resources_before": {
+    "loadavg": "0.16 0.03 0.01 1/182 92312\n",
+    "meminfo": "MemTotal:        8113632 kB\nMemFree:          241288 kB\nMemAvailable:    7597516 kB\nBuffers:           87632 kB\nCached:          7145616 kB\nSwapCached:            0 kB\nActive:           227244 kB\nInactive:        7108544 kB\nActive(anon):     111008 kB\nInactive(anon):        0 kB\nActive(file):     116236 kB\nInactive(file):  7108544 kB\nUnevictable:       26104 kB\nMlocked:           26104 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:             94924 kB\nWriteback:             0 kB\nAnonPages:        128508 kB\nMapped:           106204 kB\nShmem:              1016 kB\nKReclaimable:     334472 kB\nSlab:             429144 kB\nSReclaimable:     334472 kB\nSUnreclaim:        94672 kB\nKernelStack:        2972 kB\nShadowCallStack:     768 kB\nPageTables:         3356 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4056816 kB\nCommitted_AS:     529124 kB\nVmallocTotal:   133141626880 kB\nVmallocUsed:       12444 kB\nVmallocChunk:          0 kB\nPercpu:             3008 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:          32768 kB\nCmaFree:           14728 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\n",
+    "diskstats": "   7       0 loop0 22 0 56 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       1 loop1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       2 loop2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       3 loop3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       4 loop4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       5 loop5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       6 loop6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       7 loop7 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n 253       0 vda 19333 6370 1054448 1818 216182 231963 56696772 124137 0 25994 137635 7847 0 135712128 1588 94156 10091\n 253       1 vda1 18168 5801 958385 1775 215875 231831 56355944 123652 0 290159 127015 7847 0 135712128 1588 0 0\n 253      15 vda15 256 554 18506 10 2 0 2 0 0 7 10 0 0 0 0 0 0\n 259       0 vda16 366 15 50394 15 293 124 340722 482 0 173 498 0 0 0 0 0 0\n 253      16 vdb 431 0 44179 27 0 0 0 0 0 25 27 0 0 0 0 0 0\n",
+    "opt_usage": {
+      "total": 15523123200,
+      "used": 7925874688,
+      "free": 7580471296
+    }
+  },
+  "resources_after": {
+    "loadavg": "0.16 0.03 0.01 1/182 92407\n",
+    "meminfo": "MemTotal:        8113632 kB\nMemFree:          233792 kB\nMemAvailable:    7592080 kB\nBuffers:           88992 kB\nCached:          7146436 kB\nSwapCached:            0 kB\nActive:           227932 kB\nInactive:        7110724 kB\nActive(anon):     111696 kB\nInactive(anon):        0 kB\nActive(file):     116236 kB\nInactive(file):  7110724 kB\nUnevictable:       26104 kB\nMlocked:           26104 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:             95776 kB\nWriteback:             0 kB\nAnonPages:        129276 kB\nMapped:           106284 kB\nShmem:              1016 kB\nKReclaimable:     334352 kB\nSlab:             429032 kB\nSReclaimable:     334352 kB\nSUnreclaim:        94680 kB\nKernelStack:        2988 kB\nShadowCallStack:     764 kB\nPageTables:         3108 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4056816 kB\nCommitted_AS:     529756 kB\nVmallocTotal:   133141626880 kB\nVmallocUsed:       12444 kB\nVmallocChunk:          0 kB\nPercpu:             3008 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:          32768 kB\nCmaFree:           14728 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\n",
+    "diskstats": "   7       0 loop0 22 0 56 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       1 loop1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       2 loop2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       3 loop3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       4 loop4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       5 loop5 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       6 loop6 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n   7       7 loop7 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n 253       0 vda 19333 6370 1054448 1818 219245 239293 56780044 124444 0 26299 138039 7855 0 135725664 1590 96180 10185\n 253       1 vda1 18168 5801 958385 1775 218938 239161 56439216 123959 0 290465 127325 7855 0 135725664 1590 0 0\n 253      15 vda15 256 554 18506 10 2 0 2 0 0 7 10 0 0 0 0 0 0\n 259       0 vda16 366 15 50394 15 293 124 340722 482 0 173 498 0 0 0 0 0 0\n 253      16 vdb 431 0 44179 27 0 0 0 0 0 25 27 0 0 0 0 0 0\n",
+    "opt_usage": {
+      "total": 15523123200,
+      "used": 7926751232,
+      "free": 7579594752
+    }
+  }
+}

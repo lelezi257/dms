@@ -1,0 +1,2711 @@
+[
+  {
+    "argv": [
+      "ldd",
+      "/var/tmp/afs-workspace-bind-metadata-window-20261007-r2/admission-bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003796746997977607,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/var/tmp/afs-workspace-bind-metadata-window-20261007-r2/admission-bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037404969916678965,
+    "stdout": "001.stdout",
+    "stderr": "001.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015805400034878403,
+    "stdout": "002.stdout",
+    "stderr": "002.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-container-perf-template-20261007-r1/io"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003908371989382431,
+    "stdout": "003.stdout",
+    "stderr": "003.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-container-perf-template-20261007-r1/benchmark"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034907460067188367,
+    "stdout": "004.stdout",
+    "stderr": "004.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-xzf",
+      "/var/tmp/afs-workspace-bind-metadata-window-20261007-r2/package.tar.gz",
+      "-C",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/package"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.17010792800283525,
+    "stdout": "005.stdout",
+    "stderr": "005.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/package/afs-0.1.0-g2-main-7e6e00a-linux-aarch64/install.sh",
+      "--prefix",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc",
+      "--state-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/state",
+      "--run-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/logs",
+      "--mount-root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.337774775995058,
+    "stdout": "006.stdout",
+    "stderr": "006.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035631220089271665,
+    "stdout": "007.stdout",
+    "stderr": "007.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003551456000423059,
+    "stdout": "008.stdout",
+    "stderr": "008.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-trial-config",
+      "single",
+      "--backend",
+      "local-file",
+      "--config-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc",
+      "--state-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/state",
+      "--run-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/run",
+      "--mount-root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount",
+      "--meta-grpc-port",
+      "22400",
+      "--meta-rest-port",
+      "22401",
+      "--node-grpc-port",
+      "22500",
+      "--node-rest-port",
+      "22501",
+      "--force"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.33751444399240427,
+    "stdout": "009.stdout",
+    "stderr": "009.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-meta",
+      "--config",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/meta.toml",
+      "--print-config"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0013243740104371682,
+    "stdout": "010.stdout",
+    "stderr": "010.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "verify",
+      "-CAfile",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/tls/ca.pem",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/tls/meta.pem"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035776220029219985,
+    "stdout": "011.stdout",
+    "stderr": "011.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "x509",
+      "-in",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/tls/meta.pem",
+      "-noout",
+      "-pubkey"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.016303651995258406,
+    "stdout": "012.stdout",
+    "stderr": "012.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "pkey",
+      "-in",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/tls/meta-key.pem",
+      "-pubout"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003282913996372372,
+    "stdout": "013.stdout",
+    "stderr": "013.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-node",
+      "--config",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/node.toml",
+      "--print-config"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.001605081997695379,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "verify",
+      "-CAfile",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/tls/ca.pem",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/tls/node-a.pem"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003815162999671884,
+    "stdout": "015.stdout",
+    "stderr": "015.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "x509",
+      "-in",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/tls/node-a.pem",
+      "-noout",
+      "-pubkey"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.015978359995642677,
+    "stdout": "016.stdout",
+    "stderr": "016.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "pkey",
+      "-in",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc/tls/node-a-key.pem",
+      "-pubout"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015687060076743364,
+    "stdout": "017.stdout",
+    "stderr": "017.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc",
+      "--run-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.38181073700252455,
+    "stdout": "018.stdout",
+    "stderr": "018.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016053730068961158,
+    "stdout": "019.stdout",
+    "stderr": "019.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "run",
+      "--detach",
+      "--bundle",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/bundle-off-experiment",
+      "off-experiment"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.015610693997587077,
+    "stdout": "020.stdout",
+    "stderr": "020.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "off-experiment"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0036847049923380837,
+    "stdout": "021.stdout",
+    "stderr": "021.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/afs-workspace-probe",
+      "identity"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007618700998136774,
+    "stdout": "022.stdout",
+    "stderr": "022.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "run",
+      "--detach",
+      "--bundle",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/bundle-off-reference",
+      "off-reference"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.031989262002753094,
+    "stdout": "023.stdout",
+    "stderr": "023.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "off-reference"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003440330008743331,
+    "stdout": "024.stdout",
+    "stderr": "024.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/afs-workspace-probe",
+      "identity"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007424784998875111,
+    "stdout": "025.stdout",
+    "stderr": "025.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037699550011893734,
+    "stdout": "026.stdout",
+    "stderr": "026.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/benchmark",
+      "/workspace/meta-off-experiment-0",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 1.1292546469921945,
+    "stdout": "027.stdout",
+    "stderr": "027.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-experiment-0"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007483951994800009,
+    "stdout": "028.stdout",
+    "stderr": "028.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00400578799599316,
+    "stdout": "029.stdout",
+    "stderr": "029.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003756788995815441,
+    "stdout": "030.stdout",
+    "stderr": "030.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/benchmark",
+      "/workspace/meta-off-reference-0",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.031774596995092,
+    "stdout": "031.stdout",
+    "stderr": "031.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-reference-0"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007505450994358398,
+    "stdout": "032.stdout",
+    "stderr": "032.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003914954999345355,
+    "stdout": "033.stdout",
+    "stderr": "033.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015354989882325754,
+    "stdout": "034.stdout",
+    "stderr": "034.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037387459888122976,
+    "stdout": "035.stdout",
+    "stderr": "035.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/benchmark",
+      "/workspace/meta-off-reference-1",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03192530399246607,
+    "stdout": "036.stdout",
+    "stderr": "036.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-reference-1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007584160004626028,
+    "stdout": "037.stdout",
+    "stderr": "037.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0038833719881949946,
+    "stdout": "038.stdout",
+    "stderr": "038.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035229969944339246,
+    "stdout": "039.stdout",
+    "stderr": "039.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/benchmark",
+      "/workspace/meta-off-experiment-1",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.9723027089930838,
+    "stdout": "040.stdout",
+    "stderr": "040.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-experiment-1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007720452005742118,
+    "stdout": "041.stdout",
+    "stderr": "041.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037838709977222607,
+    "stdout": "042.stdout",
+    "stderr": "042.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0013186239957576618,
+    "stdout": "043.stdout",
+    "stderr": "043.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003526289001456462,
+    "stdout": "044.stdout",
+    "stderr": "044.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/benchmark",
+      "/workspace/meta-off-experiment-2",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.8300707140006125,
+    "stdout": "045.stdout",
+    "stderr": "045.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-experiment-2"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.010163240993279032,
+    "stdout": "046.stdout",
+    "stderr": "046.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037063299969304353,
+    "stdout": "047.stdout",
+    "stderr": "047.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003502663006656803,
+    "stdout": "048.stdout",
+    "stderr": "048.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/benchmark",
+      "/workspace/meta-off-reference-2",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03309121998609044,
+    "stdout": "049.stdout",
+    "stderr": "049.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-reference-2"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00785695100785233,
+    "stdout": "050.stdout",
+    "stderr": "050.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003786247005336918,
+    "stdout": "051.stdout",
+    "stderr": "051.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.001373248000163585,
+    "stdout": "052.stdout",
+    "stderr": "052.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003791246999753639,
+    "stdout": "053.stdout",
+    "stderr": "053.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/benchmark",
+      "/workspace/meta-off-reference-3",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03161480500421021,
+    "stdout": "054.stdout",
+    "stderr": "054.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-reference-3"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0075720349996117875,
+    "stdout": "055.stdout",
+    "stderr": "055.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003652747007436119,
+    "stdout": "056.stdout",
+    "stderr": "056.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037072879931656644,
+    "stdout": "057.stdout",
+    "stderr": "057.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/benchmark",
+      "/workspace/meta-off-experiment-3",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.8233968900021864,
+    "stdout": "058.stdout",
+    "stderr": "058.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-experiment-3"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007591493995278142,
+    "stdout": "059.stdout",
+    "stderr": "059.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0038433719892054796,
+    "stdout": "060.stdout",
+    "stderr": "060.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015193739964161068,
+    "stdout": "061.stdout",
+    "stderr": "061.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0036478300025919452,
+    "stdout": "062.stdout",
+    "stderr": "062.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/benchmark",
+      "/workspace/meta-off-experiment-4",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.8191449379955884,
+    "stdout": "063.stdout",
+    "stderr": "063.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-experiment-4"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007487160008167848,
+    "stdout": "064.stdout",
+    "stderr": "064.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037901629984844476,
+    "stdout": "065.stdout",
+    "stderr": "065.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003272622008807957,
+    "stdout": "066.stdout",
+    "stderr": "066.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/benchmark",
+      "/workspace/meta-off-reference-4",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.033184429004904814,
+    "stdout": "067.stdout",
+    "stderr": "067.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-reference-4"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0074664929998107255,
+    "stdout": "068.stdout",
+    "stderr": "068.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0032583309948677197,
+    "stdout": "069.stdout",
+    "stderr": "069.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.001307416008785367,
+    "stdout": "070.stdout",
+    "stderr": "070.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003421122004510835,
+    "stdout": "071.stdout",
+    "stderr": "071.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/benchmark",
+      "/workspace/meta-off-reference-5",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.035676842991961166,
+    "stdout": "072.stdout",
+    "stderr": "072.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-reference-5"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007529119000537321,
+    "stdout": "073.stdout",
+    "stderr": "073.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037155379977775738,
+    "stdout": "074.stdout",
+    "stderr": "074.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0036745799880009145,
+    "stdout": "075.stdout",
+    "stderr": "075.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/benchmark",
+      "/workspace/meta-off-experiment-5",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.7694883590011159,
+    "stdout": "076.stdout",
+    "stderr": "076.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "off-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-off-experiment-5"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007507368994993158,
+    "stdout": "077.stdout",
+    "stderr": "077.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034015800047200173,
+    "stdout": "078.stdout",
+    "stderr": "078.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00119045699830167,
+    "stdout": "079.stdout",
+    "stderr": "079.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "kill",
+      "off-experiment",
+      "TERM"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034213710023323074,
+    "stdout": "080.stdout",
+    "stderr": "080.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "off-experiment"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003551788002368994,
+    "stdout": "081.stdout",
+    "stderr": "081.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "off-experiment"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003416204999666661,
+    "stdout": "082.stdout",
+    "stderr": "082.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "delete",
+      "off-experiment"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00331383099546656,
+    "stdout": "083.stdout",
+    "stderr": "083.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "kill",
+      "off-reference",
+      "TERM"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034787879994837567,
+    "stdout": "084.stdout",
+    "stderr": "084.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "off-reference"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034256639919476584,
+    "stdout": "085.stdout",
+    "stderr": "085.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "off-reference"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.008984950007288717,
+    "stdout": "086.stdout",
+    "stderr": "086.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "delete",
+      "off-reference"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0036366220010677353,
+    "stdout": "087.stdout",
+    "stderr": "087.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "list",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003654455009382218,
+    "stdout": "088.stdout",
+    "stderr": "088.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc",
+      "--run-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.1687751839926932,
+    "stdout": "089.stdout",
+    "stderr": "089.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs/workspace"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0013403319899225608,
+    "stdout": "090.stdout",
+    "stderr": "090.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0014852909953333437,
+    "stdout": "091.stdout",
+    "stderr": "091.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc",
+      "--run-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3661098430020502,
+    "stdout": "092.stdout",
+    "stderr": "092.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015917900018393993,
+    "stdout": "093.stdout",
+    "stderr": "093.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs/workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016582899988861755,
+    "stdout": "094.stdout",
+    "stderr": "094.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/state/node/ownerfs/root-776f726b7370616365-e1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.001621622999664396,
+    "stdout": "095.stdout",
+    "stderr": "095.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "run",
+      "--detach",
+      "--bundle",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/bundle-on-experiment",
+      "on-experiment"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03205122098734137,
+    "stdout": "096.stdout",
+    "stderr": "096.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "on-experiment"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035054559994023293,
+    "stdout": "097.stdout",
+    "stderr": "097.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/afs-workspace-probe",
+      "identity"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00808111799415201,
+    "stdout": "098.stdout",
+    "stderr": "098.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "run",
+      "--detach",
+      "--bundle",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/bundle-on-reference",
+      "on-reference"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.01571448599861469,
+    "stdout": "099.stdout",
+    "stderr": "099.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "on-reference"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034701640106504783,
+    "stdout": "100.stdout",
+    "stderr": "100.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/afs-workspace-probe",
+      "identity"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007634575988049619,
+    "stdout": "101.stdout",
+    "stderr": "101.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0036910799972247332,
+    "stdout": "102.stdout",
+    "stderr": "102.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/benchmark",
+      "/workspace/meta-on-experiment-0",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.032233763005933724,
+    "stdout": "103.stdout",
+    "stderr": "103.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-experiment-0"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007525827008066699,
+    "stdout": "104.stdout",
+    "stderr": "104.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037334549997467548,
+    "stdout": "105.stdout",
+    "stderr": "105.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035878710041288286,
+    "stdout": "106.stdout",
+    "stderr": "106.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/benchmark",
+      "/workspace/meta-on-reference-0",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03190226299921051,
+    "stdout": "107.stdout",
+    "stderr": "107.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-reference-0"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007701993003138341,
+    "stdout": "108.stdout",
+    "stderr": "108.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003641704999608919,
+    "stdout": "109.stdout",
+    "stderr": "109.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016684989968780428,
+    "stdout": "110.stdout",
+    "stderr": "110.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034174550091847777,
+    "stdout": "111.stdout",
+    "stderr": "111.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/benchmark",
+      "/workspace/meta-on-reference-1",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03315863700117916,
+    "stdout": "112.stdout",
+    "stderr": "112.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-reference-1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007793160009896383,
+    "stdout": "113.stdout",
+    "stderr": "113.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00380578899057582,
+    "stdout": "114.stdout",
+    "stderr": "114.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035832049907185137,
+    "stdout": "115.stdout",
+    "stderr": "115.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/benchmark",
+      "/workspace/meta-on-experiment-1",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.031971096992492676,
+    "stdout": "116.stdout",
+    "stderr": "116.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-experiment-1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00795399300113786,
+    "stdout": "117.stdout",
+    "stderr": "117.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003600580006605014,
+    "stdout": "118.stdout",
+    "stderr": "118.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016507490072399378,
+    "stdout": "119.stdout",
+    "stderr": "119.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003497330006211996,
+    "stdout": "120.stdout",
+    "stderr": "120.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/benchmark",
+      "/workspace/meta-on-experiment-2",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.034094094997271895,
+    "stdout": "121.stdout",
+    "stderr": "121.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-experiment-2"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00757361798605416,
+    "stdout": "122.stdout",
+    "stderr": "122.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003738829997018911,
+    "stdout": "123.stdout",
+    "stderr": "123.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00405120498908218,
+    "stdout": "124.stdout",
+    "stderr": "124.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/benchmark",
+      "/workspace/meta-on-reference-2",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03313826299563516,
+    "stdout": "125.stdout",
+    "stderr": "125.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-reference-2"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007486077010980807,
+    "stdout": "126.stdout",
+    "stderr": "126.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037865799968130887,
+    "stdout": "127.stdout",
+    "stderr": "127.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0013791240053251386,
+    "stdout": "128.stdout",
+    "stderr": "128.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003496788995107636,
+    "stdout": "129.stdout",
+    "stderr": "129.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/benchmark",
+      "/workspace/meta-on-reference-3",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03286472099716775,
+    "stdout": "130.stdout",
+    "stderr": "130.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-reference-3"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007548784997197799,
+    "stdout": "131.stdout",
+    "stderr": "131.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003475580000667833,
+    "stdout": "132.stdout",
+    "stderr": "132.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035448300041025504,
+    "stdout": "133.stdout",
+    "stderr": "133.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/benchmark",
+      "/workspace/meta-on-experiment-3",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03260563799994998,
+    "stdout": "134.stdout",
+    "stderr": "134.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-experiment-3"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0077291180059546605,
+    "stdout": "135.stdout",
+    "stderr": "135.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037608300044666976,
+    "stdout": "136.stdout",
+    "stderr": "136.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015834149962756783,
+    "stdout": "137.stdout",
+    "stderr": "137.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0032963300036499277,
+    "stdout": "138.stdout",
+    "stderr": "138.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/benchmark",
+      "/workspace/meta-on-experiment-4",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03327334600908216,
+    "stdout": "139.stdout",
+    "stderr": "139.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-experiment-4"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007587742991745472,
+    "stdout": "140.stdout",
+    "stderr": "140.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035347469965927303,
+    "stdout": "141.stdout",
+    "stderr": "141.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0031901219917926937,
+    "stdout": "142.stdout",
+    "stderr": "142.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/benchmark",
+      "/workspace/meta-on-reference-4",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03453188699495513,
+    "stdout": "143.stdout",
+    "stderr": "143.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-reference-4"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007482827000785619,
+    "stdout": "144.stdout",
+    "stderr": "144.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003700621993630193,
+    "stdout": "145.stdout",
+    "stderr": "145.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0017327899986412376,
+    "stdout": "146.stdout",
+    "stderr": "146.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003548622000380419,
+    "stdout": "147.stdout",
+    "stderr": "147.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/benchmark",
+      "/workspace/meta-on-reference-5",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.035335260996362194,
+    "stdout": "148.stdout",
+    "stderr": "148.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-reference",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-reference-5"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007611367997014895,
+    "stdout": "149.stdout",
+    "stderr": "149.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037486630026251078,
+    "stdout": "150.stdout",
+    "stderr": "150.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034559549967525527,
+    "stdout": "151.stdout",
+    "stderr": "151.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/benchmark",
+      "/workspace/meta-on-experiment-5",
+      "absolute",
+      "1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03150801399897318,
+    "stdout": "152.stdout",
+    "stderr": "152.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "exec",
+      "on-experiment",
+      "/bin/busybox",
+      "rmdir",
+      "/workspace/meta-on-experiment-5"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00739978501223959,
+    "stdout": "153.stdout",
+    "stderr": "153.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0036154139961581677,
+    "stdout": "154.stdout",
+    "stderr": "154.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.001276373994187452,
+    "stdout": "155.stdout",
+    "stderr": "155.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "kill",
+      "on-experiment",
+      "TERM"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0032527470029890537,
+    "stdout": "156.stdout",
+    "stderr": "156.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "on-experiment"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00348933000350371,
+    "stdout": "157.stdout",
+    "stderr": "157.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "on-experiment"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037256629875628278,
+    "stdout": "158.stdout",
+    "stderr": "158.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "delete",
+      "on-experiment"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003363080002600327,
+    "stdout": "159.stdout",
+    "stderr": "159.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "kill",
+      "on-reference",
+      "TERM"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034104130027117208,
+    "stdout": "160.stdout",
+    "stderr": "160.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "on-reference"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003511996997985989,
+    "stdout": "161.stdout",
+    "stderr": "161.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "state",
+      "on-reference"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.004220496004563756,
+    "stdout": "162.stdout",
+    "stderr": "162.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "delete",
+      "on-reference"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003718454987392761,
+    "stdout": "163.stdout",
+    "stderr": "163.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/runc-state",
+      "list",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037259969976730645,
+    "stdout": "164.stdout",
+    "stderr": "164.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs/workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034494550054660067,
+    "stdout": "165.stdout",
+    "stderr": "165.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/state/node/ownerfs/root-776f726b7370616365-e1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.001766372995916754,
+    "stdout": "166.stdout",
+    "stderr": "166.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/etc",
+      "--run-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.1809413410082925,
+    "stdout": "167.stdout",
+    "stderr": "167.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs/workspace"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0017696659924695268,
+    "stdout": "168.stdout",
+    "stderr": "168.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-metadata-window-20261007-r2/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0011887069995282218,
+    "stdout": "169.stdout",
+    "stderr": "169.stderr"
+  }
+]

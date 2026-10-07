@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-g2-micro",
+    "sudo",
+    "tar",
+    "-czf",
+    "-",
+    "-C",
+    "/var/tmp/afs-workspace-bind-metadata-window-20261007-r2",
+    "results-r1",
+    "independent-post.json"
+  ]
+}

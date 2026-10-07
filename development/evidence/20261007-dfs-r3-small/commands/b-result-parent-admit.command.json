@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-B",
+    "-c",
+    "from pathlib import Path;import sys,json;r=Path(sys.argv[1]);p=r/'results';assert not p.exists();assert not (r/'mount/dfs/r3-current-counter').exists() if sys.argv[2]!='ctl' else True;p.mkdir(mode=0o700);print(json.dumps({'results':str(p),'fresh_payload':True,'status':'PASS'}))",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1",
+    "b"
+  ],
+  "timeout": 90
+}

@@ -1,0 +1,1 @@
+{"status": "PASS_SCOPED_PACKET", "sha_files": 442, "physical_files": 48, "readers": 2, "measured_rounds_each": 5, "actual_wait_zero": 4, "owned_child_supervisor_gone": 8, "old_processes_preserved": 11, "limits": "not qualified3FS or current7e6 runtime"}

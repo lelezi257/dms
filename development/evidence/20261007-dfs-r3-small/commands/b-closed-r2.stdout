@@ -1,0 +1,123 @@
+{
+  "status": "PASS",
+  "mode": "closed",
+  "role": "b",
+  "source_commit": "93169c8530beedff9e8e510dc9b9210d704f244f",
+  "observer_sha256": "b71e0324e1e7774b6b14831f20b81bbe64a6a3ef8e31ad9774b671fd36cf6cc8",
+  "initial_sha256": "d9899220def59b06af0dc9134fcb052fe52ef2b4acb01a8ba83a0a65678cbbff",
+  "protected": {
+    "processes": [],
+    "mountinfo": [
+      "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+      "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+      "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=2974872k,nr_inodes=743718,mode=755,inode64",
+      "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+      "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=605372k,mode=755,inode64",
+      "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+      "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+      "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+      "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+      "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+      "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+      "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+      "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+      "39 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=5198",
+      "40 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:15 - hugetlbfs hugetlbfs rw,pagesize=2M",
+      "41 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:16 - mqueue mqueue rw",
+      "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:17 - debugfs debugfs rw",
+      "43 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:18 - tracefs tracefs rw",
+      "44 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+      "45 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+      "47 32 259:0 / /boot rw,relatime shared:30 - ext4 /dev/vda16 rw",
+      "49 47 253:15 / /boot/efi rw,relatime shared:46 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+      "51 39 0:37 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:48 - binfmt_misc binfmt_misc rw",
+      "58 30 0:44 / /run/user/501 rw,nosuid,nodev,relatime shared:178 - tmpfs tmpfs rw,size=605368k,nr_inodes=151342,mode=700,uid=501,gid=1000,inode64",
+      "91 32 253:32 / /mnt/lima-cidata ro,relatime shared:306 - iso9660 /dev/vdc ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+      "100 32 253:17 / /mnt/lima-afsbdata rw,relatime shared:349 - ext4 /dev/vdb1 rw",
+      "129 42 0:12 / /sys/kernel/debug/tracing rw,nosuid,nodev,noexec,relatime shared:331 - tracefs tracefs rw"
+    ],
+    "all_initial_rows_present": true,
+    "exact_final_rows": true
+  },
+  "frozen": {
+    "root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1",
+    "config": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/etc/node.toml",
+    "config_sha256": "bc02705e0a5510e6a1a7cdeabcd94c08704652ee1b85ae30a60ab26b197b6d22",
+    "executable": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/prefix/bin/afs-node",
+    "executable_sha256": "9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d",
+    "executable_dev": 64785,
+    "executable_ino": 1321326,
+    "fixture_sha256": "50bb972a683983552fb724253661b3d20cb963eaa86ea9e5624c9b2ff3bb211e"
+  },
+  "capture_sha256": "836c76fbba9a858e953f3e520dfbf96ddeb49ca40a646e3e5cd5a25b6209bf6b",
+  "retained_processctl_records": {
+    "pid": "243763\n",
+    "identity": {
+      "pid": "243763",
+      "exe": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/prefix/bin/afs-node",
+      "config": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/etc/node.toml",
+      "start_ticks": "60637054",
+      "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+      "lifecycle": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/run/node.lifecycle.DXiZ7L",
+      "supervisor_pid": "243747",
+      "cmdline": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/prefix/bin/afs-node --config /mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/etc/node.toml"
+    },
+    "launch": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/run/node.lifecycle.DXiZ7L\n"
+  },
+  "actual_wait": {
+    "child": {
+      "pid": "243763",
+      "exe": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/prefix/bin/afs-node",
+      "config": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/etc/node.toml",
+      "start_ticks": "60637054",
+      "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+      "lifecycle": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/run/node.lifecycle.DXiZ7L",
+      "supervisor_pid": "243747"
+    },
+    "ready": {
+      "supervisor_pid": "243747"
+    },
+    "exit": {
+      "pid": "243763",
+      "exe": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/prefix/bin/afs-node",
+      "config": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/etc/node.toml",
+      "start_ticks": "60637054",
+      "boot_id": "3adebcd0-cb31-4df0-b18a-e970786ab7fb",
+      "lifecycle": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/run/node.lifecycle.DXiZ7L",
+      "supervisor_pid": "243747",
+      "exit_code": "0"
+    },
+    "path": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/run/node.lifecycle.DXiZ7L"
+  },
+  "pids_gone": [
+    243763,
+    243747
+  ],
+  "budget": {
+    "allocated_bytes": 167084032,
+    "free_bytes": 16901033984,
+    "volume": {
+      "target": "/mnt/lima-afsbdata",
+      "source": "/dev/vdb1",
+      "fstype": "ext4",
+      "options": "rw,relatime"
+    },
+    "ceiling_bytes": 1073741824,
+    "floor_bytes": 1073741824,
+    "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/mount",
+    "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+  },
+  "budget_commands": [
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsbdata"
+      ],
+      "rc": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    }
+  ]
+}

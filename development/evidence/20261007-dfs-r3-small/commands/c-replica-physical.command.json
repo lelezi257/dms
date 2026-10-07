@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-c",
+    "sudo",
+    "python3",
+    "-B",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/stage/replica-check.py",
+    "node",
+    "--manifest",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/stage/replica-meta.json",
+    "--node-id",
+    "dfs-c-r3",
+    "--chunk-root",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/state/node/dfs"
+  ],
+  "timeout": 90
+}

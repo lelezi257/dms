@@ -1,0 +1,33 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-c",
+    "sudo",
+    "timeout",
+    "--signal=TERM",
+    "180",
+    "python3",
+    "-B",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/tools/dfs_r3_small.py",
+    "reader",
+    "--output",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/results/reader",
+    "--session-token",
+    "dfs-r3-141269e3d72f49b9a80c8f0b7bf1fd4c",
+    "--round-timeout",
+    "60",
+    "--reader-id",
+    "C",
+    "--dfs-root",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/mount/dfs",
+    "--io-tool",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/tools/dfs_unique_io",
+    "--identity",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/tools/identity.json",
+    "--manifest",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/stage/writer-confirmed.json"
+  ],
+  "session_token": "dfs-r3-141269e3d72f49b9a80c8f0b7bf1fd4c",
+  "timing_owner": "ctl Linux monotonic; host relay overhead included"
+}

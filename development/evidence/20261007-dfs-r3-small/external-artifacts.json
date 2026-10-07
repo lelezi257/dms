@@ -1,0 +1,88 @@
+{
+  "raw_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1",
+  "artifacts": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/a-config.tar",
+      "bytes": 20480,
+      "sha256": "f9ad3b945259d53d08071cd470d1cd951bb5b2b4423b1e2d6e553a68063f8c2c"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/a-runtime-text.tar",
+      "bytes": 30720,
+      "sha256": "e120cca147e2d2d69256721594ad3de4573e64bb3c7f93c9d69aff54e39c85c3"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/b-config.tar",
+      "bytes": 20480,
+      "sha256": "4f43644666337ab7f9e877eda98e59bfee0f4b097c0531c9817341bdbc4daa32"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/b-runtime-text.tar",
+      "bytes": 40960,
+      "sha256": "ad340a8baca53209ca79829a81513b6a117a44e2796e460fe9b2cebc2bab0f1d"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/c-config.tar",
+      "bytes": 20480,
+      "sha256": "52da6ba88f0f1798225618b4bbb19e335ddd81c662a0b7a09702ed6269e8a747"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/c-runtime-text.tar",
+      "bytes": 40960,
+      "sha256": "e1dcea683e2caf63dbd52b1e03faa04f06fff659f241f31cff8563cbc94709f8"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/configs.tar",
+      "bytes": 112640,
+      "sha256": "76a84996e65d2c09513f9aa7cdbe9bd9f522ffc4c82f0e55e32986049ccbd24e"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/ctl-config.tar",
+      "bytes": 20480,
+      "sha256": "8836902a870fccb70f27d0bb2cae2993f90802828f961c417b6b7fe2641b8ea3"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/ctl-runtime-text.tar",
+      "bytes": 61440,
+      "sha256": "4a366a260a962ef8827f6a3e62cc57f2aba3e8fffc08c666da46a229e7d39d08"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/dfs_unique_io",
+      "bytes": 71352,
+      "sha256": "c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/host-run.py",
+      "bytes": 6323,
+      "sha256": "37ac79df081fe4b05593577a3ca0fdba37742f235d8604468f19e1166d232e03"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/tools.tar",
+      "bytes": 194560,
+      "sha256": "959b5c00b78f23cc1f2427609e77555d15a87e4f06db69b46cb019830ef98224"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/local-only/closure-check.py",
+      "bytes": 7245,
+      "sha256": "b71e0324e1e7774b6b14831f20b81bbe64a6a3ef8e31ad9774b671fd36cf6cc8"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/local-only/relay.py",
+      "bytes": 2881,
+      "sha256": "a3a0601d70eec32c8b9497c426a177389556fa14487a95f5350ae6ec331087bb"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/local-only/replica-check.py",
+      "bytes": 22317,
+      "sha256": "6ea107f25cfada46de4b6eca828ec120f376677ccddcceacc2b188b117829b75"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/compact-evidence.tar",
+      "bytes": 1546240,
+      "sha256": "91d53f572d48316dff3b2e9b93aecda979b547a309f355aa8daec0579b895893"
+    }
+  ],
+  "old_helper_recovery": "closure-check-r1-to-r2.patch reverses against final canonical helper; original fail outputs retained",
+  "frozen_product_inputs": "../20261007-dfs-r3-preparation/package-reuse.json",
+  "retained_guest_state": "four exact roots named in dfs-r3-small-slice.md; no state or historical evidence removed"
+}

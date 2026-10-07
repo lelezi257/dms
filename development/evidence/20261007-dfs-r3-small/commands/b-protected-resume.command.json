@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-B",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/stage/closure-check.py",
+    "--role",
+    "b",
+    "--initial-json",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/stage/b-initial-admission.stdout",
+    "protected"
+  ],
+  "timeout": 90
+}

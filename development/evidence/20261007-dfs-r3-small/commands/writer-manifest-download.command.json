@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "cat",
+    "/mnt/lima-afsadata/afs-delivery/dfs-r3-current-20261007-r1/results/writer/writer-confirmed.json"
+  ],
+  "timeout": 90
+}

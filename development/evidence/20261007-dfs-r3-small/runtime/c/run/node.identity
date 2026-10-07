@@ -1,0 +1,8 @@
+pid=19152
+exe=/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/prefix/bin/afs-node
+config=/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/etc/node.toml
+start_ticks=51438634
+boot_id=0cf26d13-bc67-4f98-999e-7aeac4cc9b30
+lifecycle=/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/run/node.lifecycle.tLsn2e
+supervisor_pid=19136
+cmdline=/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/prefix/bin/afs-node --config /mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/etc/node.toml

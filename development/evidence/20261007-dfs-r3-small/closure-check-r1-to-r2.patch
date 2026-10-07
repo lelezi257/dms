@@ -1,0 +1,26 @@
+--- closure-check.r1.py
++++ closure-check.r2.py
+@@ -26,6 +26,10 @@
+  require(len(current)==len(set(current)) and all(row in current for row in old),'protected mount row changed')
+  if closed:require(current==old,'final complete mount inventory changed')
+  return {'processes':observations,'mountinfo':current,'all_initial_rows_present':True,'exact_final_rows':closed}
++def verify_retained(records, child, live):
++ require(records['pid']==child['pid']+'\n','retained pid not captured child')
++ require(records['launch']==child['lifecycle']+'\n','retained launch not captured lifecycle')
++ require(records['identity']==dict(child,cmdline=' '.join(live['argv']).strip()),'retained identity not captured incarnation/argv')
+ def tool(root):
+  p=root/'tools/dfs_r3_fixture.py';require(sha(p)==HELPER_SHA,'wrong frozen fixture helper')
+  spec=importlib.util.spec_from_file_location('fixture',p);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
+@@ -60,7 +64,11 @@
+   pids=[int(child[k]) for k in ('pid','supervisor_pid')];require(len(set(pids))==2 and all(not (Path('/proc')/str(pid)).exists() for pid in pids),'child/supervisor remains')
+   require(not any(str(root) in row for row in result['protected']['mountinfo']),'owned mount remains')
+   require(not os.path.lexists(root/'run/node.sock'),'UDS remains')
+-  require(not any((root/'run'/n).exists() for n in (name+'.pid',name+'.identity',name+'.launch')),'active processctl state remains')
++  retained={}
++  for suffix in ('pid','identity','launch'):
++   path=m.safe(root/'run'/(name+'.'+suffix),root);s=path.lstat();require(stat.S_ISREG(s.st_mode) and s.st_uid==0,'unsafe retained processctl record')
++   retained[suffix]=fields(path) if suffix=='identity' else path.read_text()
++  verify_retained(retained,child,captured['live_child']);result['retained_processctl_records']=retained
+   result.update(actual_wait={'child':child,'ready':ready,'exit':exit,'path':str(life)},pids_gone=pids,budget=f.budget(),budget_commands=f.commands)
+  result['status']='PASS'
+ except Exception as e:result.update(error=repr(e),traceback=traceback.format_exc())

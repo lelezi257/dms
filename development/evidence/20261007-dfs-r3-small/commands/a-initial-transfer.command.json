@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/commands/a-initial-admission.stdout",
+    "afs-accept-a:/mnt/lima-afsadata/afs-delivery/dfs-r3-current-20261007-r1/stage/a-initial-admission.stdout"
+  ],
+  "timeout": 90
+}

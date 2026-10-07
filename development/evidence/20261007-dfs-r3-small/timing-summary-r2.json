@@ -1,0 +1,44 @@
+{
+  "status": "DATA_RECORDED",
+  "source_commit": "93169c8530beedff9e8e510dc9b9210d704f244f",
+  "dataset": "counter-1m-v1",
+  "bytes_each_reader": 67108864,
+  "rounds": 5,
+  "common_window_ns": [
+    1330084256,
+    1305427360,
+    1305809828,
+    1273366086,
+    1277985926
+  ],
+  "common_total_mib_s": [
+    96.23450501168853,
+    98.05218116464175,
+    98.02346195850504,
+    100.52097460996774,
+    100.15759751019355
+  ],
+  "common_total_median_mib_s": 98.05218116464175,
+  "reader_c_mib_s": {
+    "b": [
+      48.18418664334422,
+      49.08446629593532,
+      49.06499420292877,
+      50.32246410908881,
+      50.14096505563327
+    ],
+    "c": [
+      51.50193420945768,
+      52.30847513168579,
+      51.77401226105687,
+      52.34116806551069,
+      52.19706367522489
+    ]
+  },
+  "reader_c_median_mib_s": {
+    "b": 49.08446629593532,
+    "c": 52.19706367522489
+  },
+  "scope": "five warm fresh-open rounds, no cold/RPC or qualified 3FS parity claim",
+  "supersedes": "timing-summary.json incorrectly included warmup in per-reader medians; common rounds unaffected"
+}

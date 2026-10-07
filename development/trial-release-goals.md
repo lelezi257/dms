@@ -1,3 +1,5 @@
+**新增DFS三副本小项（2026-10-07，事实）：** 冻结产品931/map9661/既有ELF包未变，64MiB非重复内容一写/B+C两读通过；16不同chunk的三节点Ready/Durable及48物理文件先核对，完整前后SHA/EOF、1预热5同步读通过。共同窗口总吞吐中位98.052181MiB/s，B/C五轮C中位49.084466/52.197064；缓存/RPC未观察、同物理host三VM，不计3FS性能达标。四actualwait0/八服务监督incarnation消失、三FUSE/UDS正常闭合、11旧进程及完整mount库存不变，峰值607,477,760B低于1GiB。工具首错/关闭观察器误判和warmup汇总错均保留，只读修正复核、无产品重跑/环境修补。G1历史8/8/G2大项计数/defaultOFF不变，7e6最新DFS回归不继承。下一当前main的受影响DFS兼容/恢复小项，再新试用交付账本；普通性能/大规模/3FS资格后置。[版本、内容、计时、失败及回执](evidence/20261007-dfs-r3-small/README.md)。
+
 **新增测试边界整改（2026-10-07，事实）：** 产品main7e6e00a6/157-map151a2c6d：探针源码100%迁移到tests/support/workspace_probe.rs，显式Cargo example；默认cargo build与--bins仅两个产品binary，普通包无探针。实验适配器要求测试/管理员提供idle_command和identity_command，保留身份/授权/错误/正常排空检查；core/宿主bind无探针依赖、默认OFF、第三方未改。Linux11源码门禁/29选定Rust测试（含8特权）及4工具测试通过；新默认包实际单次启动/identity/读取/active Node正常关闭及独立postcheck通过，两个wait0/4服务与监督PID+容器/mount闭合、保护对象和模板不变。不是全ON/POSIX/性能资格；旧931 E2E候选、历史通过/失败和G1历史8/8均保留原身份，大项计数不变。下一返回已准备的DFS R3小规模一写两读，931结果保持自身版本；7e6的新DFS回归单列，不自动继承。[版本、命令及证据](evidence/20261007-workspace-probe-boundary/README.md)。
 
 **新增DFS R3准备（2026-10-07，事实）：** 冻结产品931/map9661/packagec7未变；Linux新64MiB非重复探针5项、当前driver4项、fixture12项检查通过，四role真实配置/TLS/ELF/容量准入PASS、合计399,278,080B。没有启动服务/数据/计时，不计G2.21通过；原工具与准入FAIL保留。按用户新任务，在此小阶段收尾后先整改workspace probe产品/测试边界，再回DFS一写多读。G1历史8/8和大项计数不变。[身份、原始输出与范围](evidence/20261007-dfs-r3-preparation/README.md)。
@@ -132,7 +134,7 @@
 | G2.18 | OwnerFs本地大规模写 | 8GiB同持久屏障，读回正确并达本地目标 | **待验收** |
 | G2.19 | OwnerFs远端大规模读 | 8GiB同条件MooseFS对照，正确并持平 | **待验收** |
 | G2.20 | OwnerFs远端大规模写 | 8GiB同持久语义MooseFS对照，正确并持平 | **待验收** |
-| G2.21 | DFS小规模一写多读 | 一写确认、多读者相同数据，逐读者/总吞吐与3FS对照 | **当前6d R2同步小功能/数据PASS，正式性能待验收；DFS最高优先级**；64MiB一写/B+C各1预热5读，前后全SHA/EOF、4AFS wait0/3stdio rc0；同一ctl公共窗口中位45.149、B/C纯C50.326/22.716MiB/s。实际A+B durable、uniform去重/缓存未观察，不计三同步/3FS。[同步证据](evidence/20261007-dfs-sync-read-small/README.md)；[旧含启动/预检/预热父窗口](evidence/20261007-dfs-manyread-small/README.md)保持原范围，非改善对比；[历史e925功能/核心恢复](evidence/20261006-e2e-current/crossvm-r1/README.md)保留原版本 |
+| G2.21 | DFS小规模一写多读 | 一写确认、多读者相同数据，逐读者/总吞吐与3FS对照 | **931 R3非重复64MiB三副本小功能/数据PASS，3FS正式性能待验收；DFS最高优先级**；[R3证据](evidence/20261007-dfs-r3-small/README.md)：16不同chunk×3物理份，B/C1预热5读，共同中位98.052181MiB/s；最新7e6回归单列。以下6d为历史范围：64MiB一写/B+C各1预热5读，前后全SHA/EOF、4AFS wait0/3stdio rc0；同一ctl公共窗口中位45.149、B/C纯C50.326/22.716MiB/s。实际A+B durable、uniform去重/缓存未观察，不计三同步/3FS。[同步证据](evidence/20261007-dfs-sync-read-small/README.md)；[旧含启动/预检/预热父窗口](evidence/20261007-dfs-manyread-small/README.md)保持原范围，非改善对比；[历史e925功能/核心恢复](evidence/20261006-e2e-current/crossvm-r1/README.md)保留原版本 |
 | G2.22 | DFS单节点小规模读 | 同副本/接口/缓存与3FS对照，正确并持平 | **待验收** |
 | G2.23 | DFS单节点小规模写 | 三份同步durable，屏障/读回正确并持平 | **待验收** |
 | G2.24 | DFS多节点读写 | 固定文件/并发，读写分别验收，不用平均数掩盖失败 | **待验收** |

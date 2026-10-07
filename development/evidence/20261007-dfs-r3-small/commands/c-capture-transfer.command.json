@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/commands/c-capture-live.stdout",
+    "afs-accept-c:/mnt/lima-afscdata/afs-delivery/dfs-r3-current-20261007-r1/stage/capture.json"
+  ],
+  "timeout": 90
+}

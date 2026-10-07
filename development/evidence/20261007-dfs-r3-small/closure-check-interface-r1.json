@@ -1,0 +1,23 @@
+{
+  "sha256": "2ac4eac47defe75ac7234ff55bd6091f5d24d270c5f5ba10b54345aae3d608c3",
+  "bytes": 6641,
+  "source": "local-only/closure-check.py",
+  "fixed_source_commit": "93169c8530beedff9e8e510dc9b9210d704f244f",
+  "required_inputs": [
+    "role-initial-admission.stdout (unchanged full JSON)",
+    "role capture stdout JSON for closed mode",
+    "freshroot/tools/dfs_r3_fixture.py SHA50bb972a..."
+  ],
+  "CLI": [
+    "sudo python3 -B OBS --role ROLE --initial-json INITIAL capture",
+    "sudo python3 -B OBS --role ROLE --initial-json INITIAL --ready-json CAPTURE closed"
+  ],
+  "write_semantics": "No guest writes; caller captures stdout/rc. Capture must be saved before stopping and copied unchanged for closed.",
+  "final_four_role_aggregation": "require four rc0/PASS, four exact wait0, eight child/supervisor incarnations gone counted as (VM role, PID, starttick), sum allocated_bytes <=1073741824; each backing-volume reserve and immutable protected rows/processes.",
+  "limits": [
+    "Protection is exact initial inventory, not broad grep.",
+    "Budget uses frozen helper, excludes mount subtree and never queries R3 FUSE statfs.",
+    "Readiness checks executable/cfg and actual supervised process/mount/socket, not Meta logical health/R3 placement (parent/collector owns these).",
+    "Reader/coordinator persistent stdio processes are parent-owned; parent must retain actual relay exits separately."
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-B",
+    "-c",
+    "import hashlib,json,tarfile,sys,statistics\nfrom pathlib import Path\nr=Path(sys.argv[1]);root=r/'stage/verification';assert not root.exists();root.mkdir();t=tarfile.open(r/'stage/compact-evidence.tar');t.extractall(root,filter='data');e=root/'evidence';count=0\nfor row in (e/'SHA256SUMS').read_text().splitlines():\n digest,name=row.split('  ',1);assert hashlib.sha256((e/name).read_bytes()).hexdigest()==digest;count+=1\nj=lambda p:json.loads((e/p).read_text())\np=j('replica-proof.json');assert p['status']=='PASS' and len(p['chunks'])==16\nassert all(x['ready_durable_copies']==3 and len(x['physical'])==3 and len(set(v['node_id'] for v in x['physical']))==3 and all(v['sha256']==x['expected_sha256'] and v['bytes']==4194304 for v in x['physical']) for x in p['chunks'])\nco=j('commands/ctl-stdio-coordinator.stderr');assert co['status']=='DATA_RECORDED' and len(co['rounds'])==5\nfor role in ['b','c']:\n x=j('runtime/'+role+'/results/reader/summary.json');assert x['status']=='DATA_RECORDED';assert x['pre_content']['sha256']==x['final_content']['sha256']=='4c47e859a6831026ba9367262afb1e1803d11abc30f6f3d996ceea829af89324';assert x['pre_content']['eof']['status']==x['final_content']['eof']['status']=='PASS';assert len([a for a in x['read_rounds'] if a['measured']])==5 and len([a for a in x['read_rounds'] if not a['measured']])==1\nfor role in ['ctl','a','b','c']:\n x=j('commands/'+role+'-closed-r2.stdout');assert x['status']=='PASS' and x['actual_wait']['exit']['exit_code']=='0' and len(x['pids_gone'])==2 and x['protected']['exact_final_rows']\nassert j('relay-result.json')['codes']=={'ctl':0,'B':0,'C':0}\nprint(json.dumps({'status':'PASS_SCOPED_PACKET','sha_files':count,'physical_files':48,'readers':2,'measured_rounds_each':5,'actual_wait_zero':4,'owned_child_supervisor_gone':8,'old_processes_preserved':11,'limits':'not qualified3FS or current7e6 runtime'}))\n",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-20261007-r1"
+  ],
+  "timeout": 90
+}

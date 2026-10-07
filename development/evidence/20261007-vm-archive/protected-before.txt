@@ -1,0 +1,8 @@
+64769:567804 directory /var/tmp/afs-e2e-release-20261006-r1/source
+64769:1339941 directory /var/tmp/afs-e2e-release-20261006-r1/target/release
+64769:262195 directory /home/lzc.guest/afs-build/baselines
+64769:787707 directory /home/lzc.guest/afs-build/work
+64769:787778 directory /home/lzc.guest/.cargo
+64769:808262 directory /home/lzc.guest/.rustup
+2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e  /var/tmp/afs-e2e-release-20261006-r1/target/release/afs-meta
+2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645  /var/tmp/afs-e2e-release-20261006-r1/target/release/afs-node

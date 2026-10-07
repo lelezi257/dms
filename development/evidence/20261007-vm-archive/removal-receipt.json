@@ -1,0 +1,26 @@
+{
+  "removed_roots": [
+    "/home/lzc.guest/afs-build/evidence",
+    "/home/lzc.guest/afs-build/artifacts",
+    "/home/lzc.guest/afs-build/logs"
+  ],
+  "exact_root_identity_checked": true,
+  "mounted_subtrees": 0,
+  "live_references": 0,
+  "rm_exit": 0,
+  "remaining_roots": [],
+  "before": {
+    "total_bytes": 90407686144,
+    "used_bytes": 90390908928,
+    "available_bytes": 0,
+    "used_percent": "100%"
+  },
+  "after": {
+    "total_bytes": 90407686144,
+    "used_bytes": 49973755904,
+    "available_bytes": 40417153024,
+    "used_percent": "56%"
+  },
+  "freed_used_bytes": 40417153024,
+  "available_gain_bytes": 40417153024
+}

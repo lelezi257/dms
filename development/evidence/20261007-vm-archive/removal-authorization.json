@@ -1,0 +1,9 @@
+{
+  "authorization": "User replied 执行 to removal of archived evidence/artifacts/logs roots",
+  "source_manifest_matches_archived": true,
+  "source_manifest_sha256": "6ccfa8551f2fdd89688039c96bdf0ad1426cd34b1ae1663a9549328be4f98409",
+  "archive_size": 10194701840,
+  "archive_sha256": "4e90f6afb097e4dea48ec744fafa50e72f06835cf9fc3f288a8ac7119b2311ee",
+  "archive_checksum_recheck": "PASS",
+  "protected_paths": "Current source, release target, work, baselines, Cargo and Rustup unchanged"
+}

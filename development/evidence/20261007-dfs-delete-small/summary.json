@@ -1,0 +1,56 @@
+{
+  "status": "PASS_BOUNDED_CANDIDATE_DELETE_CONTENT_NAMESPACE_TIMING_AND_CLOSURE",
+  "formal_G2_25": "PENDING_QUALIFIED_3FS_SAME_CASE_COMPARISON",
+  "product_source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "compiler_input_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+  "compiler_inputs": 157,
+  "axes": "DFS-only/local-file Meta/gRPC/R2/native OFF; Linux ARM64 ctl/A/B/C guest ext4",
+  "shape": {
+    "file_bytes": 4096,
+    "files": 100,
+    "measurements": 5,
+    "warmups": 1
+  },
+  "median_ops_s": 29.861202146303764,
+  "pooled_ops_s": 30.68188575999647,
+  "measurement": "Five measured samples /500 unlink calls /16.296260403 seconds; warmup excluded",
+  "writer_driver_sha256": "d001d71c982c17c0781eaa70b5ab4f89cb6e6d6fb1efecb0b6defb46360e2875",
+  "actual_final_checker_driver_sha256": "380c49cb7ae2664f9c5c2988b67a3e06dd08ee3d48773ab8f4bb3706e0297a76",
+  "canonical_tools_commit": "61e36fe60ad314e7f1664578a11b6de7fafb085e",
+  "canonical_driver_sha256": "e0875b743eea419ee27bc9df5677f0af421d70f590076d44e13b79b6d38248c8",
+  "version_scope": "d001 writer once;380c actual B/C checker; e087 canonical additionally rejects literal .. roots, six Linux guards and offline same-manifest validation only. No e087 runtime performance claim.",
+  "namespace_check": "B/C each600 real lstat ENOENT; allows removed ancestor sample directory; not per-unlink physical replica ACK proof",
+  "timer_scope": "unlink_timer covers exactly 100 unlink syscalls; prepare, fdatasync, fresh-open verification, directory fsync, namespace checks, and cleanup are outside timer",
+  "cache": "UNOBSERVED",
+  "post_delete_r2": {
+    "status": "PASS_POST_DELETE_PHYSICAL_PAIR_CONTENT_OBSERVATION",
+    "logical_deleted_files": 600,
+    "distinct_physical_chunk_ids": 600,
+    "physical_files_by_role": {
+      "a": 600,
+      "b": 279,
+      "c": 321
+    },
+    "physical_pair_groups": {
+      "a+c": 321,
+      "a+b": 279
+    },
+    "all600_exact2_physical_copies": true,
+    "all600_pairs_equal4096_byte_sha256": true,
+    "representative_meta_rest": "commands/post-delete-representative-replication.stdout",
+    "scope": "post-delete physical retained chunk content observations + one actual REST representative satisfied R2, not every file pre-unlink ACK or physical reclamation acceptance",
+    "paths_sha_evidence": "delete-r2-post-observation-r1.json"
+  },
+  "closure": "Four real wait0; fresh mounts/processes absent; old9 incarnations/2A mounts unchanged",
+  "allocated_bytes": 206835712,
+  "environment_blocked": false,
+  "limits": [
+    "3FS survey verifies old artifacts/no live comparator; no current matched delete baseline run",
+    "not a DFS/3FS parity pass",
+    "Python loop overhead within unlink timer",
+    "cold/hot cache not observed",
+    "no concurrent positive-cache/interruption/fault deletion reliability",
+    "post-delete content R2 proof not per-file pre-unlink all-copy ACK or physical reclamation"
+  ],
+  "counts": "G1 historical8/8; G2 10 limited completed/2 performanceFAIL/2bind inprogress/13pending unchanged"
+}

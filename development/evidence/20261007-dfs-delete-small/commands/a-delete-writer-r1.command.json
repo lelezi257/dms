@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "/mnt/lima-afsadata/afs-delivery/dfs-delete-6d-20261007-r1/tools/dfs_manyread_small.py",
+    "delete-writer",
+    "--dfs-root",
+    "/mnt/lima-afsadata/afs-delivery/dfs-delete-6d-20261007-r1/mount/dfs",
+    "--output",
+    "/mnt/lima-afsadata/afs-delivery/dfs-delete-6d-20261007-r1/results/delete-writer-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

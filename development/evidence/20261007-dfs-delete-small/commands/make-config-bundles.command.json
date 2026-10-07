@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,tarfile,os,json,hashlib\nfrom pathlib import Path\nroot=Path(sys.argv[1]);generated=root/'generated';items=[]\nfor role in ['ctl','a','b','c']:\n base=generated/('meta' if role=='ctl' else 'dfs-'+role+'-r1')/'etc'\n tar=root/'stage'/(role+'-config.tar')\n assert not tar.exists();files=[x for x in base.rglob('*') if x.is_file()];assert all(not x.is_symlink() for x in files)\n with tarfile.open(tar,'w') as a:\n  for f in files:a.add(f,arcname=str(f.relative_to(base)),recursive=False)\n tar.chmod(0o600);os.chown(tar,int(os.environ['SUDO_UID']),int(os.environ['SUDO_GID']))\n items.append({'role':role,'tar':str(tar),'sha256':hashlib.sha256(tar.read_bytes()).hexdigest(),'files':{str(f.relative_to(base)):hashlib.sha256(f.read_bytes()).hexdigest() for f in files}})\nprint(json.dumps(items,indent=2))",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-delete-6d-20261007-r1"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

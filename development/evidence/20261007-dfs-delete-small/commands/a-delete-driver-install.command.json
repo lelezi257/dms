@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,hashlib,json\nfrom pathlib import Path\nroot=Path(sys.argv[1]);sha=sys.argv[2];p=root/'stage/dfs_manyread_small.py';t=root/'tools/dfs_manyread_small.py';assert not t.exists() and not p.is_symlink();data=p.read_bytes();assert hashlib.sha256(data).hexdigest()==sha;t.write_bytes(data);t.chmod(0o755);print(json.dumps({'canonical_driver_sha256':sha,'installed':str(t)}))",
+    "/mnt/lima-afsadata/afs-delivery/dfs-delete-6d-20261007-r1",
+    "d001d71c982c17c0781eaa70b5ab4f89cb6e6d6fb1efecb0b6defb46360e2875"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

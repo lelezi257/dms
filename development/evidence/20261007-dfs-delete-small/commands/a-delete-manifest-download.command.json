@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "afs-accept-a:/mnt/lima-afsadata/afs-delivery/dfs-delete-6d-20261007-r1/stage/delete-confirmed.json",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-delete-6d-20261007-r1/delete-confirmed.json"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

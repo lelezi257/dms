@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-c",
+    "import os,sys,unittest;os.chdir(sys.argv[1]);sys.path.insert(0,sys.argv[1]);suite=unittest.defaultTestLoader.loadTestsFromNames(['test_dfs_small_fixture.ConfigTests.test_named_fixtures_have_disjoint_roots_and_endpoints','test_dfs_small_fixture.ConfigTests.test_new_fixture_rejects_old_generated_endpoint_before_write']);r=unittest.TextTestRunner(verbosity=2).run(suite);raise SystemExit(0 if r.wasSuccessful() else 1)",
+    "/mnt/lima-afsadata/afs-delivery/dfs-delete-6d-20261007-r1/tools"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

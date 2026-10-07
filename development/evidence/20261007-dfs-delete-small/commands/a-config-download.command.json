@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "afs-accept-ctl:/mnt/lima-afsctlstate/afs-delivery/dfs-delete-6d-20261007-r1/stage/a-config.tar",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-delete-6d-20261007-r1/a-config.tar"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

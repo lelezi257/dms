@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,tarfile,hashlib,os\nfrom pathlib import Path\nroot=Path(sys.argv[1]);tar=Path(sys.argv[2]);j=json.loads(sys.argv[3]);target=root/'etc';assert not target.exists() and not target.is_symlink();assert hashlib.sha256(tar.read_bytes()).hexdigest()==j['sha256']\ntarget.mkdir(mode=0o700)\nwith tarfile.open(tar) as a:\n members=a.getmembers();assert len(members)==len(j['files']) and all(x.isfile() and x.name in j['files'] and '..' not in Path(x.name).parts and not Path(x.name).is_absolute() for x in members)\n for member in members:\n  b=a.extractfile(member).read();assert hashlib.sha256(b).hexdigest()==j['files'][member.name];p=target/member.name;p.parent.mkdir(mode=0o700,parents=True,exist_ok=True);p.write_bytes(b);p.chmod(0o600 if '-key.pem' in p.name else 0o644)\nprint(json.dumps({'status':'PASS_INSTALL_CONFIG_ONLY','root':str(root),'files':j['files']}))",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-delete-6d-20261007-r1",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-delete-6d-20261007-r1/stage/config-install.tar",
+    "{\"role\": \"b\", \"tar\": \"/mnt/lima-afsctlstate/afs-delivery/dfs-delete-6d-20261007-r1/stage/b-config.tar\", \"sha256\": \"01f67e5e1a144869cdd8c5b5f3e454f5f101acc51b40b0b6aaf3e2e825c07923\", \"files\": {\"node.toml\": \"e792219ba348c0e49f83ecf3b12e7aa3cf08146b92b6b21175ffce4e33f7fee8\", \"tls/dfs-b-r1.pem\": \"3fbc54ae56076edc28c5a768c548db2c2e9510ce2bea5b8cd58251c1ee713517\", \"tls/dfs-c-r1.pem\": \"a418498b6a937fc25481223e3018d7ae02e17997de10c8ae1c5a27f51307f872\", \"tls/dfs-a-r1.pem\": \"baa6d969e8ab12ff25d8fe35f379588bee3ee2cba2120428b1be67649690dd89\", \"tls/ca.pem\": \"04e1f297f8bc0a951dbcb2a8417dd9e196f74a95a0de8f71b8eaf8e50f1e4d6b\", \"tls/meta.pem\": \"38e82ef3feb333af1cb2c2fca1883943bfcdf19d58e4d7ba998d38ddeb31780c\", \"tls/dfs-b-r1-key.pem\": \"238f60dbeea89b4961f1f0890a8919aa56159186f6fc248764f3924110a75345\"}}"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

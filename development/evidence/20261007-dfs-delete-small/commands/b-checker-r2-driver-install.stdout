@@ -1,0 +1,6 @@
+{
+  "old_driver_sha256": "d001d71c982c17c0781eaa70b5ab4f89cb6e6d6fb1efecb0b6defb46360e2875",
+  "new_driver_sha256": "380c49cb7ae2664f9c5c2988b67a3e06dd08ee3d48773ab8f4bb3706e0297a76",
+  "manifest_sha256": "59005d3c0845c23c173a651314f3776c5bad5e9f3651101e86fe48e499bd5fab",
+  "changed_scope": "checker validator only; A writer and timing unchanged"
+}

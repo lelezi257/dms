@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-c",
+    "sudo",
+    "/mnt/lima-afscdata/afs-delivery/dfs-delete-6d-20261007-r1/prefix/bin/afs-processctl",
+    "--prefix",
+    "/mnt/lima-afscdata/afs-delivery/dfs-delete-6d-20261007-r1/prefix",
+    "--config-dir",
+    "/mnt/lima-afscdata/afs-delivery/dfs-delete-6d-20261007-r1/etc",
+    "--run-dir",
+    "/mnt/lima-afscdata/afs-delivery/dfs-delete-6d-20261007-r1/run",
+    "--log-dir",
+    "/mnt/lima-afscdata/afs-delivery/dfs-delete-6d-20261007-r1/logs",
+    "--timeout",
+    "30",
+    "start",
+    "node"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-c",
+    "from pathlib import Path\nimport os,sys,json,hashlib,subprocess,shutil,platform\nrole=sys.argv[1];volume={'ctl':'afsctlstate','a':'afsadata','b':'afsbdata','c':'afscdata'}[role];prefix=Path('/opt/afs-3fs-round3-v84');root=Path('/mnt/lima-'+volume)/'3fs-round3-v84'\ndef sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()\nd={'role':role,'platform':platform.platform(),'utc':__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),'prefix':str(prefix),'root':str(root),'prefix_exists':prefix.exists(),'root_exists':root.exists(),'dependencies':{x:shutil.which(x) for x in ['python3','findmnt','ldd','sha256sum']},'manifest_checks':[],'binaries':{},'configs':{},'processes':[]}\nmp=prefix/'manifest.json'\nif mp.exists():\n m=json.loads(mp.read_text());d['manifest_sha256']=sha(mp)\n for name,expected in m.items():\n  if not isinstance(expected,str):continue\n  p=prefix/name;d['manifest_checks'].append({'path':name,'exists':p.exists(),'expected':expected,'actual':sha(p) if p.is_file() else None})\nfor n in ['admin_cli','hf3fs_fuse_main','storage_main','meta_main','mgmtd_main','fdbserver','fdbcli']:\n p=prefix/'bin'/n\n if p.exists():\n  env=os.environ.copy();env['LD_LIBRARY_PATH']=str(prefix/'lib');q=subprocess.run(['ldd',str(p)],env=env,capture_output=True,text=True,timeout=15);d['binaries'][n]={'path':str(p),'sha256':sha(p),'ldd_rc':q.returncode,'ldd_stdout':q.stdout,'ldd_stderr':q.stderr}\nfor p in sorted((root/'config').glob('*')):\n if p.is_file() and p.suffix in ['.toml','.csv']:d['configs'][p.name]={'sha256':sha(p),'bytes':p.stat().st_size,'text':p.read_text()}\nfor p in Path('/proc').iterdir():\n if not p.name.isdigit():continue\n try:\n  exe=os.readlink(p/'exe');args=(p/'cmdline').read_bytes().decode(errors='replace').replace(chr(0),' ')\n  if str(prefix) in exe or '3fs-round3-v84' in args or 'round3-moose' in args or 'afs-moose' in exe:\n   st=(p/'stat').read_text().rsplit(')',1)[1].split();d['processes'].append({'pid':int(p.name),'exe':exe,'start_ticks':st[19],'argv':args})\n except (FileNotFoundError,ProcessLookupError,PermissionError):pass\nq=subprocess.run(['findmnt','-J','-o','TARGET,SOURCE,FSTYPE,ID,OPTIONS'],capture_output=True,text=True,timeout=15);d['findmnt_rc']=q.returncode;d['mount_table']=json.loads(q.stdout) if q.returncode==0 else q.stderr\nv=Path('/mnt/lima-'+volume);d['capacity']=dict(zip(['total','used','free'],shutil.disk_usage(v)));print(json.dumps(d))",
+    "ctl"
+  ],
+  "exit": 0,
+  "read_only": true
+}

@@ -1,0 +1,14 @@
+{
+  "status": "PASS_FIXED_FINAL_TOOLS_PRODUCT_UNCHANGED",
+  "compiler_inputs": 157,
+  "compiler_input_map": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
+  "tools": {
+    "development/acceptance/dfs_manyread_small.py": "e0875b743eea419ee27bc9df5677f0af421d70f590076d44e13b79b6d38248c8",
+    "development/acceptance/test_dfs_manyread_small.py": "658b9fb6684e57041a65fdadffcf21911705e2bbff5be018823ca8ebc03eb5a5",
+    "development/acceptance/owner_remote_small.py": "d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98",
+    "development/acceptance/probes/dfs_small_fixture.py": "e5bb9639514c482177516e159bf244ee329b7f23f8bf8fa696a85d5b2e85a54c",
+    "development/acceptance/probes/test_dfs_small_fixture.py": "15c93a5fc1ab3c478bd09a3b9b313a1e7318bbf87eca35a761434ab85f2ed23d"
+  },
+  "handoff_unchanged": true,
+  "scope": "macOS publication file/hash processing only; Linux guards and actual runtime separately bound"
+}

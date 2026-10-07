@@ -1,0 +1,1690 @@
+{
+  "role": "b",
+  "state_files": [
+    {
+      "path": "state/node/dfs/device_epoch",
+      "bytes": 20,
+      "allocated": 4096
+    },
+    {
+      "path": "state/node/dfs/catalog.wal",
+      "bytes": 231999,
+      "allocated": 237568
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f8808f0d6096de270c6ecfafa9ff06c26f6e649ae3c88675d338350ffa09da61-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "64a59b7526d11e043d7a4c6d7f2fb1277ddcb13660beca7ac6e8a005e531c491"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f961550fb3ff549d48be3031e1660b345f57e73bcbdd609d764d7556e79c284b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "0e7de50a69ecb63ccb5b9aba221d8906195b7f6300d7193ec1cb28ca9d6117d5"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-2296a23510e486ef9fcd523ceafebd15b8cf2a339ab93e31cbb3151afaefb125-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c5bf350b7860b30c6c6d4324b044dddc47eaff74a1527f818fc7945bd2641a11"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-aee3d865b87717cdbce3d32839d3599306ec518b2746612102f84f60a22010c7-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "553c59c6983b9b24e150e9e9099c3c46abff37f268e2f82ad0278d1457c91be7"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-6efad36d148f689f6bfc1923ea7d202394a69ba62651aea35a092aff1108bb65-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "09b9ac66ccfe2d626c3cc4978c221765f26e091f68fc11fe1b5549390464a3ea"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-578a98b5ef80fe38974ba10ad5ac5391e38f4725f4d08d1319053164a0b8e76b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "eb0f593b8efa4eee79ba046295d4e2555f043b6737d5aed89588c0585a63eedf"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f4c1bd6ca7b1c6c719bbdea42f86ba064c7dea4d6d381cb63ef8547774763908-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "d5aca784ec58d80df620841d3c108e9a859d6e422e651487b1d4653d57de019a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-34a6a35020bf1a5443d99839a62d53cffc7d0cac6948e10e389d9a6f578e2cd8-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "5c9154d1e88454f87377afcebffdc2aae4cde16e865b3e7879e90e0ca76f5ae2"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a5e9e259f163fca390b3b895e9cd98e394ad408d918599ff2342c918c67e778d-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ae35af8a963442bc12d09944a7641c3df71731713d8194461420a70f9fa4e2a9"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-890771ee54aaa2c69609ce2f48ea40946b81d6d5850346c7af277bcb11d817ee-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "f6a031271a48b342bf81a04681298fd27571910fb1540b1c02dc2a6193b061f9"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-1bf7629183279f3c056533da2a5cda586dda29062666429b059700d75dc2ebfa-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "581c777ecd2e37e6829bd898388633ba9941dd4963e71c93c5d5b8ef89a4752c"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-25a52628f46d7822b199a065450c6470d385de02806618c590f7996a9c855524-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "de808f0c61ad7b7e93e90bd3f16879a2375bf664d132cc935408248bcd78b379"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-03beb8a1d327744069023150c1232322f0c806746d4b91e16a96ff7faf6d4cb2-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b5e464a3f9b1a482a6de7530fdbf299036b09d34211c674b2ae330969721bd19"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c8a2ec89555cf3174b7bd7bdf43f62641fe8bd5576883bc3966b06909d4ac383-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "92ab72c04038318a204f3db5bfcb1320765558bfa964402f1ad3ff4897e7a258"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-35a61cd7f507033990a42f6fd022cd3cb8a1e77f9e31f7f81eea651af8e900eb-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "70db6e24c8893e1d2312db225589a2af59c66ef47a6d678a9e6e570f94cf35b1"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e0699613673618449ad1310ab8ba8ed76eed304759cdb2ca290116082333e1ea-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "f69143adfa2f221206f54a7796b15859c1c048d9adaaaeffef633b94bbe4f284"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c29161847e2dd3a45ce35c26116581155b7580d769a6e1420dc5cba919131480-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "6ea7c29605a3f559982d7f385077ddcf51bd513113a5c4cabfcb5bb73c8ba730"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f08d4242c55c552aeb1f61418d7caa5c8ddcfec4642bb2d3728d75d6539207b2-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "61fb770c88fe4e02cb33ad57184c884380d9ab5e1c4458519f6c7c8cc0088268"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a098f6035ec280fd0ee7ae598e6cd82e0144277f7dd22cd1a7ccc1808a0574bc-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "576fcc41c809892ad816cb23d0ac4f5dc93a0ebc2fa26bc93cc947b29f8f1cd6"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-b16d55040cc1c8b08c1282a74580fc671ed764c165d780d60e8ac289900b8d4f-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "bd5c92c0be6bb2b59337139d5bd9ddd50e0c126a9d3cc35c1e4e625706aed9c5"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a8307a0fb6609ad9d66d0fd87eb6d7517044ad2a690a84edc98c6f03b17c4f9f-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c5d4f5ad7d657ef5beeea4668f39f9d257ea5d0a612a0a3fd493f4fa3af9363b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d29fee3f2fa14d41bc673dc9a947cb9e3a7484a1902b16914214c99d4fd38d73-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "82f55df3cc758c2c580627a752a3c81a2776f023f250e01e7d77913a0fbc07a3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-358e928bfa424453c262b63c97b6377ef05ce35623c2b9a10537d81e8f05eb10-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "870a52484e41a706640d2579e9ad6186913b746fbb1c8557a7eace79b0b303a9"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4c6066cccc4dd66ad259e89c873cf12fbb27788b5bfcef8b703e7f557881dc36-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "f6a2ba3ed8740b0b94942a95519b8e8b4d3f0c8135ef6a264a6e0631925b3b3e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-dd7a1e23135c6082ae239f5924808ab8fcae110df9cb3e60a40924caef224774-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "aa6eb1d2bc1eeb2e0d0424a2489b445323545b94ca59553ddddf18ef95ab803d"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-bf0f9b6beae4794e93694fd9548afcb296db500d58fc76d8c1b5a632796e4b85-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "280084667f57237aaac798ba03641c86dfcc5f5b4f08e84b9368fd4dd575dfa0"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-08819fa3c9184cf9ed39b638bfbcb8bb0d97ef0fa48c8f88e608b10f2e0a43b8-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "35fdbd837142cca3a50928e404c4873cb98463c80476903f7009b62ec58d4d57"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-474a5fe09148a25e743bd1b7c5334ed3aa8058f800622d9d528cc796b9bf15e2-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ee7a21fb77c5aad113671ae4c259ecad4436cda0b8971dc933a4f62bc44ae4f3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c2dfa6edbeda016573c3ba9952b798ef4760dfb1121d3b8f8331027732d91b61-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "1a6a7b94fd66325bdf4fe95c8beb21f3b29d2793ce860412e8ac3ff6055ed666"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-81e983384adb594d67a99722eab0f196880d6db9e3d6c257f2ebb2e2fe7f1aeb-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "f2c00429eaeba225641379095584c13b8affc50bf5c33a47df750c5e8d242db3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-935a7ec0fdccdc2c640e9d64c213887f740072740cc0dc43d51978dba499fb85-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "f6b540e741fe51d0d2cafad9c70ad887c6ca7d03a587e92160053d801796f4b3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-39f70affd72c9d55e40848aa5bed61519a1dd5d2bd51aeda8063fa75fed1a6b9-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "fa28a1de16ea7fcf2a5b17282c6b2b26828f849d08589f1b7efa21b326568257"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-98fc0f3c79add67d7936339ff02a7625a98f6685681552c3a65eee592750439b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "11a4f146e0b4827a1858d82d3c102c2ccfeb1a8220d1fcce47eee1d08078ba99"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c49ac84e9c74a57182659ed8cd249e961a2693cfb03b5dc139f589621c956619-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "a45f1566de57e46e9d53d69a1d6b684981c23e75b51e725797d43e87378934ba"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7c35ea4790eca94f1653669866bded36430dfbc1a469bceda59355d646beeec7-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "dd04d706eeec15204bc494ccdf4b0607cd9d497b32fb51860a3c06b94ee6790a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-db822eab420b7c8ca477cf19d440dd5f9c7fc42c74ef84fbee29ccfc4094cbb7-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ea7107c2181877931084dd22696bbde3be87adc93f65d51410c830f97fee3cc6"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-ba512f2b7d2ebeb67b0a6c062ca09166e99a972614949232f8ef6761efcebf89-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "af80124c001f49665f60a8a75aa56b122b2f8c5a240833676da39fee31bbb896"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-aad3d847297e177847f9b1a72dd134efb7cde3b9cabd2d7c79df5a7735c051df-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "9d551777eb40e67e416b29b896cab5b8b00635f400e9a71615faea89b88e39fb"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-cbe5bc1bb8cc1d77db7fba54dbb5c62e60bb79cc8b6b22274acc6ecbe87b7580-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b0a5f1cb3b23b82d9f11a97e4b58073f1465357c128e66d4390c94128a35bf1c"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-818ce0b8dba91eae5ce05feb33e36d06a9abe67e6fd041e04f6c34401904f174-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "6ed37e192f53a6836aedd37f2fa41a08969cf11909bb7ff5f90e0d37546af25c"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7fe10e6354e7c0c6f305cf242db59783b1b7f264bda493df829a6969fe608650-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "9b2f493c118ae499a7fb55cef6d9c8fcbeb69de41e927b0e50aacbdfd049ce30"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7a1b551120bd2be90c6df68aad21582d5a80372ad515eb89a65ebee24867c7a7-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "7b8f91f75ef48ab88f9fc19a5cba6f4c5879973a95e41baba7110753c618931a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-ffe0d7e274761fb0b114a76e08e2bd2859dda8c3c966cecee8391a3051082a28-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "09c051a5b527d910f6f9ced0c48ed975b2a7dffb2294c623a753bdb4d3269ab6"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-65e58ddb6ceb7ae8c4358bed64657f2ad3602953f72b9e5827bd5fba9bdbfca1-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "301b63aca92979916e921223f9658aa10aa76c9a1becb113ef2f52d0f2588f2b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-2bc3e820dd277bdc986a08bdd507a1301b36591884cf7a70b221d474443759f8-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "985b49291ada1ea4cfdac43e6e87e2b4fe4b07bcd662530b2977d9a8bea82a78"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a15747bdb5511e4365b337379e689cfb3494a8933f740da13f80edf3111c1488-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "26588c767222dfbaec93089232f8eaeadd0a6593297442c44ec34d870abfe4f9"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7514f80dd345034dcfb9f1cd3561e1701c9fe659da084c75f6240c8f51eb4fea-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "37321e464c70637c2be258bbfb3701f66ca692b278a8bd84fe075be9efde4238"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d8e91b252003d2adbd2062cef3ea79fd8056d90e6f6cbb0faf6b8bb5501c7d67-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "549ada627881189b15c070e87e8d3c548a5bfab8f8ed5b24a161630395c2b9be"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-0f9eefc0f65ad2bd90cf6d0bbc2dd22e694c1c60c663083d64d6895e5cc68f78-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "823dd2cae9a6611b89a08533a9bd3d5bc9b87020c193f817d328755b8177e0ee"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4dcae90b1dec72ad897a9d8da17b1f6935de7f9255bbf4b165848957010466cb-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "50995debdc9237726bc63d0ede599d3eb5ae152959971520f9d29f53ae25d04b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-efa917e6533dcf0ab1e1e2ff5f7e805e46f6a73bb3fe2679ec29f6d5ef1506a5-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "372a9b6b768fbd02f03f983304367b2b1d7f6c0b332bd06e6789685c6e2ea0be"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-295c8a703298a7ca0449f252bf208f9742e3d84a103adc9e6efc4813a8000b8c-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "221f08a07ca336728edc5551650e7a3f67c6fe823078dca0c971a9b3439c7d83"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f83b56297cbe783aa543b53f836f02726c674543059bce8212d617e632ecd3ee-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "7cfce38278d32210f3fc59a75103659dc321b349ecaadcd9c029edb7a7fb13d7"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-2a05687dc9cfc49ea7441e33df1fef957dcf22857024506250389d557e28afca-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "109aa43f533dcbe39a12f79549e40c06646ea0d4bf6264e5c5bff153e944b35e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d7d8845f4e07682624daf1bb3885b8125aabef4a2d89ef7ddc5789daed28a488-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "73219c87da0d20b257d58d3a5a314c8d861416c862b0c4b6c0e288d24fd9cbb8"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-9b29cf0d7a6c3ef57fe1efeee2555c7ee2d7a934e043d8a96fa529f488f8646d-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "6b9f6fd80e92f5bac14242aedc3741c02150889764c05d0ea03098391d7899c7"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-2424227fd16a2e3917fe699288712a7c81a2fa9095b0fcc13cba48ed2807ac4b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "f09d15b9b205d372f8e7797212aa87d97e75fe154b2cda59c32d689c9e82e605"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-3ae2b4e307fc7bbdb86dd250a21f14230c988f33ff15ee9eb4fe1e9ef3273a26-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "cad113d6876054cb46d6f4640071801e5553001863441e3279012012a15e8b2a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-df391874a353e500b063ec032800efc53caa2c9d89aca43801364688f1b3ac26-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "d93f08aeccc797d0c4382b46e17d28cd9cd111cc2211337acf0641da2a84a486"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c053700f26ce2055cd370f86b9c4943ace8520b4b934b76af270a0cc9b66e3e9-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c4dd0f2f9497abbbd5ecc5c2b9609ebfc35f6ecc71187dee8a9c967664807b5f"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-3b954106f3da477c8fad6e5c1fb56045e80a6dbc657fcca312d2e8f73aa2f84c-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "0670076a024ff3f1432ddfcfe7df7df1d523b1f96f4f56dde798768f23b48615"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-cd1a7658bed55218edc0b12e90cd911780615111fceaa10ce84b61bb926dd0bc-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "6a46591964a27f77984b15acf6b99e9f4953240bacbf686ac7ff64490c869d32"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-84055f12cac41aa0c187c8b485c1f8db4cf0fc40edcdd2355897725bae713835-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "0a7471ca96a036400ab664f5550a888299c4b045bb5a20f6836c5974e7598de4"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-33c3c692a0e87e1a686af7d7da0d68e5de9422aeee00c280ad484f830fbef3e4-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "d0813e60b7f10de508a59349e9e4c02caaf356ed81139e9f5d88cb737e7efe58"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f8ba45b85e303cb52c6a98f3c8f418849208cf6be2544ebdd8448fc34d5cb081-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "838aa94a998929fc7e9277842f56c855c26d32f5e14bf5afca8e2523f8ce253a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-6ce76e3a290312012d6dd87cda530d159b5cc9cfcb73d3dc8413d627bbc3c5da-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c4a632686c4f84f60a07cda92260403e703be50e7cf1641c184412d6337661c4"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-1bfa3a905e974df362961e8434e20953e1d4974dfb89cd3001103b60907956b6-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "d1dde51c6d9a904865c1f5a9805444b01de94fc73b14561f077e9d23f4fd0ab0"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-5d713f9d03d420115aaf0b7532810b32cf026139a4a2fb6b539c0d2872a89140-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "56b6b7fd4ef7f1d42b65d3337b16ffa89052173f454e0fcb40f30ef5dfb5318b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-62b631df79ee75888cf94ff5435e2f8c1338f712fc87bc45e1f636ac54be73c0-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "d286e60804906a9d215a3e921db5be349107f380c4c5d9ce338d369490fd42af"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-fa4e1ef8dba8455c3b9bd11673ee05c79f4dabb5850a5d6bea3bd56a7ed42572-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "432ca0c7ba48affacf0f1fbcffa80c290757ab61fc868ff98551045e6cd190c0"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f7f3cd1a9a5370ac34023b5d3a8c2cb80821c170f902be5dea63e4a84ff15632-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b2e17e24359b98dce91a8e25476152b591c3296f09ef6423254c833ab18d31e0"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-71baf68e00be8ce2d1a9b42bb7e9bf0be495da680e57c19624502d9e5e08f123-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "77bd32de12e8115925b3e88b32531a4a3fab1492f9d6ba9142be05f57fd13149"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e5445b2ce1a20e6043f3c8619502f911aba0a23fd3934f58dfc4379101886fc6-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b6671d98b35822c5af023a80658743bfd6e41c5674c809f102e5d0e27782db16"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a430821bc180e258bfa918b39cc68210cd1b1b3ad4a1a0f16b99b32174a635d2-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "90f7b44862ffccb5a829ccee66f32df1d79083ed0db40c0b35a7d219f231c065"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a0bb5e8777cf94a75aaaca1ad63179ce85e91cc4a5f57735a76341333c41826b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "858262bfc66967a3b2aa8c5df897060a33f5124bd7b2ce7b1e5a891233e839a3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-6d4ec320f7e342b497fe3fdf698636096c43ecc70eb86c63878fb35f01af7bc1-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "e7166bdbdb6487fb8d91d862c2d8f1effc7abe176b8f54f02d7a05e40864eead"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-df50698d45c15a53acbeddbc6e67f86c15931d5a60805bd5ecbe164f60fe78ad-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c2381238139bffb67174ea3865c0fef3ec48e1adab3904b2ad5407cee441868f"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-2ae895d29a1e0fe1edf204393834ae4c1e92a3f9c91eec8d48743f62df2ad0c8-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "466dbd77b5023a98d9e63aeca7431965bc5eb816f4dd1f243b4dc4ce4f1351a5"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-558841ff4e0e891965c1c461983e07ad5675968397c022a4952c82ca1a3b3f4b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "65458e44689afa413f97f9a7799ae08c06fad28ada677cb65f7c8d01421e5856"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-013386a3a88ddbb762cc911213c24b284deac0bc433694666515efe16c9c4a5a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "843f60035f359781196f070eab01f3cb48efee54081db3ca3483e3d9837f3a9e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e08a375d3729cf82297f17a1bdb7d6720a22b6ceac82dfad0c06da696e2c915a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "76d03f32593a016d3c062f75949b18fdca9e15a311a58e36d024e25e5cc15810"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a3bb57dfa4a21a4d4e8a9bc18af6881a0da9617b1e293e299566b21beaee3e25-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "d9cc91c77d28a0ea69466520d70984cf0c69be2e85f9b5102e58929cc9e5b05d"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-dc9b8bf1168b38f3d34931c58ae5aa34adf84234da4d4a5719cf4833080f12ae-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "9b873b0b5ccd78c2f8423cb2bd0d69fda7e4a8c91665d23eade38a6906fdf9e7"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-029c4640727f33190e06328e51438f58ac919bed7aeaa369fded93fd98b6ca3e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "0657024e5f0700b40368afd19e316defbf98a5013a9c5f0d2096195087cdb835"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-04d9fea29642c9559720bd5f9cdc07a517d2064d63f8588d3e51829049434e7b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "8d53b38517ef1cb11632d69f2b5b7e52dd3d5d0a7d66dfe308ed9ce60fb45b36"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-b131a9e608b823b619c1ac962703378789bd11b6941aab63a93d1d95ddfe7d38-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "9eb7a3858ecfdfab40db32b43f1dc1c4471221e07f0182bc400f11fd106a9aa7"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-568e874dc73bc485abca9a0d750bbf831447e8bfcae7b4454d9970f29fed5d24-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "06ba7f286e8b2474165bde6f494f8554ac3c0af0b9a1e9b979222747f28add70"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f7017a69fcd851fcdddbe268b454b37d0cb89fe14e2a16d7ee7ca5628aabe17d-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "48231346bf775843a1f6df900f8062a56c547163c4922103d0432dc650d97cfe"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-1e478df69db94e6ce2f2407ad522314ba7ae695188b2fcf3051b250c4e2d4d3f-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "09a7268e95402813dba07d632a41ee1466135c97013f0107e7209b70b0a5cf16"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-9f82a474d42d7c222ffb60f33b8a2be56ad5afb53d6ccda980f6ac48bc15cdd5-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "2e684dcc426537766f81adc3010d8a64c2a16f2839e1f9c755d9ccdfa2948c08"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e43327ed064c4df60d68cc30e2f5d2b11c06ce6747ff2d08e615c13d3dd591b6-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "aad05df2bb2da501c3333567c59877380caaa211e8cc758efcf92ac18d565d3a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-fadd85a75dd0b5df7a45ed9ba075c61fdb3eddb6a6c1ac51fa96496356540fda-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "4fcf06f9566b89ea7d9c1948f32c8d95c6ba807ffea93e6187b1b2b9fc1a8448"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7a60b16089ff488fe0644282dcc949e08f531f34e8f0fa1b611a554c2dbed78a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "5eeb8db80ad9629a2bb669e15939e0864b5aa4289778bbe96ecd19f6ea004148"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-1822f1be7ea460ba086c1d0253850daaf9625060d71eca773a8ebe9aea9c5873-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c3a82c60c61048e1c9f92e32c6d13703cdaf1e1ea25d0c62ea29e2e861381740"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-85fd18e4d5a0c2eaee7f4782840795f467da5174230aa4aa6b8c953d471a60bf-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "0c45d95e523a2baacebc10fc24885ad84d6ec3389aaed42262f57436892873a2"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-eacc9bd3ef1b2614e84cafed9adf853128d37d03309d567998f11a419f1e69cd-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "da7232ced92663baccd9724267d8cc5f37a35d8998baad8bc8dadf2022d4c4c0"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f0f0d8312b132e5e6b7ea2270a2afac6fa3d9064e58c4a910428dd1624c418b3-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "a213c287a8cc0f044408a281d02b044ffed260c40b7b775c2beb0e4e55d85cae"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-df8b748bde87eda42c9293aa7ea99ce6035c45f03ce238c3c3ac6c519915cbbd-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "85246878b9764effb1d1f2131a5c1ccb85824e85d973d1cae980de4a46bc1561"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-618c1851630f155b3e88a53944c6d80e49b7182cc7070f1c6be3aff1a6952cee-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "32fea0c6dd8d6a8235e35d9036c607bb0d4595e8acdc51f37a9b333607a58607"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-85c6244e6914efede9c28842ea6cab7fe7fb7e8c30a291900b88e2185353ea8e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c23f771a11577add5a9cb11e400729a3660e6ae1b2724b90cb59f664504ca3cc"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-2528d696cb7bc6ca35e2f84d464348da97a144a79070f27d02ac2c456ed077c1-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "9e7f5cab4d9934e7dc5c4434b519d0a5c8169a41923f334a1207cc451237abfa"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-68e391587f5e4bb6dc5f65f31dc4aa4864f790acf3f2f1ba2bc2ebfcd63803e7-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "44e533ed8f8dc6ed0580bdba3cc54971880b01b5e79d3fd33c3426ae387ba343"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c8992d302772dd719b35f915f98206f578b2770279780e731051b03fe452af46-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c5a0013b6400a2eed8b5a62ff61f3c1f22b60bdb72dc640e58b693618dde0cee"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-67c144b928b7018d66e39a0e9ebca0a5e85fa8f9d2fbd754e0e543ac62349023-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "35a43279b823d882fdb66ec602e153385b20b8a2326b51ca72d689e3553f3d23"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c05f7b8eec72d20e9685e17c6437789b9d0d44f950fb659dd6461a9df455395a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "45b6229c736c9a4d57017c501ff3c3f3e63355d39a0571e71a04736f75fcbd1a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-9ab7b5f94747b017c383e0c09ef158e39b30cc6d745eb8c37651da4385d67253-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "5441fe1bbbec3096e8de5a083f1374193cf54ee1cd2fafb626f01a27fbb8b145"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d47d24cce879441cdd717d2257e2cebb3588b18a9f7d4bc9a977a6d5eaf739b3-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "08bccd4fbe4efc91687609185540cdfba09c1e0dc2c3f1d6c91ed32571e2420e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a64c3060b466cdf74a0824976119e2ed51a117dbdcd0dbd6343b14bd896785d8-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "0055511ded28ddfc0cfc7c0f01e6ab53a039024420ed5222ef36f0e48b20f202"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-26d612ccdad619102c0d73a7f47bc8a7c16d40733591ec7202c6f2e72d5d2605-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "02a77c00f439625257bb504b12221e4a58aad5ca0f2eb320c0a79cf035db96c8"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-879b4bbb3b2fd8eff198bbc66ce6affaa72ee31f869bdeb3ce43cc1d9bd215e6-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "5917a38c411beebdb486f2ee5a9ed1bcd80a3eeb94d955f4e6c8e7af7ea22b8b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-dd00a2aad046e4c571842f7c99006043f9003a9dbb98066f17c79e1d4f40e310-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "704856e3abc9448e6f27e756f7a6824c64f6f0908ea2429dd63f6969be4aac0e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-64f2a4c5f122d2d9f23ca2345dc81b76423143b59a2c17c3d25d491403f1e565-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "7c3b789142cc3888baef7d68c98d5a06e89eb419825f2d2089c1850d2b3fff1a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7cb70003413a1e24828b606250257804e0b42525c3f9e1c37141307e8e807cd1-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "3e8b163da5036a1af98794d80df60b381cbac187ca6d88daf1875023a5528edc"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e5ba193ae2c40749634e4de2b67f0fd1c77dd25898ca1b203215127812411ab3-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "92edcb5c19be4b23bd5e5fb18537b61f44e20c5fc5f4332225d7eb986d624e13"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-ea8ebecb70a78d007e29ccfe45e91694c725f27840cb643d644008d32d26acdf-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "a7fa3051f174f797446f746d53e3213d065440cf5de56654cd630c8d9cad2d74"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-65c26c3c2480a14820a94f7c21ec36b9f6dba886ebfb8fa964e6601117f9a7b2-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "3ca131eef09a198418ab19d49d510b9d206624d469030e8088eb89eadfda959e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-6260d141bfbbc144d17abbf9f056c98cc77e3f9a8bcbf912c2bc2325cda8b6b6-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "a2827be3c0d74e62bff8074781412ce7556fa0381e28f7911d416752061c4439"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-77e5aedf948a286cd9b69c9041952c837a2f72cff4373b43fd47267f9c3be72e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "2bf25797602072db37fc00e3f3cf75b54367deedd8811d160a1e1b2611dce028"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-07e377a3dca83a1efd3ef0ec354f204b554c87a94cd5140ab41a803821bb4683-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "7fc17ecc719eae7e673eae3c3432e9ec5bb6778a1388e4d3a5d5ebe8a6514f59"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-91dd640e916c16ffdf9a772f95df2b4126e37599cb2c1574cbeb7bf07e88d2a9-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "26a8042840ad3c3f9d4670427cb20b083e9376f2a61688b89a8e609ba333b02c"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f96e010037b9d3ff445e9e0185dd14dddd4da28e91b7017d697004d15fad1463-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "8abf63dd45c65ddb447a5139b1d87e2b67e1e0484f3448d64132c821fb195c46"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c12e41a248e429b0262f0d8cd645fbc2fa00992f7ac95fa49f906efd60221061-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "94b27b39a9baffed1781dd47fcab795137c5fa277d6c0ebc8351ae3f1a74e262"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f547ceeaec804f214528034bbd0fad7282243cca5db198d246d5976908408f0b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "0bf4c0590c70292dceb19d67ae6ec1708506e97020f64077f43ce47cacb30d6a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-5061ed27799e870ddf66f7f4d97dfa5b6f3999637e0588132f5fa406abc21ba2-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ec68f932f4354bbcf8818277a6e94271450ee83aa98dd05e88cae5ba4560fb41"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4c7443cdf96aa5d960fd61b9a9ca356fdb1fc3ff2d2e53fcb4234836dab8c56e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "a5cf9e091dda0045ef9e21d54c5b13d55be1a9c42376eef329b0bc4fee50ce1a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7c6104fd1c9f9f553dacb06309406013f46e163cf51f4ee48b4507e9ca135922-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ba6fef67166b71207ea4192c77ffc9c37878ab86bb90296807be162d5c199c9d"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f257a009ec7e48efd5ab9cd4d78506ea9a6a724274971aeb00c1290c8aeacd16-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b51ec43a5645c5c994b7614d686faa1f1e9d86419d1cebe512f1849c3ba69418"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4234769d9c4dfb5f8cc5046dcd6b672fe5583d451bcf5695505c26d248c43752-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b8d9d93f35dbdf608e90002db9f4b10c9541a338efbdecb8923a88193324fd33"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c040ea7757f13d4bac883baa8d0d6eba4b07f775bb0df18b840f4913c388a117-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "6012f699dd9247ff19d8228920b65441540eb17d91e1a80f8dd0a735f2246fe1"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-b7961b66ddd5d234d83c360f88ab9e754278f4c8ff0166f57e4a261e1bb04865-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "14fde8d3fe89b703b6da4d37af57d7d71391a14ab1ea8258db09ab8f0c447222"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-794034eb9df16090b591681eb227c27a439d904b1164065212b447aae9a3e801-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "a9f385a1b2180c5b233c3978152480d04c50fc74bc45843bc9b7cbf12e30ce80"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4a73fc84187088461db47aedf9ff5ebf8a59f1d4c5228acedf3059395dd45d09-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "d266f6d5ae4b6f7ebc77e963df9898ea959d860172b296a403fc9776358ef557"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d41bcdb8a7f9a90441f5249041f088fd8d27da0c0d136f1eb6d381ee0778d08f-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ff9858e319f4230eb072e7a58eed4aee9f09190bd7d6ce8ae6ac98d24dd2ce4b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f16b14962a30b268d3240a57feaa73c7e94ca8b2e1c9d8e010bfff0e2cef518e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "0ea8dafb06e5eff3f2a70c1b12c532dbe9414d8f6e82954018144e9b668b58fd"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-fbb03c245547f97963af15f66aba0ee2483c48cc7d7d2faf9f6e99859ab15e45-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "80bedf0142bafdd00daabbf2565a982a364b6d47abdc3089a0fe2cdd667f3bec"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f6b840b8f6da4a1c5337623be1f34570737c64ba511296c389ad1333031014a5-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "3294ef81a019b4a167055bd11836e20323171964d5d0042245ca0f576543aeb7"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7cccd212051af718646a3f977b020d417466a378f5a6068dfd9af5a74a1b8e62-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "0f28fe045f1acc95b4218831f4467b966cf0614e7e74090c166aec7351701e30"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-bfaa3dc3d37802ef82c372d14921d13f6b10f787e09c5206ea0d53c0c2017692-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "83ebffb5aa7a3d267e3a8245664f2067c4d3b03a60a498cf4a35002823187a4b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-fb87567a66337d60ddaa2f65276411fb3ecf16ce10601d5829be75527be19c80-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "a704b73e6db9c4d1516c63f89e732c7890fb980d39b0208b2fe82e2c6fc49007"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-05b1d599592907131e13b0f883681af052378a6e9b22a4e5cbf821ebf9c9b12b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "52b7a02788ad7c5a865b36ab1379d398adec85b516709fa8c2b07a9682264ecd"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a0ea9a3e569d085ebc48a1dc48f9a3051313cabf412d6f2c6fbbe0326d4befc3-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "8319953c5b587385780cd6cd332954d905be437de912c8d2589cca4eb4e04f1e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-65d317644793c7b1382e25e68291194dcffae5c677fae6fbb610810b2f816e07-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "999817e9938f2e6a8704c270401540c1b67f605b16353d3f15182bb3aaf73851"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e44f3b87b6aec6498f662f98d9e73a8739193dc50e95e4efe811b89403a9ce87-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "4d79423254d0e8090cce88841b040743ac52d32c24f48a8e5976d63a5dd856a7"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-6b2a8d0198f5a0ea6b481a7e84b62dd59f9cf3ead4c775afe6de2fbe7038fb7e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "21a9168ba72543252e61d3ccbdd47a87041568a26bceb3fc84c5d69fc4b91b2e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-b163e1183063c32c4e0acb455dafc1a4ee2d727384094b9b7805d42fe5153d29-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "e2b3af0e3fbbc81804ddebc95507a0fb3d3e3a8bc43d8bd8a6f8e02dcdf57ac8"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-cf2ed4bc7c631d163b1786501804c72ed94e6191732224ec2306e719c76677a1-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b40fb2b5d88d4bbb945910a27b5a706a9d071e57d8904222125c0e31c726240a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d24b8eea96b791f575c6aa28f35f357aa225699f9ca372bedf1edb569db43a7b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "f9252ad758b8918cf9175f25acc8a609822701c4b8038b42dcffc73835f78708"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-6766fbdb5ecf6d9c8f93dbe463adb350ad3a0abc76cc6664d91039266f8572d3-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "055d2e8b019379f50ca5e0fccb021331581109168c6c1cc7c0475d05deea6987"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c73e446cc371b5bdcc107c2943187c9c88a008d616e2f92d3507405c60845767-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "98734d5a242fc72bf0b23dc1d78262081c253256f3cc391052a1c7ec936401f9"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f6c82038147a95027680485523ded55d83e693b45ee1c655e84d2ab8d2093676-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "cbb8846288c46c673f82cede21689ebcbfeaa98081fa80e056dc996a8600eb7d"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f789c1bdaea300f8741a69654658bbeebcaa5a7fe193ee59a53d307a03a069c4-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "96cae6d6669191157651729beedb165dc58a058f9f15c1b61672148e68ce362a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d4e0f72be2463b6787d8788702b1ecb0db905b7c2e15dab302aa0e5c89e54c67-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "2a9cef3ab65675fb57d45b01da825cab4fc3c513bc8ef695dfce03ae6dfe25d0"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f6e30171c41b30ba69bf298f6c826034eeabf566330ef297c35ae3011964dc8d-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "493ca52d85f42def86c6ae46a4d1e6ae9eb1e18a5f2e31bfcb5ab9e1faa702e6"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-bb40c4ba719c68153f5e7a0147a4a8f9c1e97c6a99e5657e199d042e0b61335d-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "00b7fc31006b54f49e746e24fef281c09912d656bdf55087cf9865d87a949d07"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a73da6458e78a8a4da49528de75b527b0cdccbd5c0bbfce6f6dce78b53fd6a11-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ea186ca9d5b7cbd613ccbbfae6e7b55d71a208bac3ad66d2ca20c6e4abfee28a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-6334dd658d7957b795065c268054ad0bde8ece09c95a52f4a0c621ef2d8eecc8-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "4c270a1d349066908d7d6ee9c49443a826138b37093440150607c3ac4e69a894"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-6d778cbf06ccb7ba1a12b8804a98421789d0f16d766494df49b53134821d03fc-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "f6b1a25acb328cd19f4477bf8457efd996def25f51b056f3ecf8347319b2e63a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-868d58124108e24c8cf8c63a271d48b17c3e0d5159911972ae470ca6d4fc7dc3-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "d3e6565951e8a096a367a24335b4ed4a47ed0b971bfe0a9b05969148da923b0c"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-96fc90f063b70382c52af167576581a136057322f7e7b335d70a5e570ff6b922-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "43d8afce7f75a38a644b8bbcfddf2ead2f8c23caa4b20395df87e0e39e0e3051"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-688c05574fc92cdf76bd39ddf3418b97f5ae1df45939f82c0bb8575b6d930099-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "15ba3eab8aa7da2c69256be97a47774474be43b01557327f7710bdad02a0ecb9"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-3bf24abaebe3b5feb78bad8f0d28c132361dd9a9c7525b40cc5d92f156f78e51-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "d15dd968aaa49a8900fbfe1951d78a23e01defaa0ef94a6fa2178ecc44f067d8"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-667a08bd0d9621eae201f0b1d136a026da42938cb9f7d1aab230006dcc477bf4-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "576b473106bf2c816d85de3497d8c6000611b664616cdd2df040988750793e55"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d76a01a2a50a1b6e124fd49e029f863c31696144c798364864448242e8968564-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "68a660183ab0d841ff0bbed6e9dd4d8b90523f7b1dcc4647f5f4c55bb4224a5d"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-408cf855e278fc4af587effde272f89b9f4d0bc3434fdac33d5d1c82b703bd4d-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "4d5488dd4425ef25f31153248bb49016e818e185935b18f4f1b458f8bd747bfd"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-bad235b56340ba87c4f25ec33e893274d794001283826b0ec7c8e5f90932d01c-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "e5545dec2add24950445ce112d7d94343f44489af07fffc79f96f81fc961170b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d2145f24c4276df30ce912bfe62ab0276dd839d82ddd0473273767bacb9a7650-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "8022f47577a9cf5c1e8afeb668a69904d18511592b70d54407028a19dd18d3bc"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-3a3e76ee5dd479ea7d0ec6c94ecc3a5c1e61b34258d5a91296b62d02da612cb7-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "9e94999a216b7697856d9b5928ae550fe5ff90e268d07571ab369753b0e4f853"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-00968f1b97dd771542cfd3a9210b3e3e9a4ffd28eb77652f67700f45353720f0-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "944bf1401f0da1dd17518b362546cdf8a99a9f26c1efc8e56dfb84d03f6ece58"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-5f4eb464f7f4395de06abab11e2689779d5b8e68362f0194dc66973822e732a5-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "3836a0a1fce06f76f122a3dc4c292ff870a10d403e110b001fbeb960b26dc06d"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-6fa0c0c56fd125e9a0d67ec7c12fd03cd47353a59cdce1f5c40ba03d4b24be8a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "3d8d8bab07f4938898ce49c9b7a3dee09c854a7821e418a13d2a955b3824130e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-0a0908d1d64deac6c5a9dcd8acc038d617eb6a6006da24c3b0f2458d96e5b29e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "770dab06945c374c0f4f48275cbcd322e9b4c0d8a119e60f98efa11c1fa66b86"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-297182004cadb24e47923dc963df6b388b63faeab4e14bf608689b38e7537994-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b5961f78178b7e1254f7299644d5730806994d1dccef5c10f747dde058a83f0b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e9a17abc566aa8ce0472d051aabaf3d424905bb60a14fc19cf6b0ccaebe69a31-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "1cef044f28888cb4a59acfdf83bdf0d01fd8ed5ef59ed7f28a5d3f686258c035"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f1edabc6d7c3b3633c664cb02db7296dcffeb90890d0e1a035bdac31aee17b1e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "6c61dfc9cc4071c8dc791d6badf301a10b268075855b90a8376e5df8d1712fb0"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4837add02e9c62a091d43e1ae91d5fe2775858aec5ce7a1a1499d58093bc8bb9-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "3be816720315d1c4b37dc9d724768fb4c613ed6c973e00d6db9bf0417bd870f3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-408e153332feda1dce9019703622d5099b5890eaefb558ff10a7918b80e6634e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "618cf80fe1b9e215e964a8ad958d12d863799a6c735dbfe43d107ab56885e954"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-1468f2459bddd42aee824f39f924565d1eca44fc1aa6f2896b7780cdddcabf21-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "e4efa103e2c01f3bc09691695ad42454dc52b1e9f3363b7da49287c9d30d52ef"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-027928ea44db38db4664391e4b7e8b5cbf0c4a5e593b59b851c8e31db6c1ec0f-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b613cae500e757ed0163d82f4a0380560f7a87753f9796cdbac3486856c631f6"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7b9102304445437433c289ced9560ff992a0a2ee1336cc3a83c8c99d9b3e3f41-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "39ede455c28b89b277790f9387397bdddfb4ebe47ffc814ff78b254a8adc1973"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d395a8fa1e87a2a349cbe3e4e8a5c3e074883d84dafe1eb377c54e7b57e7b0d3-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "dc8ea8011d2a19aa88e6528b5c901c0fc37acbfb721e34cb62c8dbdb30e4fc02"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-b1cf261388a1639c54acbd185ad5e27c971f2e6944b5fb128f2c758f1391a138-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ecc22ca068dc01df3c0c3b4dbecee3b2b93936d7f2061cbacd53c2f1bb95937e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-23ce5f9079ee2a1e29058d7d7d766627db7a4adaecbe892776f950b4e0c3cd3a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "e89379f73d64cd21f6322a07557876c41440c22442a9012a27f07e0e3b4d7597"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-cd54bf9b224904a0695f1ec8a4e05fd40e0e9aa59fff8eaccf5ff39e5d1e7336-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "46f387edb266b20bab0acbdf9a4074e53763938c6e2070b4978278f2a26d8f6d"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c8d16ab18bb41bbd356e2f1058299011f4e443f7d4b13a68942d7662b0f92bb9-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "3aea67addb9fd5149a41309259a8b4a76af038cf2bb766096eb5ebf34f598f19"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d79de4432aa753ce8165873b01333937926a470caea4d7cd6e4e2f947054859d-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "0b6616134841cbd3c4bbb3acf61689dd17eeee9eb3ef3ab634c2d6894cf60494"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-b1453c777d2fb3040f07616ddf7dcc013599ad750e52b1a00928acc491e04bf0-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "9d4aba687895f8f87201c9691526bbe6aac5c8c35d745b2c2e0d3303afa76962"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-2fb4eb93d6407564f8ab0b0b82a1f374974c201cf13fbaf84f8eb4459298121f-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "bcfaf29a8306920ec5c7cb9942468ffd835cbde5071d44cd0a83a6f976b4eeda"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-8e2358e1a4032576cd9ee061ecf1fcd6ddefb28608211f35c344d3e9dcfa8200-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b8d8b70b6f0e172c061012aa2af0b90ee7cedf5032d5cf7270bb916db4344054"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-8ccbe60d479c6a542181e46c6552f678047f2a675de6b4e0c6e2cdc911b26701-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "7cfd9f1484344083ed3f58bb3b8da55db805bff51d189f1efaeea8d16bfe1485"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-1e1b6fb3cceccb34c0a7796c94f50e11cd0d116922dc686a3daac4f7595ad8ac-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "f74420bb5afadec6ac9d76eaa099e67895cdafb9a75b13bbd225dffd4d0e98ae"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-8eb1a3aab2c6d659934d387d8ea50ebef28d8b3320633dab26d027181040b657-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "f6589d28a1b1987c6a63159019c69a1a852f2c51d774fa101fbb1f0832f3d780"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-b173cc40c2af24b1eeba0700226101d65a67fb64975b72371c0cd39ed4143405-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "5452f65753fc9e41fe961130826ed0d36e525845ecf8a54d0d3355a090130790"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-525c3afc0f6b60af17afbae1dce0d87b701c4639d169aa9e2767a9a244cba16e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "2c3dd0d9e2ab132f6dcd83a93b7e7bcdad07fb19b4dae339f90cb8fdc4d5058e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-a6a56cebad3755474d3fa4b42aef4955b75225a2f1d6c712c3bcc88c90ed5f80-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "32a90968d240ab8966edc75e22daea62e7af041cc0c5995eda6857b148e750f7"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-1f84acc2e5ff7a51de69b163fd674d83ba7a8e52636af02e4b0b8ec637ad78c5-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "282b015c50f923b76f89516220c2f9542bb19aec9914b9e20ac831c862a75c9e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-8b6d2f3d09b3ffce48ef13ac3ea0cdb82eaa29c56915c8a868c32ae43bf9a35f-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "9a4e70c4467c1f09f1ac05eaf68111c7b3eaa308da4c312bf4fe80831727e74e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d9a00c1dec6bc2a82ff81e83b306282419d40ee4fc0d22d4de31a0f9d8d2009a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "05c6b642d13209f4d806ddb8b3a25d358dc6fc11572ce87767e5e34e9eae36f9"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4f238ea0bd1ecbe67128e474990e8ceef3129b0be93201bc65e0c9d6b31bbf6e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "9fb00a26bedf604a62d76494b5a551d059f2d08113a9ecfcf877c866c8445fe3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c4ca1363e239d52e939856bc145fd3a27dd25f03d6ef7afae98ab35fb880b727-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "af6e3a3db7f86686df29f2988d6bea15c7de1b954075dc6d6f0abf02485707c6"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-bbaede7da73953a27bd4951d871348b63606061b15665a0ce845fa3850e0732c-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "feaa4a1a46fdd3ea3f9a3d34723a490e5a9573bbffa508c6dfd2b616b917ea25"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-9568236e0a4824fd95d5c0dc40984e2ddc41515863a9a72ac3591b0c20e7af44-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "790ca0f4337e29531da16c69ac4103bbfb25d778f6ab03bd702aeddec4585318"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4a733ada4473c491d308e83086897352992a5110978396c41289c85be1c52d56-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c8f715af095eba83c50bdf3b2f6aa50316d64c0ab59d1a9b59d03c3a763fe20b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-bc4b53130840f53369a195d8cde5c873f796715be83d34f79b856cca026fda99-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "e4c636ac9e79ec20ff89db10b91608aafb5bf048e3f5b8d2466d4e0faa5e32d4"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d3b2b9705f7e7c61af5247a996e9418e1e22c2158e9d5b9295114c471c91a751-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "12e3f1c91854879844b4015356ff96d79f287d1f26c601253d1343a321597713"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e9081ed22aab86b607e4dbd6f20f558f580e4c26d5369aecdf27f42ca1bba4c5-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "5dad8c725c590ea2c43693f62703d0437253f58c49fc1eeb8dec977c5c699667"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-b62a6769cf54ae0d04c58c78ff8b78648216d094e3a631083fa5123445d4e9d3-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "79037b15ef7f1d4bef05ab7062adfc086c5485ddf536616438eaa59e7a9807bc"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-178dc24d72591222f9ff10b6faa13bd28debc85648da167b330f91241e948129-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "a738ee790085cb0dc170abd7daf629f1963a0aaac028fe6d45f0b37ecefde5ae"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e094c698b3aefb72191739bda6c363fbd71dc45b2f374188d034dfc136813fe4-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "67705b83b539db9f0fc990a322d733afdb641f41bdc6e660759792d5d07bb40b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-705eed8a95913154e458aef86217e87d54d4084f3651d27ebe1580a6675b2145-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "7c4a52880cebffe4258735ffa8c816a628bfc90a3c505993e55a15b359d20885"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-ab91e708e0a06dff92415862cccaacaa5afe60124612dcfed69c92bd7e5ac05d-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b4a5f1f18dae5ad79681b91db2d4fa8477feafbde6f31077e136d5ee4aad83c3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e4c700d1878e40d31d3d15f9ccc7938882eb0b49accee6b63f666f81142814a0-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ea2874b0c6b9863d4e360c26bfdc73f4fd37ab7733c62ee44c5a4831caeb000a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-1cd4b8dca57218cb3d2bffdd4b4a57b11a077ff83eac17d43d567b774465fea5-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "3569b3fffcf4142b6df4e4245d1a69cecace26037498fd0905be24e65ff2a048"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f375ca6686c8e80d865bf6d237857f3e225356eab1bbe5fe4929930ff29ed9b8-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "e423d3077cb3ed8ae1d4291f4b3215233aa50ea66c0c95f4d23b5487dabcb908"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-ed4b7d312cd57f6f7ac6dc0f76f963bc43b36cbae3c4bba8324f597e69480dd9-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "03fab921cca038256fa27bd7153a7238b1768e1e4741c48fd0c96565e1f05216"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-178ebdf1b570d909a9aba2ff6c98f65ea2c1500daf724c843ab4b5e6e27a7977-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "2cb7dfa8b8b9137ce8e63981adb755a775d73024d52a5e9988ff099510ddae63"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-5dc08aa21f7e78938fe47a775b93320297d65d356a5e405e602246803ced14f9-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "bbc71a282c6795a3ac7dfb854092a2ccabaea88680eb53551cec8cad24f57222"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-68418e360b3d254e489152cd15e75413f4e8aae6754a0f69112f3a10c4a3a699-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c0498b12b4cf0c339c64e93d90e393156981b33ebbf2a15ffbd2a4fe2748e974"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c789eb6f87c86cf8d2523fb86fcf24a8eb2d3f3e2ebe57d149e487d94c749c13-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "bc372ee437b14b3292f980d77a2aaa0088a31799d0683517d32d4b79d0a1d684"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-6f6dc00c8b1b66d9ac8c627e4adeab75eb518efd2726a44ac8d720655908e6ad-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "153f66c89a25c101715f130f27f1652dc3ca6dfdfc68cf1ae1b2086fa03a19d3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-201d4fe69add8ea437d4358a25b23c126c15f8f645faca9a4491d54fc9bc09e8-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ced7b0556a88d8b1586ef2493a61bdfc4916ddbbf5df7a7fd43a2cb5663454b7"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4cf948e4985c7da65a30dbd51e6e204ebb5873caa5ed1c0440c7ae71dba4ac0a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "4c54e5148e1c5509b3d3e1b47f4973511af591591c1510b3dad824ab34f4e53a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-eca14f844406e315620f804d92fc98867cae5784988c52cdd55d808b09e9a685-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "350878c9be25bfc3f11321b6592644d7cbba058abc319bce828de82b265ed22c"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-417c7a80c08dd07b65802d8447ba669a99c871fc6f94ae67d30e6d567fce10a6-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "acdc4bb5a1c541117805aedae00c6915c9a2da08044a464615ae33502f75ba02"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-65486673dd8e8633d8b99f57387c0aa344efde76938f3c6a306c7fa52f639cf6-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "ae2cf424cdf2305bce863322a1db97359c7bf6033a1e1921b13221057bfa37c9"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-83ef3c182e194d78d149d8e6067444d5444cd09e81ed9cf1006c8b946651bf0b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "e1dae492b74a0daee2aa83525ce8061d3abf9b3f3d286ed84218e21cbdcc81d2"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-b9b3e19377c0978e5591b52323b2ca9da3a331fd24905c7fca2a242c89b632b0-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "3904ecd7fa6e4c77922fb013857311228e4ae1beb8ff846001c757866db65621"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-870769daaef43cdca67cb168ea3604b834777d1e6d5ed91a32ca8391c6489c53-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "09a2a8e3e10437631658c63de6fc1a5e6064f1b6a2f7a1fcd8a418621e553edc"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-861ae74303d044a9871ec144f4cb9e2bc5aecd05fc0b62a1f39761e3cf672207-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "35bbe24bff89205944664170e5bd8f8a2bc43350cc92b662ed0cd383629717d9"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-68c8d6e016dddc73fdae710e23bde08a4e6d81d63473ed87b332a9856ae6e9a3-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "cdde2f3ac05570a3cd2204811296974fe0caf1ae3d85061cdf4b67efae3c4e82"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-2bbb86d88113accd7d50e02138c71e72c41a3f644b0eaff69bdf20eb41ad3d50-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "1c6a4519a551819fbb6e0fa9cdd8b919f3275f528572f908289f2b5c5a398244"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-65d1a340e69064bcea9b6c8008c230b0929d6b9ba4503b15d5be402a1cc7dc8c-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "47595ce6464201bc74acf81d0862418513acfa006b1c0b6da8e9acb7ed3ace9b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-dd17fade01529be3fb2a849c08443c36afba564265bae25d97d9c1b8d761fb52-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "43d7ba2c6a15c1687be4487e8fb34598ce462d8ecf3102988ed591d5c3001b48"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-226c8dd952b3daabdfb106e91c5e1411b0064df1246e613f9fbb955d32e8cd87-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "7a003621aa947e01c04586fc3850e5b555607b47adddfec2e323ae8a10fc29ad"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-0bfa5684c94d28525a9e77448493c338f46d55ec48eaa3b9da9c69371297b4fb-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "38073945ff7bdef1c4c7fa9360fa19bd529bfaf901bafb626caa1fd3baf0e68d"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-68be41ec2379f2e2fda26023c34848120ef6e5e239517b321ae5d036d254ac9b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "4e178065d8573a82b32a31413d4886d409874376078247045619bcbf2f0a1149"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c82116dbffd2c4f78c48b9ffc1d781c985cae2f6f768dfe8bcadd0a262057d1a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "7661f93b5e61f83a47dc7aa0e77719329fe18ad67f2462e917814488eeeae350"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-ace314eddf3301c6deb855d89351cbbfa6b7ac739e54824ce6fafce097dac9cf-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "8f0d110eed70be96d80dce3d3e35e338b06490ded8ee0824a6b3555f89b16b2c"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-51be6ae296e38852d13804cdb4a096f687368e9e141cafbb8043b54ff4539882-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b7e1fe96c8ae206c6487104e396eef9fafb0bd090df766c9ac31ce7cfeb081f3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-dfccff9d1de84b20a0964962a45e007cbce9090f86a65a6f30f1fefc5c3c7dfc-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "44809b7874c09c2264bb2ec711deb40b4294a379c764d518b2d59ecccc113779"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-29b496f409e71d3f9dac79346743a099d6c1739cbad9e757c9b7e13bb085fb9b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "74264a5242e752711b53188c86a292623a252198fbf70350e51af9202153e6df"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7f5376eb4f2136b225c35d044649446c092c31909113419e35abadb8a8971971-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b44917702501a5b936aaf70400d5baa8283dc471a9fd2d1e0ea159930223d874"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-98c2fddb3048ac80dc9e1b9aff6a3bedfaed6922679da621d77a61380c9f1f9b-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "1b15f53a0b1469cbf0f00a91f69d7fffd515e6b1e4198a51ade9f3dc794f2462"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7ebdf7aa5939e267c2dd6ebe037d0bef43b2cc46db021f2759c05f21f52e833a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "acf2e0c2aa7173c6c526eb9ec492258039ee53a537f56eaf7897210e0281002f"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-50315fa0edb89f3347d79b2cbc5795f3c5e832cb8735862db19fa3ee95b694cc-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "556a3c5a6aefa99509b6ee4cb1e2bb7d6ebdeb6ef562f6d64e9d9a462b8bd01b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-5130da257add2eaeead6a48e67d984e33788274e4cf9d9ccb5177ccf351ec598-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "e1827f64c00b6b00a52a58c0b6cca0fa2b0c4a46201b92bdd239cf4f6f0fe2d2"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-24fc18e902607ba7631c59a058510fd166fc6cbc80ac0917436933e1620fa259-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "edcfa20ac8bec01dbc1a1823c7a233ac181c34dced1644b712cc186ffa9966af"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-d83bf3b52c0f7018f6fcc9d916e108285ffd74cbf1b4100cd6fe537071dd39af-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "7edec03e60d902c0a438887754e6264e936e0bfd0a71e3aa664c20c4550630df"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-8f9d13d3808dd15dcb8cb89a4addb7ad1912d0d76c7bd3361aecc126f4ee0113-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "a2591fa0585d8b151aeff858a5c7c265c21fbdcb4536f2c0c481381b99db2353"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-5129682f66c039f8a4802a6802e4d0608649117aa6c1aab694e6637fcccd5d50-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "76146ab09fb8d876ebd9453725fec7e585cf1942ab59ebfdaa64668e071d6836"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-df943d4cb059bae7652e2f5b712fe381f746ca3dd8c770367722f7511f3e5dc2-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "8e988eccb974d6ef1791836b9fd4396f275bfe19a7e6e3c5751d44cba9c6ac64"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4c0560b98904600a6fbff8dd5491edacab8b23d3a450a01d1e2917a5979f168c-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "75a1a80c02483979d579959adef342ac305c98d4e6ab650bfa5d2005b1432931"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-0c18317642972ef4fbcfde6d08cda5720a3938a62e969baedd0ff0bb721ceeda-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c3667e2cee93f20916e05669ae0daafc663126b4194b3c1efaa062999b445ad2"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4af081c54600940438370ecf5fbde6bdcb2df590665e1b8f2c84f609b5ed947d-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "63c65d71784e200fb1add8c022d9c0b1f3cc27d1d800cc90bbd8038e9b0fe0d5"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-64e8544d81451bc064e35eb3b45c74daf28dd14476e720205127a4309233d001-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "1f1f2de208f5b970ae5b433e76b07fd604a6890dab6677a6f42e8772ea1ea269"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-06efe396f20514eb57cd4df3ac8e33e5dd9829ac3536adb8706fc119062fdac1-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "bbaa847bba2f94ec34211f45828bfdb1c4aac22391da1cc8327b78ce57a0ece3"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f5c703d63327df783992dd0d2f078426fc83091c20dead1181ede9b06d02aaef-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "03d0b9d1587fcb799577e04cc2c9b100a61269173131b5d675b20b0f137b5e55"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-bf37f5c8e2c3390c7436592c002a1144dd4b8d826558199140567b49151aa444-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "e47f572152efb4f91d14b33b0c19fd192e620b186ddddc96669df25173b21c36"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-e999d716486af4fb1d5a22940613556fc47c9d69a575d71db42b86b76d66f584-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "7467d17ac14a992549d7feba4b2e4bf3981f217985a854deca91a39fc77d6b1f"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-43497788d523cd0f654d39fdb61df3372a62aafb9e299d23d82264157bb8218d-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b2e7403b2fc2f13f5bc322b7efb3d08d8bac49fc6b3ab31a579faffdb76e611d"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-c1b6d84c12d815ed73c6bcc531d86d891de25ed574950a06e933a4a79dbb7c56-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "627b57ccd9e5795b3d649872ff9632c876a1c2a855d860d5bce96842bcb3cea0"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-020ea4c5b8060a3dc65510be272221caf2349e8d5952dab00aa589019683aeab-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "4172b851c426ea2102a79310706071872b3932703a87a027545d26e04a7f3226"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-04b2708f9633043434afe50dd0c6107d3e9246116f4f5956df2a2b06d6df2b05-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "c1c7706340f99733ec89d67ce34f322aae10178bc11de080b37370f3213d79de"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-73883e245ffa18593a2f07d90fcf370cbcc6c967ce384edf52cc6cbd13519b87-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "eaff498ab615d020f72763bc72a7314a7f7a7b817572794142eeac5d6195dfd1"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-bf5ae71c684e8555ff63adf22a3f7f0c7b8ad5576076f2189b764552f0fa52d1-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "249c47f39aa80dea8c6ec3cbf75bd630f944be8fa5b71429c54e9ca584231583"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-1fa6c0e93a6024139f2e134842f134311435bf2fbb4b998f6a786afe4c6db28a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "314e078be996e61a8fc8c9b4b3ff8e316fc93184450a33aa6db6e2a69d5bbdd9"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-7552b7f9c5b6bf1bc046d9f339724897d77e538b37b9bfefffc28df8755dcb3c-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "2a27ed88c310f1b24da001480b897e242632129bb82178b57ad425ebfd87bf2b"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-4854107be846f2d936a0f2dc898b732b41eba8d13fc60fc1e34cc9287b15cb97-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "039d6b5fccae9e8fe8be185e0eb1aa5afbcc5b1acbeb33cd5db9bddfae2702a1"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-bdf9728941b8cfcc2ff09d1b5350f26fc17f64eef4a974c7afbaeeec302382c5-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "5b1167ac471b21dcb24ca1a0f79c470d67fd4a79217b0f51e5dd3a21bc552ef0"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-1598d89c16a7d05501113e95d7f55800cc50d90044efe663a7f45f97fefc7c99-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "92360fb46909c3730132b187b14503512931eca349dce12c30b2c4c63fab464e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-fef8e7db10fef11ea578a65154c65731998e953f936b72b98b25cac10fa5cb3e-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "20ad8d4ebc68be044b4476986aa9c64f7aa1bd31983bae203d727c9283399b99"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-780dc766a96d3577b4b4e28519bac61b5d36c9b2e59888f287ca98f5d994a702-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "52729c2d0b6a72578a003f9edceede6b47559fcc5e8d1292bcdec5b46bc4e8cb"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-ec8c97354dae4175616ba6d09b3fd1c435b799643922840f83467e2d392d3605-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "bbd984f0d8888d929f99c6bc15cb3fad98e1f8f6898c8b82fa4527edf5e93ad4"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-9dee2db7388b10cc1ab87e65369f730b76389e32eee66991a8cc9b5967443f20-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "02157653bebb2b3d984c2b204e0823518778b91e8278d36988444e57f9732904"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-023cf1a13744c4048fa8ae5c697ef7e1b5780168a115ff95e3e6618e95490378-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "90d02aa2031b5897dc2120e522dfa38283c64ba9d976d9157f9738d8b04d619a"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-f18965de49132f7cfd2893c5f6fd2061499046a4588bc0b080e40a28a8a0cc2a-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "395dcf9467dd05cdff10281f5126ef05ec9a2ce98bfb0e600ffdbc4d56a94b06"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-9333addfe085886a6b3ccd135a444b89742e8f44cbb913a6319ab1c9206345fd-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "b4c70e764a6d67ba2d26e11241e6de558e8d03e495b9d434e1bffc9db612804e"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-b6281f241d043a0911441f84b1ef2634220b2dbdba8ec4d573fe419e19dbbc73-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "88d75d25b3ea4ead41c2da18c5f3b7cdfcf9a5d2f30a16760694c6ed067151af"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-3918321bdf41d9f6a389e34dacfdec589cbb8ea0913f996665588a41e3b37b80-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "1166183ef0993297c4e6b3ed424367a1377d8f84a27d90fd1232c81005787983"
+    },
+    {
+      "path": "state/node/dfs/chunks/blake3-ff2c2063964b5f767afd14a00b149dcd9e7a60a19c3ed6eee3ac2b8581579b49-4096",
+      "bytes": 4096,
+      "allocated": 4096,
+      "sha256": "5c160a0320263f0a3ab4a46493a59fff39cd3fac44066adb0e212b4af421116b"
+    }
+  ],
+  "observation": "post-delete storage only; not each file pre-unlink replica proof"
+}

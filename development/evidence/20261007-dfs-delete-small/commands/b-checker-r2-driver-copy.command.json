@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/dfs_manyread_small.py",
+    "afs-accept-b:/mnt/lima-afsbdata/afs-delivery/dfs-delete-6d-20261007-r1/stage/dfs_manyread_small-r2.py"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

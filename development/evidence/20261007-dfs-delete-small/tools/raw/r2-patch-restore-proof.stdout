@@ -1,0 +1,7 @@
+d001d71c982c17c0781eaa70b5ab4f89cb6e6d6fb1efecb0b6defb46360e2875  development/acceptance/dfs_manyread_small.py
+143531cab4191037ecd021de7cf0fd9359cdab810e72030c19f98e742999841a  development/acceptance/test_dfs_manyread_small.py
+d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98  development/acceptance/owner_remote_small.py
+   51583 development/acceptance/dfs_manyread_small.py
+   22579 development/acceptance/test_dfs_manyread_small.py
+   20289 development/acceptance/owner_remote_small.py
+   94451 total

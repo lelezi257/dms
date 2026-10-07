@@ -1,0 +1,88 @@
+{
+  "cli": {
+    "delete_checker": "python3 development/acceptance/dfs_manyread_small.py delete-checker --dfs-root ABS_DFS_MOUNT --manifest ABS_WRITER_SUMMARY --output ABS_FRESH --checker-id B|C",
+    "delete_writer": "python3 development/acceptance/dfs_manyread_small.py delete-writer --dfs-root ABS_DFS_MOUNT --output ABS_FRESH"
+  },
+  "dependency_files": {
+    "development/acceptance/owner_remote_small.py": {
+      "bytes": 20289,
+      "sha256": "d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98"
+    }
+  },
+  "git_head": "e68e99e3fc72078b1131a87788828f2447a80acc",
+  "limitations": [
+    "No DFS service was started by this agent and no delete workload was executed in this tool slice.",
+    "3FS comparator qualification is not run; delete-writer result is candidate-only until parent runtime/comparator evidence exists.",
+    "Owner helper is dynamically loaded by fixed SHA; owner_remote_small.py itself was not modified."
+  ],
+  "modified_files": {
+    "development/acceptance/dfs_manyread_small.py": {
+      "bytes": 53872,
+      "sha256": "e0875b743eea419ee27bc9df5677f0af421d70f590076d44e13b79b6d38248c8"
+    },
+    "development/acceptance/test_dfs_manyread_small.py": {
+      "bytes": 25395,
+      "sha256": "658b9fb6684e57041a65fdadffcf21911705e2bbff5be018823ca8ebc03eb5a5"
+    }
+  },
+  "owner_helper_expected_sha256": "d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98",
+  "provenance": "tool-provenance.json",
+  "schema": {
+    "checker_summary": "status/checker_id/manifest/enoent_check checked=600/failures/mount/fs/platform",
+    "writer_summary": "status/product_source_commit/compiler_input_map/role=delete-writer/run_id digits-digits/fs.dfs_root/mount/delete_shape/owner_delete_helper/delete_rounds[6] exact sample_name+directory"
+  },
+  "slice": "dfs-delete-tools-20261007-r1",
+  "status": "TOOLS_READY_FOR_PARENT_RUNTIME_R3B_CANONICAL",
+  "updated_at": "2026-10-07T08:07:20+08:00",
+  "validation": {
+    "r1_preserved_linux_delete_guards": {
+      "exit_path": "raw/linux-delete-guards.exit",
+      "identity": "driver SHA known; test SHA UNKNOWN_OVERWRITTEN_BY_R2_COPY; see tool-provenance.json",
+      "result": "exit 0; Ran 4 tests OK before helper-load guard was added",
+      "stderr_path": "raw/linux-delete-guards.stderr",
+      "unique_methods": 4,
+      "vm": "afs-accept-a"
+    },
+    "r2_linux_cli_help_sha": {
+      "exit_path": "raw/r2-linux-help-sha.exit",
+      "result": "exit 0; helper sha matched fixed canonical value",
+      "stdout_path": "raw/r2-linux-help-sha.stdout",
+      "vm": "afs-accept-a"
+    },
+    "r2_linux_delete_guards": {
+      "exit_path": "raw/r2-linux-delete-guards.exit",
+      "identity": "bound to current stable SHA and raw/provenance-linux-dir.stdout",
+      "result": "exit 0; Ran 5 tests OK",
+      "stderr_path": "raw/r2-linux-delete-guards.stderr",
+      "unique_methods": 5,
+      "vm": "afs-accept-a"
+    },
+    "r2_patch_restore_proof": {
+      "exit_path": "raw/r2-patch-restore-proof.exit",
+      "result": "exit 0; fixed base e68 + r2-narrow-diff.patch restored driver d001/test 143531/owner d901",
+      "stderr_path": "raw/r2-patch-restore-proof.stderr",
+      "stdout_path": "raw/r2-patch-restore-proof.stdout"
+    },
+    "r3_linux_delete_guards": {
+      "exit_path": "raw/r3b-linux-delete-guards.exit",
+      "identity": "bound to current r3b canonical SHA and raw/r3b-linux-help-sha.stdout",
+      "result": "exit 0; Ran 6 tests OK; canonical e087 version",
+      "stderr_path": "raw/r3b-linux-delete-guards.stderr",
+      "stdout_path": "raw/r3b-linux-delete-guards.stdout",
+      "unique_methods": 6,
+      "vm": "afs-accept-a"
+    },
+    "r3_runtime_380c_restore_proof": {
+      "exit_path": "raw/r3b-linux-restore-380c-proof.exit",
+      "result": "exit 0; Linux patch -R restored 380c driver from current e087 using r3a-380c-to-r3b-e087.patch",
+      "stderr_path": "raw/r3b-linux-restore-380c-proof.stderr",
+      "stdout_path": "raw/r3b-linux-restore-380c-proof.stdout"
+    },
+    "r3b_actual_manifest_validation": {
+      "exit_path": "raw/r3b-actual-manifest-validate.exit",
+      "result": "exit 0; e087 validator accepted real d001 writer manifest with 6 rounds",
+      "stderr_path": "raw/r3b-actual-manifest-validate.stderr",
+      "stdout_path": "raw/r3b-actual-manifest-validate.stdout"
+    }
+  }
+}

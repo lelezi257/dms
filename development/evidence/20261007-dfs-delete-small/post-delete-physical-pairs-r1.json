@@ -1,0 +1,19 @@
+{
+  "status": "PASS_POST_DELETE_PHYSICAL_PAIR_CONTENT_OBSERVATION",
+  "logical_deleted_files": 600,
+  "distinct_physical_chunk_ids": 600,
+  "physical_files_by_role": {
+    "a": 600,
+    "b": 279,
+    "c": 321
+  },
+  "physical_pair_groups": {
+    "a+c": 321,
+    "a+b": 279
+  },
+  "all600_exact2_physical_copies": true,
+  "all600_pairs_equal4096_byte_sha256": true,
+  "representative_meta_rest": "commands/post-delete-representative-replication.stdout",
+  "scope": "post-delete physical retained chunk content observations + one actual REST representative satisfied R2, not every file pre-unlink ACK or physical reclamation acceptance",
+  "paths_sha_evidence": "delete-r2-post-observation-r1.json"
+}

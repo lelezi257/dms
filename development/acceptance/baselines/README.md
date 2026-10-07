@@ -32,3 +32,7 @@ Main entry points:
 
 Each script writes a timestamped log and status file. A missing dependency or a
 blocked durability proof is recorded as `BLOCKED`, not as a successful baseline.
+
+## 2026-10-07 small deletion qualification boundary
+
+[Read-only four-role survey](../../evidence/20261007-dfs-delete-small/baseline-survey/report.json) confirms retained3FS39-entry artifacts/ELF dependencies, with no live current comparator. The retained ARM64 reference includes a disclosed compatibility patch and small-fixture resource settings; it is not stock/unmodified or a frozen fair performance baseline. [Current candidate100-file deletion](../../evidence/20261007-dfs-delete-small/README.md) is separate from formal3FS comparison. Namespace unlink/rmdir qualification can be assessed independently of three-sync data/WAL/Meta durability; original strong read/write blockers stay unchanged. Fix the small comparison artifact/resource/mount/timer contract before any measurement; do not lower old guards after failure or repair an environment in this lane.

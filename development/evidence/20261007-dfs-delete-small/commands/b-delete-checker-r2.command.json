@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-delete-6d-20261007-r1/tools/dfs_manyread_small.py",
+    "delete-checker",
+    "--dfs-root",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-delete-6d-20261007-r1/mount/dfs",
+    "--manifest",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-delete-6d-20261007-r1/results/delete-confirmed.json",
+    "--output",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-delete-6d-20261007-r1/results/delete-checker-r2",
+    "--checker-id",
+    "B"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

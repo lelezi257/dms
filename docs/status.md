@@ -1,6 +1,6 @@
-**当前切片（2026-10-07）：** 固定6d51aeb/map66dbbe3e/157产品输入及release ELF未改。G2.21同步小补项实跑完成：DFS/local-file/gRPC/R2/OFF，A写64MiB、B/C各1预热5读，前后全SHA/EOF及4AFS真实wait0/3stdio rc0通过。ctl单调公共窗口中位45.149MiB/s，B/C纯C中位50.326/22.716；实际durable A+B、uniform去重为唯一4MiB，缓存未观察，不计三同步或3FS持平。旧父窗口和失败证据保持原样。 [完整证据](../development/evidence/20261007-dfs-sync-read-small/README.md)。
+**当前切片（2026-10-07）：** 固定6d51aeb/157/map66dbbe3e/release ELF未改。DFS小删除候选功能/数据/正常收尾完成：每轮100×4KiB、1预热5测量，中位29.8612/合并30.6819ops/s；B/C各600实际ENOENT、4AFS真实wait0，旧身份/挂载不变，206,835,712B<1GiB。原验收工具错路径缺陷已修正，失败和d001 writer/380c checker/e087维护工具分别留身份；正式G2.25缺合格3FS对照，未关闭。 [完整证据](../development/evidence/20261007-dfs-delete-small/README.md)。
 
-**下一项：** DFS小删除G2.25先做独立合同/已有工具与比较依赖检查，再推进具备条件的功能/量化小项；真实环境阻塞停受影响项求助，不修环境打转。已留同步读数据不无输入重测或专项调优。G1历史8/8；G2 10限定完成/2普通性能FAIL/2bind进行中/13待验收。OFF试用可下载；bind默认OFF，锁/append/watch缺口、官方fuser API、Moose强持久及三同步3FS比较独立保留；大规模/长时/复杂可靠性/etcd/Redis后置。
+**下一项：** 独立核对3FS小删除namespace对照资格（制品/ARM差异、实际资源、挂载、同用例与计时），先固定合同再测；读写三同步持久研究不作为namespace小项前置。若实际环境阻塞仅停此项保存证据并求助，不修环境打转。已留普通性能数据暂缓调优；G1历史8/8、G2 10限定完成/2性能FAIL/2bind进行中/13待验收不变；bind默认OFF，大规模/长时/复杂可靠性/etcd/Redis后置。
 
 **历史说明：** 下方旧检查点按原版本/范围保存；其旧下一动作由上方当前入口和验收主表覆盖。当前native偏移/经典锁/watch失败与普通性能失败原始记录均保留。
 

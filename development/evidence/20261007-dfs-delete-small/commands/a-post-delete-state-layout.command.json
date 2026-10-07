@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-c",
+    "import sys,json,hashlib,os\nfrom pathlib import Path\nroot=Path(sys.argv[1]);role=sys.argv[2];files=[]\nfor p in (root/'state').rglob('*'):\n if p.is_file():\n  st=p.stat();item={'path':str(p.relative_to(root)),'bytes':st.st_size,'allocated':st.st_blocks*512}\n  if '/chunks/' in str(p):item['sha256']=hashlib.sha256(p.read_bytes()).hexdigest()\n  files.append(item)\nprint(json.dumps({'role':role,'state_files':files,'observation':'post-delete storage only; not each file pre-unlink replica proof'},indent=2))",
+    "/mnt/lima-afsadata/afs-delivery/dfs-delete-6d-20261007-r1",
+    "a"
+  ],
+  "exit": 0,
+  "state": "TERMINAL"
+}

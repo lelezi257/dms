@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "local_main": "85fd40359a82a6b7e8cc6e65f449f2e553194083",
+  "remote_main": "85fd40359a82a6b7e8cc6e65f449f2e553194083",
+  "git_tree": "f8fc9cb91bace791a325634a8d940ad55e606202",
+  "blob_count": 17198,
+  "complete_remote_tree_matches_local": true,
+  "source_clean": true,
+  "probe_path": "tests/support/workspace_probe.rs",
+  "old_product_probe_absent": true,
+  "bind_core": "src/node/vfs/ownerfs/bind_mount.rs",
+  "adapter": "src/node/native_workspace.rs",
+  "old_adapter_directory_absent": true
+}

@@ -22,8 +22,9 @@ proofs](../20261007-workspace-probe-boundary/README.md) remain unchanged.
 
 [Trial instructions](../../../docs/guides/trial.md) and fixed
 [prerelease entry](https://github.com/lelezi257/dms/releases/tag/afs-trial-7e6e00a)
-identify this archive; public asset availability is confirmed by a publication receipt,
-not inferred from the URL. Existing6d release remains historical.
+identify this archive. [Publication receipt](publication.json) confirms the prerelease
+and all four remote asset sizes/SHA256 digests; [main at publication](main-at-publication.json)
+confirms the complete remote source tree. Existing6d release remains historical.
 [External artifacts](external-artifacts.json) bind the host archive and observer;
 [SHA manifest](manifest.json) covers the compact text packet. Canonical maintained
 Python tools stay in development/acceptance; no full tool snapshots are copied here.

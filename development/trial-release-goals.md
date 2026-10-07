@@ -140,7 +140,7 @@
 | G2.24 | DFS多节点读写 | 固定文件/并发，读写分别验收，不用平均数掩盖失败 | **待验收** |
 | G2.25 | DFS删除 | 固定文件集合，删除正确，操作性能对照报告 | **当前功能/摸底完成，正式对照待验收**；6d候选29.861/30.682ops/s，[原候选证据](evidence/20261007-dfs-delete-small/README.md)；patched3FS R2一次615.210/509.565、B/C各600ENOENT通过；A超预算4,067,328B/FDB-15使原资源/关闭资格FAIL，18owned已消失，不调判据/不重测。[完整新数据及失败](evidence/20261007-threefs-delete-small/README.md)。非3FS持平/物理回收/复杂故障 |
 | G2.26 | DFS大规模一写多读 | 512MiB/8GiB分别留结果；读者正确、总/单读者与3FS对照 | **待验收**；各规模独立验收 |
-| G2.27 | 核心性能版本交付 | 同候选已选核心case/必要组合回归、可复现包、独立安装/恢复及完整状态报告 | **待验收（新普通试用交付分项已过）**；[7e6当前普通包两次复现/无源码无编译器安装/Owner+DFS64MiB恢复PASS](evidence/20261007-current-trial-7e6/README.md)，下载发布以回执为准；[6d OFF安装/恢复](evidence/20261007-installed-off-6d/README.md)和[同包复现/试用清单](evidence/20261007-off-trial-handoff/README.md)分项已过，固定prerelease已发布并核对；完整选定性能/组合出口仍待验收，native保持OFF，不称G2全表完成 |
+| G2.27 | 核心性能版本交付 | 同候选已选核心case/必要组合回归、可复现包、独立安装/恢复及完整状态报告 | **待验收（新普通试用交付分项已过）**；[7e6当前普通包两次复现/无源码无编译器安装/Owner+DFS64MiB恢复PASS](evidence/20261007-current-trial-7e6/README.md)，固定prerelease四附件远端SHA核对通过；[6d OFF安装/恢复](evidence/20261007-installed-off-6d/README.md)和[同包复现/试用清单](evidence/20261007-off-trial-handoff/README.md)分项已过，固定prerelease已发布并核对；完整选定性能/组合出口仍待验收，native保持OFF，不称G2全表完成 |
 
 **决策：** native已知append、实际kernel锁、混合mmap/watch、最终namespace/Root/epoch及排空缺口属于G2.12启用前条件，不能延期后冒充通过。OFF版本和普通FUSE性能独立推进；开关不掩盖ON错误，当前不声称已有可用生产开关。
 

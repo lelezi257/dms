@@ -2,8 +2,8 @@
   "schema": "afs.compact_evidence.v1",
   "files": {
     "README.md": {
-      "bytes": 4592,
-      "sha256": "adf032418f17c7c2f52b33710ee2e93e1ddc4eacdf4c8cbb9837fd78c72f7093"
+      "bytes": 4702,
+      "sha256": "bb85724ea82490125f63f1f9436f806a6f06ce8555919062272eb42dc6807d45"
     },
     "candidate.json": {
       "bytes": 678,
@@ -397,9 +397,17 @@
       "bytes": 9899,
       "sha256": "b025de38114ddb7492eaeaef992292bc811b40ecc1211cf953bc70520e047873"
     },
+    "main-at-publication.json": {
+      "bytes": 521,
+      "sha256": "78953370e215b74609e3c9598d35a6133c5b5eb4886d553aee6434f1a6912fd9"
+    },
     "package-reproduction.json": {
       "bytes": 2809,
       "sha256": "8b7aa5924d634e122a4897b429c8ff79a2a438657c085da8b512866fd6770f15"
+    },
+    "publication.json": {
+      "bytes": 2122,
+      "sha256": "dea717dfa6b14aeae3517e8258af07dbfe1f05794079c159288cf79a7ae3ee98"
     },
     "results/000.stderr": {
       "bytes": 0,

@@ -1,3 +1,5 @@
+**新增小项（2026-10-07，事实）：G2.23当前7e6三同步副本64MiB小写数据完成，正式3FS对照仍待验收。** A/C1/六个不同generation新文件，1预热5计时，中位81.930440MiB/s；96不同4MiB chunks，每轮48物理份及B/C新开全SHA/EOF，四actualwait0/八PID消失及11保护进程/完整mount库存不变。单次产品运行，Linux8 C+7 driver+6 observer guards通过；初始错误文案断言/准备status假设失败留证。测前新case2GiB总预算，最终1,615,421,440B；日志23,261B的39ERRO/60WARN完整保留，不称零错误/完整POSIX。无Rust/vendor/ELF变化，不继承历史性能或升级3FS。G1历史8/8、G2新判据11限定完成/1bind功能进行中/15待验收不变；普通Owner仍1.2×MooseFS吞吐/.8×独立时延待验。下一G2.24小规模多节点读写。[证据](../development/evidence/20261007-dfs-r3-write/README.md)。以下保留原时点记录。
+
 **2026-10-07新增事实：G2.22当前7e6/c3bb的A单读者64MiB小项完成内容/计时/正常闭合，正式3FS对照仍待验。** 1预热5读，中位65.624896MiB/s；前后48物理副本，四actualwait0/八PID消失及11保护进程/完整mount库存不变。Linux11工具guards及独立观察校验通过；首轮遗漏结果目录导致写前拒绝，原FAIL及四正常退出保留，修测试准备后一次数据运行，无Rust/vendor/VM修补。G1历史8/8、G2大项计数/defaultOFF不变，G2.23写性能/G2.27/full bind仍开放。当前OFF标准限定复用已由既有impact-map及当前安装恢复覆盖，不重跑整套；下一G2.23三同步副本小写入摸底。 [证据](../development/evidence/20261007-dfs-r3-local-read/README.md)。
 
 以下保留原时点记录。

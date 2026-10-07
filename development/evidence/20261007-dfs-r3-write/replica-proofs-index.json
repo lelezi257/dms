@@ -1,0 +1,332 @@
+[
+  {
+    "round": 0,
+    "generation": 1,
+    "relative_path": "r3-current-counter/round-00.bin",
+    "file_sha256": "46a900685d530d9438b3c3236964bf20210b7e612255f368e36d67b919646167",
+    "file_version_id": "350071e0-66c8-4370-bb47-853bae0a0101-version-11",
+    "layout_root_id": "350071e0-66c8-4370-bb47-853bae0a0101-layout-11",
+    "manifest_sha256": "8ca59813c2e293e6f6c95ad5ffa234163c5142bf9962270f42ecf13e6ecd31a5",
+    "meta": {
+      "dir": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/meta/meta-store",
+      "schema_version": 1,
+      "snapshot_frames": 0,
+      "version": 11,
+      "wal_frames": 11
+    },
+    "node_catalogs": {
+      "dfs-a-r3": {
+        "catalog_wal": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 16,
+        "revision": 6
+      },
+      "dfs-b-r3": {
+        "catalog_wal": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 16,
+        "revision": 16
+      },
+      "dfs-c-r3": {
+        "catalog_wal": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 16,
+        "revision": 16
+      }
+    },
+    "status": "PASS",
+    "content_ok": true,
+    "invariant": "one explicitly selected r3-current-counter/round-NN.bin dentry chain -> committed 64MiB FileVersion -> 16 unique 4MiB DfsChunks -> each chunk has exactly three distinct Ready Durable CopyRecords -> each CopyRecord matches a durable local catalog record and exact generation-aware physical bytes verified in place on its source node; reconstructed oracle SHA256 matches counter-generation-1m-v1",
+    "limits": {
+      "does_not_claim_original_replica_ack_persistence": true,
+      "does_not_move_chunk_payloads": true,
+      "expected_bytes": 67108864,
+      "expected_chunk_bytes": 4194304,
+      "expected_chunks": 16,
+      "expected_copies_per_chunk": 3,
+      "read_only": true,
+      "relative_directory": "r3-current-counter",
+      "rounds_supported": 6
+    },
+    "chunks_verified": 16,
+    "physical_copies_verified": 48,
+    "raw_full_proof_sha256": "83ffc947db09fb59148ee81ae3c28fb89b3a906d7e954c94ec5a8c62fc2dbffb",
+    "raw_command_id": "ctl-round-00-replica-combine",
+    "observer_sha256": "a8ec5284fd6075450d473fdf6c585433849f536c50298c80fab53ac413d21213"
+  },
+  {
+    "round": 1,
+    "generation": 2,
+    "relative_path": "r3-current-counter/round-01.bin",
+    "file_sha256": "d5042f3b00a744066a834d431a646020fdbb13f1241b98fb91d9fa4053585228",
+    "file_version_id": "350071e0-66c8-4370-bb47-853bae0a0101-version-21",
+    "layout_root_id": "350071e0-66c8-4370-bb47-853bae0a0101-layout-21",
+    "manifest_sha256": "a2da22481667e3a9f56a42e7d928813be8598d6dc8214a2a5fb0751010653f30",
+    "meta": {
+      "dir": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/meta/meta-store",
+      "schema_version": 1,
+      "snapshot_frames": 0,
+      "version": 19,
+      "wal_frames": 19
+    },
+    "node_catalogs": {
+      "dfs-a-r3": {
+        "catalog_wal": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 32,
+        "revision": 13
+      },
+      "dfs-b-r3": {
+        "catalog_wal": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 32,
+        "revision": 32
+      },
+      "dfs-c-r3": {
+        "catalog_wal": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 32,
+        "revision": 32
+      }
+    },
+    "status": "PASS",
+    "content_ok": true,
+    "invariant": "one explicitly selected r3-current-counter/round-NN.bin dentry chain -> committed 64MiB FileVersion -> 16 unique 4MiB DfsChunks -> each chunk has exactly three distinct Ready Durable CopyRecords -> each CopyRecord matches a durable local catalog record and exact generation-aware physical bytes verified in place on its source node; reconstructed oracle SHA256 matches counter-generation-1m-v1",
+    "limits": {
+      "does_not_claim_original_replica_ack_persistence": true,
+      "does_not_move_chunk_payloads": true,
+      "expected_bytes": 67108864,
+      "expected_chunk_bytes": 4194304,
+      "expected_chunks": 16,
+      "expected_copies_per_chunk": 3,
+      "read_only": true,
+      "relative_directory": "r3-current-counter",
+      "rounds_supported": 6
+    },
+    "chunks_verified": 16,
+    "physical_copies_verified": 48,
+    "raw_full_proof_sha256": "67113b3542b7d236698723a47a202f4047b43d9557cd107f8ca3a5bde00ab4f3",
+    "raw_command_id": "ctl-round-01-replica-combine",
+    "observer_sha256": "a8ec5284fd6075450d473fdf6c585433849f536c50298c80fab53ac413d21213"
+  },
+  {
+    "round": 2,
+    "generation": 3,
+    "relative_path": "r3-current-counter/round-02.bin",
+    "file_sha256": "826ffd9aa2cf4cbb2572c46e60ba00dc9352ac38ea6a7fc59b1d0cde415e3937",
+    "file_version_id": "350071e0-66c8-4370-bb47-853bae0a0101-version-31",
+    "layout_root_id": "350071e0-66c8-4370-bb47-853bae0a0101-layout-31",
+    "manifest_sha256": "00fbceffc584d4c6e256624dc02257056d567b5fe25520c2e475625702ac35d8",
+    "meta": {
+      "dir": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/meta/meta-store",
+      "schema_version": 1,
+      "snapshot_frames": 0,
+      "version": 27,
+      "wal_frames": 27
+    },
+    "node_catalogs": {
+      "dfs-a-r3": {
+        "catalog_wal": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 48,
+        "revision": 21
+      },
+      "dfs-b-r3": {
+        "catalog_wal": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 48,
+        "revision": 48
+      },
+      "dfs-c-r3": {
+        "catalog_wal": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 48,
+        "revision": 48
+      }
+    },
+    "status": "PASS",
+    "content_ok": true,
+    "invariant": "one explicitly selected r3-current-counter/round-NN.bin dentry chain -> committed 64MiB FileVersion -> 16 unique 4MiB DfsChunks -> each chunk has exactly three distinct Ready Durable CopyRecords -> each CopyRecord matches a durable local catalog record and exact generation-aware physical bytes verified in place on its source node; reconstructed oracle SHA256 matches counter-generation-1m-v1",
+    "limits": {
+      "does_not_claim_original_replica_ack_persistence": true,
+      "does_not_move_chunk_payloads": true,
+      "expected_bytes": 67108864,
+      "expected_chunk_bytes": 4194304,
+      "expected_chunks": 16,
+      "expected_copies_per_chunk": 3,
+      "read_only": true,
+      "relative_directory": "r3-current-counter",
+      "rounds_supported": 6
+    },
+    "chunks_verified": 16,
+    "physical_copies_verified": 48,
+    "raw_full_proof_sha256": "6364bc0a4b49f1ba6f02115d843109c932f1568559d1f0885bfbf662492cb63d",
+    "raw_command_id": "ctl-round-02-replica-combine",
+    "observer_sha256": "a8ec5284fd6075450d473fdf6c585433849f536c50298c80fab53ac413d21213"
+  },
+  {
+    "round": 3,
+    "generation": 4,
+    "relative_path": "r3-current-counter/round-03.bin",
+    "file_sha256": "757ac87574fd59cecc3016b2ab40c783496f915ee77d23c8b894db8fffc5208c",
+    "file_version_id": "350071e0-66c8-4370-bb47-853bae0a0101-version-41",
+    "layout_root_id": "350071e0-66c8-4370-bb47-853bae0a0101-layout-41",
+    "manifest_sha256": "00a0126c1ae3d44f7adbb27ed01e9cfb42ce770909fe62c33de7bb61b3be1a04",
+    "meta": {
+      "dir": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/meta/meta-store",
+      "schema_version": 1,
+      "snapshot_frames": 1,
+      "version": 35,
+      "wal_frames": 0
+    },
+    "node_catalogs": {
+      "dfs-a-r3": {
+        "catalog_wal": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 64,
+        "revision": 27
+      },
+      "dfs-b-r3": {
+        "catalog_wal": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 64,
+        "revision": 64
+      },
+      "dfs-c-r3": {
+        "catalog_wal": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 64,
+        "revision": 64
+      }
+    },
+    "status": "PASS",
+    "content_ok": true,
+    "invariant": "one explicitly selected r3-current-counter/round-NN.bin dentry chain -> committed 64MiB FileVersion -> 16 unique 4MiB DfsChunks -> each chunk has exactly three distinct Ready Durable CopyRecords -> each CopyRecord matches a durable local catalog record and exact generation-aware physical bytes verified in place on its source node; reconstructed oracle SHA256 matches counter-generation-1m-v1",
+    "limits": {
+      "does_not_claim_original_replica_ack_persistence": true,
+      "does_not_move_chunk_payloads": true,
+      "expected_bytes": 67108864,
+      "expected_chunk_bytes": 4194304,
+      "expected_chunks": 16,
+      "expected_copies_per_chunk": 3,
+      "read_only": true,
+      "relative_directory": "r3-current-counter",
+      "rounds_supported": 6
+    },
+    "chunks_verified": 16,
+    "physical_copies_verified": 48,
+    "raw_full_proof_sha256": "83daf0272eb4d8be790f541c54c830fa1bdeebc786e98a322d2d3dc56399692f",
+    "raw_command_id": "ctl-round-03-replica-combine",
+    "observer_sha256": "a8ec5284fd6075450d473fdf6c585433849f536c50298c80fab53ac413d21213"
+  },
+  {
+    "round": 4,
+    "generation": 5,
+    "relative_path": "r3-current-counter/round-04.bin",
+    "file_sha256": "70eb2c16061a01cfd3945f738f375a373dffc3409f194eef981c821836accc40",
+    "file_version_id": "350071e0-66c8-4370-bb47-853bae0a0101-version-51",
+    "layout_root_id": "350071e0-66c8-4370-bb47-853bae0a0101-layout-51",
+    "manifest_sha256": "ee2da0a4607d9939ba2c783bc0a4c0feeebdf345216ddf793b2a68e615f8310c",
+    "meta": {
+      "dir": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/meta/meta-store",
+      "schema_version": 1,
+      "snapshot_frames": 1,
+      "version": 44,
+      "wal_frames": 9
+    },
+    "node_catalogs": {
+      "dfs-a-r3": {
+        "catalog_wal": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 80,
+        "revision": 34
+      },
+      "dfs-b-r3": {
+        "catalog_wal": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 80,
+        "revision": 80
+      },
+      "dfs-c-r3": {
+        "catalog_wal": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 80,
+        "revision": 80
+      }
+    },
+    "status": "PASS",
+    "content_ok": true,
+    "invariant": "one explicitly selected r3-current-counter/round-NN.bin dentry chain -> committed 64MiB FileVersion -> 16 unique 4MiB DfsChunks -> each chunk has exactly three distinct Ready Durable CopyRecords -> each CopyRecord matches a durable local catalog record and exact generation-aware physical bytes verified in place on its source node; reconstructed oracle SHA256 matches counter-generation-1m-v1",
+    "limits": {
+      "does_not_claim_original_replica_ack_persistence": true,
+      "does_not_move_chunk_payloads": true,
+      "expected_bytes": 67108864,
+      "expected_chunk_bytes": 4194304,
+      "expected_chunks": 16,
+      "expected_copies_per_chunk": 3,
+      "read_only": true,
+      "relative_directory": "r3-current-counter",
+      "rounds_supported": 6
+    },
+    "chunks_verified": 16,
+    "physical_copies_verified": 48,
+    "raw_full_proof_sha256": "23f41d6bb3ef438f3026de73ebb2709617508cf37dfe93545b993b9476d10b65",
+    "raw_command_id": "ctl-round-04-replica-combine",
+    "observer_sha256": "a8ec5284fd6075450d473fdf6c585433849f536c50298c80fab53ac413d21213"
+  },
+  {
+    "round": 5,
+    "generation": 6,
+    "relative_path": "r3-current-counter/round-05.bin",
+    "file_sha256": "15d4b46b764f02b54cf5d58a204d380a5599209d7c28193b4b82d0ad958c0f58",
+    "file_version_id": "350071e0-66c8-4370-bb47-853bae0a0101-version-61",
+    "layout_root_id": "350071e0-66c8-4370-bb47-853bae0a0101-layout-61",
+    "manifest_sha256": "a8d9c7823de0af7758ab7945db57ef2a89028d09c0689023e9de62890d53da2e",
+    "meta": {
+      "dir": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/meta/meta-store",
+      "schema_version": 1,
+      "snapshot_frames": 1,
+      "version": 54,
+      "wal_frames": 6
+    },
+    "node_catalogs": {
+      "dfs-a-r3": {
+        "catalog_wal": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 96,
+        "revision": 42
+      },
+      "dfs-b-r3": {
+        "catalog_wal": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 96,
+        "revision": 96
+      },
+      "dfs-c-r3": {
+        "catalog_wal": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs/catalog.wal",
+        "chunk_root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/state/node/dfs",
+        "records": 96,
+        "revision": 96
+      }
+    },
+    "status": "PASS",
+    "content_ok": true,
+    "invariant": "one explicitly selected r3-current-counter/round-NN.bin dentry chain -> committed 64MiB FileVersion -> 16 unique 4MiB DfsChunks -> each chunk has exactly three distinct Ready Durable CopyRecords -> each CopyRecord matches a durable local catalog record and exact generation-aware physical bytes verified in place on its source node; reconstructed oracle SHA256 matches counter-generation-1m-v1",
+    "limits": {
+      "does_not_claim_original_replica_ack_persistence": true,
+      "does_not_move_chunk_payloads": true,
+      "expected_bytes": 67108864,
+      "expected_chunk_bytes": 4194304,
+      "expected_chunks": 16,
+      "expected_copies_per_chunk": 3,
+      "read_only": true,
+      "relative_directory": "r3-current-counter",
+      "rounds_supported": 6
+    },
+    "chunks_verified": 16,
+    "physical_copies_verified": 48,
+    "raw_full_proof_sha256": "fbca79723d25ab82b70710f409fb6ab96114df6b5bbe27d6e352aa9bab31576e",
+    "raw_command_id": "ctl-round-05-replica-combine",
+    "observer_sha256": "a8ec5284fd6075450d473fdf6c585433849f536c50298c80fab53ac413d21213"
+  }
+]

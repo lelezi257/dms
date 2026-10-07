@@ -1,0 +1,50 @@
+{
+  "full_logs_retained": true,
+  "zero_error_claim": false,
+  "records": [
+    {
+      "role": "ctl",
+      "member": "logs/meta.log",
+      "sha256": "27f734b9e7b3b68d1cce17f825c2d249bc41c820057a21c1a2f3ff00d8ecea12",
+      "bytes": 296,
+      "levels": {
+        "INFO": 2,
+        "WARN": 0,
+        "ERRO": 0
+      }
+    },
+    {
+      "role": "a",
+      "member": "logs/node.log",
+      "sha256": "080689609a9beec9b0270608378cc062713f2aa4203400ebeb6c75a2ed5754ae",
+      "bytes": 9530,
+      "levels": {
+        "INFO": 9,
+        "WARN": 12,
+        "ERRO": 27
+      }
+    },
+    {
+      "role": "b",
+      "member": "logs/node.log",
+      "sha256": "fb7e5db089e3bfbf9f2cdb41cbf93c2e0d4b31730e952de07368be0d3e62c1a9",
+      "bytes": 6718,
+      "levels": {
+        "INFO": 3,
+        "WARN": 24,
+        "ERRO": 6
+      }
+    },
+    {
+      "role": "c",
+      "member": "logs/node.log",
+      "sha256": "cd936a6e1643d3e2af362e49230566f2bfda22ec2b7cf7793239100903828339",
+      "bytes": 6717,
+      "levels": {
+        "INFO": 3,
+        "WARN": 24,
+        "ERRO": 6
+      }
+    }
+  ]
+}

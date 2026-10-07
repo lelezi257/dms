@@ -1,0 +1,770 @@
+{
+  "preparation": 388497408,
+  "declared_aggregate_ceiling_bytes": 2147483648,
+  "rounds": [
+    {
+      "status": "PASS_BUDGET_ONLY",
+      "allocated_bytes": 591495168,
+      "aggregate_ceiling_bytes": 2147483648,
+      "roles": {
+        "ctl": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "ctl",
+          "root": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsctlstate"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsctlstate\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 98422784,
+          "free_bytes": 3633725440,
+          "volume": {
+            "target": "/mnt/lima-afsctlstate",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "a": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "a",
+          "root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsadata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 164360192,
+          "free_bytes": 2327928832,
+          "volume": {
+            "target": "/mnt/lima-afsadata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "b": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "b",
+          "root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsbdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 164356096,
+          "free_bytes": 16407851008,
+          "volume": {
+            "target": "/mnt/lima-afsbdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "c": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "c",
+          "root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afscdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afscdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 164356096,
+          "free_bytes": 29485834240,
+          "volume": {
+            "target": "/mnt/lima-afscdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        }
+      }
+    },
+    {
+      "status": "PASS_BUDGET_ONLY",
+      "allocated_bytes": 795090944,
+      "aggregate_ceiling_bytes": 2147483648,
+      "roles": {
+        "ctl": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "ctl",
+          "root": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsctlstate"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsctlstate\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 100474880,
+          "free_bytes": 3631673344,
+          "volume": {
+            "target": "/mnt/lima-afsctlstate",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "a": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "a",
+          "root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsadata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 231538688,
+          "free_bytes": 2260750336,
+          "volume": {
+            "target": "/mnt/lima-afsadata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "b": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "b",
+          "root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsbdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 231538688,
+          "free_bytes": 16340668416,
+          "volume": {
+            "target": "/mnt/lima-afsbdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "c": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "c",
+          "root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afscdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afscdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 231538688,
+          "free_bytes": 29418651648,
+          "volume": {
+            "target": "/mnt/lima-afscdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        }
+      }
+    },
+    {
+      "status": "PASS_BUDGET_ONLY",
+      "allocated_bytes": 999829504,
+      "aggregate_ceiling_bytes": 2147483648,
+      "roles": {
+        "ctl": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "ctl",
+          "root": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsctlstate"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsctlstate\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 103636992,
+          "free_bytes": 3628511232,
+          "volume": {
+            "target": "/mnt/lima-afsctlstate",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "a": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "a",
+          "root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsadata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 298729472,
+          "free_bytes": 2193559552,
+          "volume": {
+            "target": "/mnt/lima-afsadata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "b": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "b",
+          "root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsbdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 298733568,
+          "free_bytes": 16273473536,
+          "volume": {
+            "target": "/mnt/lima-afsbdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "c": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "c",
+          "root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afscdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afscdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 298729472,
+          "free_bytes": 29351460864,
+          "volume": {
+            "target": "/mnt/lima-afscdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        }
+      }
+    },
+    {
+      "status": "PASS_BUDGET_ONLY",
+      "allocated_bytes": 1197821952,
+      "aggregate_ceiling_bytes": 2147483648,
+      "roles": {
+        "ctl": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "ctl",
+          "root": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsctlstate"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsctlstate\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 100061184,
+          "free_bytes": 3632087040,
+          "volume": {
+            "target": "/mnt/lima-afsctlstate",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "a": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "a",
+          "root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsadata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 365912064,
+          "free_bytes": 2126376960,
+          "volume": {
+            "target": "/mnt/lima-afsadata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "b": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "b",
+          "root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsbdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 365924352,
+          "free_bytes": 16206282752,
+          "volume": {
+            "target": "/mnt/lima-afsbdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "c": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "c",
+          "root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afscdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afscdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 365924352,
+          "free_bytes": 29284265984,
+          "volume": {
+            "target": "/mnt/lima-afscdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        }
+      }
+    },
+    {
+      "status": "PASS_BUDGET_ONLY",
+      "allocated_bytes": 1405460480,
+      "aggregate_ceiling_bytes": 2147483648,
+      "roles": {
+        "ctl": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "ctl",
+          "root": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsctlstate"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsctlstate\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 106156032,
+          "free_bytes": 3625992192,
+          "volume": {
+            "target": "/mnt/lima-afsctlstate",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "a": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "a",
+          "root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsadata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 433090560,
+          "free_bytes": 2059198464,
+          "volume": {
+            "target": "/mnt/lima-afsadata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "b": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "b",
+          "root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsbdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 433106944,
+          "free_bytes": 16139100160,
+          "volume": {
+            "target": "/mnt/lima-afsbdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "c": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "c",
+          "root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afscdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afscdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 433106944,
+          "free_bytes": 29217083392,
+          "volume": {
+            "target": "/mnt/lima-afscdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        }
+      }
+    },
+    {
+      "status": "PASS_BUDGET_ONLY",
+      "allocated_bytes": 1606778880,
+      "aggregate_ceiling_bytes": 2147483648,
+      "roles": {
+        "ctl": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "ctl",
+          "root": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsctlstate"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsctlstate\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 105910272,
+          "free_bytes": 3626237952,
+          "volume": {
+            "target": "/mnt/lima-afsctlstate",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "a": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "a",
+          "root": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsadata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsadata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 500281344,
+          "free_bytes": 1992007680,
+          "volume": {
+            "target": "/mnt/lima-afsadata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsadata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "b": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "b",
+          "root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afsbdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 500293632,
+          "free_bytes": 16071913472,
+          "volume": {
+            "target": "/mnt/lima-afsbdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        },
+        "c": {
+          "fixture": "dfs-r3-write-7e6-20261007-r1",
+          "role": "c",
+          "root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1",
+          "commands": [
+            {
+              "argv": [
+                "findmnt",
+                "-J",
+                "--mountpoint",
+                "/mnt/lima-afscdata"
+              ],
+              "rc": 0,
+              "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afscdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+              "stderr": ""
+            }
+          ],
+          "allocated_bytes": 500293632,
+          "free_bytes": 29149896704,
+          "volume": {
+            "target": "/mnt/lima-afscdata",
+            "source": "/dev/vdb1",
+            "fstype": "ext4",
+            "options": "rw,relatime"
+          },
+          "ceiling_bytes": 1073741824,
+          "floor_bytes": 1073741824,
+          "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-r3-write-7e6-20261007-r1/mount",
+          "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+        }
+      }
+    }
+  ],
+  "final_allocated_bytes": 1615421440,
+  "retained_six_files": true
+}

@@ -26,6 +26,7 @@ enum {
 
 static const uint64_t FILE_BYTES = (uint64_t)BLOCK_BYTES * (uint64_t)OPERATIONS;
 static const char *DATASET = "counter-1m-v1";
+static uint64_t generation = 0; /* Legacy CLI uses the original dataset. */
 
 static uint64_t now_ns(clockid_t clock) {
     struct timespec value;
@@ -54,7 +55,7 @@ static void write_counter_le(unsigned char *buffer, uint64_t value) {
 
 static void fill_block(unsigned char *buffer, uint64_t index) {
     memset(buffer, PATTERN_BYTE, BLOCK_BYTES);
-    write_counter_le(buffer, index);
+    write_counter_le(buffer, (generation << 32) | index);
 }
 
 static void full_write(int fd, const unsigned char *buffer, size_t length) {
@@ -93,13 +94,18 @@ static void full_read(int fd, unsigned char *buffer, size_t length) {
 
 static void emit_success(const char *operation, const char *barrier, uint64_t wall_ns,
                          uint64_t cpu_ns, uint64_t barrier_ns) {
-    printf("{\"dataset\":\"%s\",\"operation\":\"%s\",\"file_bytes\":%llu,"
+    char generation_json[40] = "";
+    if (generation != 0) {
+        snprintf(generation_json, sizeof(generation_json), "\"generation\":%llu,",
+                 (unsigned long long)generation);
+    }
+    printf("{\"dataset\":\"%s\",%s\"operation\":\"%s\",\"file_bytes\":%llu,"
            "\"io_bytes\":%llu,\"block_bytes\":%d,\"concurrency\":1,"
            "\"pattern_byte\":%d,\"operations\":%d,\"barrier\":\"%s\","
            "\"cache_requested\":\"unobserved\",\"residency_observed\":false,"
            "\"content_ok\":true,\"wall_ns\":%llu,\"client_cpu_ns\":%llu,"
            "\"barrier_ns\":%llu}\n",
-           DATASET, operation, (unsigned long long)FILE_BYTES,
+           DATASET, generation_json, operation, (unsigned long long)FILE_BYTES,
            (unsigned long long)FILE_BYTES, BLOCK_BYTES, PATTERN_BYTE, OPERATIONS,
            barrier, (unsigned long long)wall_ns, (unsigned long long)cpu_ns,
            (unsigned long long)barrier_ns);
@@ -189,9 +195,16 @@ static int read_file(const char *path) {
 }
 
 int main(int argc, char **argv) {
-    if (argc != 3) {
-        fprintf(stderr, "usage: %s write|read ABS_PATH\n", argv[0]);
+    if (argc != 3 && argc != 4) {
+        fprintf(stderr, "usage: %s write|read ABS_PATH [GENERATION_1_TO_6]\n", argv[0]);
         return 2;
+    }
+    if (argc == 4) {
+        if (argv[3][0] < '1' || argv[3][0] > '6' || argv[3][1] != '\0') {
+            fail_text("generation must be an integer from1 to6");
+        }
+        generation = (uint64_t)(argv[3][0] - '0');
+        DATASET = "counter-generation-1m-v1";
     }
     if (argv[2][0] != '/') {
         fprintf(stderr, "path must be absolute\n");

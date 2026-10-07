@@ -1,0 +1,17 @@
+{
+  "linux_guard_initial": {
+    "rc": 1,
+    "cause": "expected identity error regex did not include invalid candidate wording; malformed identity was correctly rejected",
+    "evidence_stderr_sha256": "917f30a10a8722d7aaf7fa39df4bf8b0952e81d219d485dcad51e9d2495b0fc3",
+    "corrected_linux_rc": 0,
+    "eight_C_and_seven_driver_tests": 15
+  },
+  "host_patch_status_assumption": {
+    "status": "FAIL_ORCHESTRATION_ONLY",
+    "incorrect_expected_status": "PASS_CONFIG_PATCH_ONLY",
+    "actual_status": "PATCHED_NOT_ADMITTED",
+    "actual_patch_command_rc": 0,
+    "reused_saved_ctl_patch_without_repatch": true
+  },
+  "no_runtime_retry_or_environment_repair": true
+}

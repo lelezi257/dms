@@ -20,9 +20,9 @@ PATTERN_BYTE = 0x61
 CHUNK_BYTES = 4 * 1024 * 1024
 
 
-def expected_block(index: int) -> bytes:
+def expected_block(index: int, generation: int = 0) -> bytes:
     block = bytearray([PATTERN_BYTE]) * BLOCK_BYTES
-    block[:8] = index.to_bytes(8, "little")
+    block[:8] = ((generation << 32) | index).to_bytes(8, "little")
     return bytes(block)
 
 
@@ -160,6 +160,51 @@ class DfsUniqueIoQualificationTests(unittest.TestCase):
                 failed = self.run_probe(*args)
                 self.assertNotEqual(failed.returncode, 0)
                 self.assertEqual(failed.stdout, "")
+
+    def test_six_generations_have_distinct_physical_contents_and_correct_readback(self) -> None:
+        all_chunks = []
+        for generation in range(1, 7):
+            payload = self.root / f'generation-{generation}.bin'
+            record = parse_success(self.run_probe('write', str(payload), str(generation)))
+            self.assertEqual(record['dataset'], 'counter-generation-1m-v1')
+            self.assertEqual(record['generation'], generation)
+            self.assertEqual(record['barrier'], 'fdatasync')
+            self.assertEqual(record['io_bytes'], DATA_BYTES)
+            read = parse_success(self.run_probe('read', str(payload), str(generation)))
+            self.assertEqual(read['generation'], generation)
+            with payload.open('rb') as stream:
+                for chunk_index in range(16):
+                    chunk = stream.read(CHUNK_BYTES)
+                    expected = b''.join(expected_block(i, generation)
+                                        for i in range(chunk_index * 4, chunk_index * 4 + 4))
+                    self.assertEqual(chunk, expected)
+                    all_chunks.append(hashlib.sha256(chunk).hexdigest())
+                self.assertEqual(stream.read(1), b'')
+        self.assertEqual(len(set(all_chunks)), 96)
+
+    def test_generation_mismatch_and_corruption_reject_without_success_json(self) -> None:
+        payload = self.root / 'generation-invalid-read.bin'
+        parse_success(self.run_probe('write', str(payload), '1'))
+        for args in (('read', str(payload)), ('read', str(payload), '2')):
+            failed = self.run_probe(*args)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertEqual(failed.stdout, '')
+        with payload.open('r+b') as stream:
+            stream.seek(BLOCK_BYTES + 512)
+            stream.write(b'Z')
+            stream.flush()
+            os.fsync(stream.fileno())
+        failed = self.run_probe('read', str(payload), '1')
+        self.assertNotEqual(failed.returncode, 0)
+        self.assertEqual(failed.stdout, '')
+
+    def test_invalid_generation_fails_before_file_creation(self) -> None:
+        for generation in ('', '0', '7', '-1', '+1', '01', '1x', ' 1', 'true'):
+            payload = self.root / 'generation-invalid-cli.bin'
+            failed = self.run_probe('write', str(payload), generation)
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertEqual(failed.stdout, '')
+            self.assertFalse(payload.exists())
 
 
 if __name__ == "__main__":

@@ -43,6 +43,9 @@ class Run(base.Run):
     def preflight(self):
         if self.args.source_rejection_only and (self.args.semantics_only or self.args.semantics_probe):
             raise ValueError('source-rejection-only is mutually exclusive with semantics')
+        if getattr(self.args, 'control_capacity_only', False) and (
+                self.args.source_rejection_only or self.args.semantics_only or self.args.semantics_probe):
+            raise ValueError('control-capacity-only is mutually exclusive with other modes')
         self.check('Linux-root', platform.system() == 'Linux' and platform.machine() == 'aarch64'
                    and os.geteuid() == 0, [platform.system(), platform.machine(), os.geteuid()])
         self.check('new-owned-root', self.root.parent == Path('/opt') and not self.root.exists(), str(self.root))
@@ -134,10 +137,12 @@ class Run(base.Run):
         return result
 
     def run(self):
+        control_only = self.args.source_rejection_only or self.args.control_capacity_only
         result = {'status': 'BLOCKED', 'scope': 'single experimental managed OwnerFs workspace; not full G2.12/13',
                   'source_commit': self.args.source_commit, 'driver_sha256': base.sha(__file__),
-                  'basic_payload_selected': not (self.args.semantics_only or self.args.source_rejection_only),
+                  'basic_payload_selected': not (self.args.semantics_only or control_only),
                   'source_rejection_selected': self.args.source_rejection_only,
+                  'control_capacity_selected': self.args.control_capacity_only,
                   'semantic_groups': self.args.semantics_groups if self.args.semantics_probe else []}
         process = None
         try:
@@ -150,7 +155,7 @@ class Run(base.Run):
             self.check('control-mode', stat.S_IMODE((self.root / 'control').stat().st_mode) == 0o700
                        and stat.S_IMODE((self.root / 'control/control.sock').stat().st_mode) == 0o600, '0700/0600')
             self.check('initial-idle', self.native('initial', 'status')['state'] == 'Idle', 'Idle')
-            if not self.args.source_rejection_only:
+            if not control_only:
                 self.native('unsafe-path', 'start', '../escape', error=True)
                 self.native('absent-root', 'start', 'absent', error=True)
             workspace = self.root / 'mount/ownerfs/workspace'
@@ -164,7 +169,7 @@ class Run(base.Run):
             seed_sha = hashlib.sha256(seed).hexdigest()
             start = self.native('first', 'start', 'workspace')
             self.check('final-verified', start.get('state') == 'FinalVerified', start)
-            if not self.args.source_rejection_only:
+            if not control_only:
                 self.check('start-replay', self.native('first', 'start', 'workspace') == start, start)
                 self.native('first', 'start', 'different', error=True)
                 self.native('busy', 'start', 'workspace', error=True)
@@ -188,6 +193,14 @@ class Run(base.Run):
                 self.save('source-rejection-tool.json', {'path': str(Path(source_rejection.__file__)),
                           'sha256': base.sha(source_rejection.__file__)})
                 source_rejection.execute(self, start, workspace)
+            elif self.args.control_capacity_only:
+                capacity_spec = importlib.util.spec_from_file_location('native_control_capacity',
+                    Path(__file__).parent / 'probes/native_control_capacity.py')
+                capacity = importlib.util.module_from_spec(capacity_spec)
+                capacity_spec.loader.exec_module(capacity)
+                self.save('control-capacity-tool.json', {'path': str(Path(capacity.__file__)),
+                          'sha256': base.sha(capacity.__file__)})
+                capacity.execute(self, start, workspace)
             elif not self.args.semantics_only:
                 shell = (f'/bin/busybox id; /bin/busybox grep -E "^(CapEff|NoNewPrivs):" /proc/self/status; '
                     f'test "$(/bin/busybox sha256sum /workspace/seed | /bin/busybox cut -d " " -f 1)" = {seed_sha}; '
@@ -219,7 +232,7 @@ class Run(base.Run):
             self.check('container-pid-gone', not Path(f'/proc/{pid}').exists(), pid)
             self.check('runtime-empty', json.loads(self.command(['/usr/local/sbin/runc', '--root',
                        self.root / 'control/runtime-state', 'list', '--format', 'json'])) in (None, []), 'empty')
-            if not (self.args.semantics_only or self.args.source_rejection_only):
+            if not (self.args.semantics_only or control_only):
                 self.check('host-reopen-after-stop', content_matches(workspace / 'renamed', 64 * 2**20 + 4, expected), expected)
                 self.save('content.json', {'size': 64 * 2**20 + 4, 'sha256': expected, 'seed_sha256': seed_sha})
             result['status'] = 'PASS'
@@ -265,14 +278,16 @@ def main():
                         help='run selected short semantics and necessary lifecycle identity only; omit unchanged 64MiB basic payload')
     mode.add_argument('--source-rejection-only', action='store_true',
                       help='only reject an unknown source field on a live managed container and prove legal exec/normal stop')
+    mode.add_argument('--control-capacity-only', action='store_true',
+                      help='fill the active control ledger with 63 busy Starts; reject new Exec with ENOSPC and preserve Status/Stop')
     parser.add_argument('--semantics-probe', type=Path, help='optional short mixed-path checks before normal stop')
     parser.add_argument('--semantics-groups', nargs='+',
                         choices=('locks', 'append', 'mmap_inotify', 'permissions_errno'),
                         default=['locks', 'append', 'mmap_inotify', 'permissions_errno'],
                         help='only run affected groups; omitted groups retain their original evidence')
     args = parser.parse_args()
-    if args.source_rejection_only and args.semantics_probe:
-        parser.error('--source-rejection-only cannot be combined with --semantics-probe')
+    if (args.source_rejection_only or args.control_capacity_only) and args.semantics_probe:
+        parser.error('control-only modes cannot be combined with --semantics-probe')
     return Run(args).run()
 
 

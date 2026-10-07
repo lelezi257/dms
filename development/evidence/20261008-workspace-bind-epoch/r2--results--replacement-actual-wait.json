@@ -1,0 +1,26 @@
+{
+  "path": "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/run/node.lifecycle.u8tAZv",
+  "child": {
+    "pid": "103894",
+    "exe": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-node",
+    "config": "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/etc/node.toml",
+    "start_ticks": "13227969",
+    "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+    "lifecycle": "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/run/node.lifecycle.u8tAZv",
+    "supervisor_pid": "103878"
+  },
+  "ready": {
+    "supervisor_pid": "103878"
+  },
+  "exit": {
+    "pid": "103894",
+    "exe": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-node",
+    "config": "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/etc/node.toml",
+    "start_ticks": "13227969",
+    "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+    "lifecycle": "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/run/node.lifecycle.u8tAZv",
+    "supervisor_pid": "103878",
+    "exit_code": "0"
+  },
+  "both_gone": true
+}

@@ -1,0 +1,1 @@
+Error: Error { code: ErrorCode(34275329), kind: FailedPrecondition, message: "Meta has an active Home root without local catalog evidence" }

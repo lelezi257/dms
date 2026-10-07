@@ -1,0 +1,29 @@
+{
+  "source": "/opt/afs-workspace-bind-epoch-20261008-r2/state/node/ownerfs/root-776f726b7370616365-e1",
+  "target": "/opt/afs-workspace-bind-epoch-20261008-r2/mount/ownerfs/workspace",
+  "cover": {
+    "target": "/opt/afs-workspace-bind-epoch-20261008-r2/mount/ownerfs/workspace",
+    "source": "/dev/vda1[/opt/afs-workspace-bind-epoch-20261008-r2/state/node/ownerfs/root-776f726b7370616365-e1]",
+    "fstype": "ext4",
+    "options": "rw,nosuid,nodev,relatime,discard,errors=remount-ro,commit=30",
+    "id": 88
+  },
+  "underlying": {
+    "target": "/",
+    "source": "/dev/vda1",
+    "fstype": "ext4",
+    "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+  },
+  "namespace": {
+    "dev": 4,
+    "ino": 4026531841
+  },
+  "source_identity": [
+    64769,
+    829730
+  ],
+  "target_identity": [
+    64769,
+    829730
+  ]
+}

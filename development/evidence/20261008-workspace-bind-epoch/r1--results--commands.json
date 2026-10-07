@@ -1,0 +1,472 @@
+[
+  {
+    "argv": [
+      "ldd",
+      "/var/tmp/afs-workspace-bind-epoch-20261008-r1/admission-bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037459349841810763,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/var/tmp/afs-workspace-bind-epoch-20261008-r1/admission-bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0039016809896565974,
+    "stdout": "001.stdout",
+    "stderr": "001.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016350790101569146,
+    "stdout": "002.stdout",
+    "stderr": "002.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-xzf",
+      "/var/tmp/afs-current-trial-f03-20261008-r1-package.tar.gz",
+      "-C",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/package"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.19494839600520208,
+    "stdout": "003.stdout",
+    "stderr": "003.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/package/afs-0.1.0-g2-main-f03dc2b-linux-aarch64/install.sh",
+      "--prefix",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc",
+      "--state-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/state",
+      "--run-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/logs",
+      "--mount-root",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/mount"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.502443157020025,
+    "stdout": "004.stdout",
+    "stderr": "004.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0038628909969702363,
+    "stdout": "005.stdout",
+    "stderr": "005.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0041414239967707545,
+    "stdout": "006.stdout",
+    "stderr": "006.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-trial-config",
+      "single",
+      "--backend",
+      "local-file",
+      "--config-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc",
+      "--state-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/state",
+      "--run-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/run",
+      "--mount-root",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/mount",
+      "--meta-grpc-port",
+      "22400",
+      "--meta-rest-port",
+      "22401",
+      "--node-grpc-port",
+      "22500",
+      "--node-rest-port",
+      "22501",
+      "--force"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.2869730469828937,
+    "stdout": "007.stdout",
+    "stderr": "007.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-meta",
+      "--config",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc/meta.toml",
+      "--print-config"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0012786310107912868,
+    "stdout": "008.stdout",
+    "stderr": "008.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "verify",
+      "-CAfile",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc/tls/ca.pem",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc/tls/meta.pem"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016269540064968169,
+    "stdout": "009.stdout",
+    "stderr": "009.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "x509",
+      "-in",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc/tls/meta.pem",
+      "-noout",
+      "-pubkey"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.018458102975273505,
+    "stdout": "010.stdout",
+    "stderr": "010.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "pkey",
+      "-in",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc/tls/meta-key.pem",
+      "-pubout"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003412569989450276,
+    "stdout": "011.stdout",
+    "stderr": "011.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-node",
+      "--config",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc/node.toml",
+      "--print-config"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003393154009245336,
+    "stdout": "012.stdout",
+    "stderr": "012.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "verify",
+      "-CAfile",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc/tls/ca.pem",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc/tls/node-a.pem"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016204540152102709,
+    "stdout": "013.stdout",
+    "stderr": "013.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "x509",
+      "-in",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc/tls/node-a.pem",
+      "-noout",
+      "-pubkey"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.015993046981748194,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "pkey",
+      "-in",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc/tls/node-a-key.pem",
+      "-pubout"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003743852023035288,
+    "stdout": "015.stdout",
+    "stderr": "015.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc",
+      "--run-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3214541999914218,
+    "stdout": "016.stdout",
+    "stderr": "016.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.002040941995801404,
+    "stdout": "017.stdout",
+    "stderr": "017.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc",
+      "--run-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.17308714898535982,
+    "stdout": "018.stdout",
+    "stderr": "018.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/mount/ownerfs/workspace"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0027111319941468537,
+    "stdout": "019.stdout",
+    "stderr": "019.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0015748309961054474,
+    "stdout": "020.stdout",
+    "stderr": "020.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc",
+      "--run-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3716999089810997,
+    "stdout": "021.stdout",
+    "stderr": "021.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0017547419993206859,
+    "stdout": "022.stdout",
+    "stderr": "022.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/mount/ownerfs/workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016194540075957775,
+    "stdout": "023.stdout",
+    "stderr": "023.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/state/node/ownerfs/root-776f726b7370616365-e1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0013412130065262318,
+    "stdout": "024.stdout",
+    "stderr": "024.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--noproxy",
+      "*",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "5",
+      "http://127.0.0.1:22501/health"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0033114480029325932,
+    "stdout": "025.stdout",
+    "stderr": "025.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-node",
+      "--config",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/replacement/etc/node.toml",
+      "--print-config"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00198844401165843,
+    "stdout": "026.stdout",
+    "stderr": "026.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/replacement/etc",
+      "--run-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/replacement/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/replacement/logs",
+      "start",
+      "node"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.17958463198738173,
+    "stdout": "027.stdout",
+    "stderr": "027.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/replacement/etc",
+      "--run-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/replacement/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/replacement/logs",
+      "stop",
+      "node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.008487468003295362,
+    "stdout": "028.stdout",
+    "stderr": "028.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/etc",
+      "--run-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-bind-epoch-20261008-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.2307923549960833,
+    "stdout": "029.stdout",
+    "stderr": "029.stderr"
+  }
+]

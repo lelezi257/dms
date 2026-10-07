@@ -1,0 +1,1213 @@
+[
+  {
+    "elapsed_seconds": 0.30365294602233917,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.36391130500123836,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.4179778060060926,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.4784599929989781,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.5312018580152653,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.5903762420057319,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.6454890110180713,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.6968945740081836,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.7578085840214044,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.8111823509971146,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.8709566390025429,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.9257317500014324,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 0.9865103470219765,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.037813372007804,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.0893532240006607,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.1404595030180644,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.2011303120234516,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.2531959020125214,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.3140224980015773,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.3667322820110712,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.427627877012128,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.4822187840181869,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.5431329200218897,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.6040962210099678,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.6556560320022982,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.7161183030111715,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.7767624870175496,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.8366179809963796,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.8880117960216012,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 1.943407560000196,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.0044182779965922,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.0654787870007567,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.126358841022011,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.1776796580234077,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.2301156989997253,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.284248075011419,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.335516101011308,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.3881760540243704,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.4407487170246895,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.493916949024424,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.5459559989976697,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.598213877005037,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.6527221200230997,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.706339801021386,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.764226507017156,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.81582835901645,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.870691512012854,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.9262120659986977,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 2.983165129000554,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.03599720299826,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.0892702249984723,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.140763039002195,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.193356785021024,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.2452724640024826,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.2994934230227955,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.3538977110001724,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.4082715830008965,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.4632554830168374,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.5152579930145293,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.5672331700043287,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.6243341880035587,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.682161813019775,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.736491436022334,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.7881806200020947,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.8496132060245145,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.9103570989973377,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 3.9659179860027507,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.024739798012888,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.078330522024771,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.13019649501075,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.184250999998767,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.245100057014497,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.306537808995927,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.36658801001613,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.424709671002347,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.480427555012284,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.535822405014187,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.59718532502302,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.653192619007314,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.707419412006857,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.763153378007701,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.818887387024006,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.872232866997365,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.932663434999995,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 4.987099058023887,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.048651100019924,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.106011030002264,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.167610486998456,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.229239444015548,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.286320797022199,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.3414673620136455,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.399418737011729,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.456168181000976,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.508656181016704,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.565248629020061,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.6196743350010365,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.68020102599985,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.741863607021514,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.796887966018403,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.852194986015093,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.904193207010394,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 5.956111804000102,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.014448755013291,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.071001579024596,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.13203871800215,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.185404615011066,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.240548931004014,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.2986071790219285,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.352185322000878,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.404766863008263,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.458531502023106,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.520282832003431,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.576349084003596,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.632372796011623,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.69345543300733,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.752266288996907,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.811118061013985,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.865550394024467,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.918185059010284,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 6.971212716016453,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.0319861940224655,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.083823420020053,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.135921806009719,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.190559801005293,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.248430638021091,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.3092057410103735,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.362146816012682,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.416162367007928,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.468391750007868,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.521349825023208,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.582014972023899,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.636295934004011,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.690451522008516,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.748692768014735,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.80067757301731,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.858401206001872,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.914080426999135,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 7.974385209003231,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.035329268022906,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.088750458002323,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.14864908301388,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.200889466999797,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.253556591022061,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.306171758013079,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.36824299901491,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.421448277018499,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.473806242021965,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.530746018019272,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.590345774020534,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.646646398003213,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.708570934017189,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.763606629014248,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.820357118005631,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.872729041002458,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.925569079001434,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 8.98070810502395,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.037126519018784,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.098397780006053,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.15218092102441,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.206430968013592,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.26893174200086,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.324548049014993,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.382121853006538,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.442800919001456,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.50503278299584,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.559412868024083,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.621804770024028,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.676891548006097,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.730320905015105,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.782885990018258,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.836089312011609,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.887248514016392,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true
+  },
+  {
+    "elapsed_seconds": 9.938641209999332,
+    "node_alive": false,
+    "supervisor_alive": false,
+    "fuse": false,
+    "bind": false
+  }
+]

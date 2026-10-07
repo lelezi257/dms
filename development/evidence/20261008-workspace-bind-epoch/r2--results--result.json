@@ -1,0 +1,7 @@
+{
+  "status": "FAIL",
+  "source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+  "scope": "one real heartbeat-driven authority-error bind closure; 4096B",
+  "error": "authority-error-preserved",
+  "cleanup_error": "command 031 exit 1"
+}

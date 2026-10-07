@@ -1,0 +1,250 @@
+{
+  "status": "PASS",
+  "scope": "independent saved r2 natural epoch-error closure only; original drivers remain FAIL",
+  "checks": {
+    "Linux-ARM64-root": {
+      "status": "PASS",
+      "value": null
+    },
+    "r1-all-protected-mounts-exact": {
+      "status": "PASS",
+      "value": 26
+    },
+    "r1-no-owned-product-processes": {
+      "status": "PASS",
+      "value": null
+    },
+    "r1-protected-ELFs": {
+      "status": "PASS",
+      "value": null
+    },
+    "r1-capacity": {
+      "status": "PASS",
+      "value": {
+        "allocated_bytes": 123629568,
+        "apparent_bytes": 123264670,
+        "distinct_inodes": 210,
+        "free_bytes": 7001264128
+      }
+    },
+    "r1-original-FAIL-preserved": {
+      "status": "PASS",
+      "value": null
+    },
+    "r1-safe-Home-catalog-rejection": {
+      "status": "PASS",
+      "value": null
+    },
+    "r2-all-protected-mounts-exact": {
+      "status": "PASS",
+      "value": 26
+    },
+    "r2-no-owned-product-processes": {
+      "status": "PASS",
+      "value": null
+    },
+    "r2-protected-ELFs": {
+      "status": "PASS",
+      "value": null
+    },
+    "r2-capacity": {
+      "status": "PASS",
+      "value": {
+        "allocated_bytes": 123650048,
+        "apparent_bytes": 123238401,
+        "distinct_inodes": 226,
+        "free_bytes": 7001255936
+      }
+    },
+    "r2-exact-original-authority-exit1": {
+      "status": "PASS",
+      "value": {
+        "path": "/opt/afs-workspace-bind-epoch-20261008-r2/run/node.lifecycle.7EVzv9",
+        "child": {
+          "pid": "103667",
+          "exe": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-node",
+          "config": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/node.toml",
+          "start_ticks": "13227946",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-bind-epoch-20261008-r2/run/node.lifecycle.7EVzv9",
+          "supervisor_pid": "103651"
+        },
+        "ready": {
+          "supervisor_pid": "103651"
+        },
+        "exit": {
+          "pid": "103667",
+          "exe": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-node",
+          "config": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/node.toml",
+          "start_ticks": "13227946",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-bind-epoch-20261008-r2/run/node.lifecycle.7EVzv9",
+          "supervisor_pid": "103651",
+          "exit_code": "1"
+        },
+        "both_gone": true
+      }
+    },
+    "r2-public-fresh-session-higher-epoch": {
+      "status": "PASS",
+      "value": {
+        "before": {
+          "fresh_for_ms": 30000,
+          "last_error": null,
+          "last_success_age_ms": 127,
+          "lease_epoch": 2,
+          "ready": true,
+          "required": true,
+          "session_id": "5de9098b-53a8-43b3-9cda-ce9fbe53d08c"
+        },
+        "after": {
+          "fresh_for_ms": 30000,
+          "last_error": null,
+          "last_success_age_ms": 70,
+          "lease_epoch": 3,
+          "ready": true,
+          "required": true,
+          "session_id": "9cde8f2e-741b-4afe-8823-7f0e54ad3aee"
+        }
+      }
+    },
+    "r2-real-structured-authority-error": {
+      "status": "PASS",
+      "value": "0x04030002 PermissionDenied: Node registration epoch changed; the running authority must stop"
+    },
+    "r2-natural-bounded-closure": {
+      "status": "PASS",
+      "value": {
+        "elapsed_seconds": 9.938641209999332,
+        "node_alive": false,
+        "supervisor_alive": false,
+        "fuse": false,
+        "bind": false
+      }
+    },
+    "r2-no-original-stop-during-observation": {
+      "status": "PASS",
+      "value": [
+        {
+          "argv": [
+            "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-processctl",
+            "--prefix",
+            "/opt/afs-workspace-bind-epoch-20261008-r2/prefix",
+            "--config-dir",
+            "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/etc",
+            "--run-dir",
+            "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/run",
+            "--log-dir",
+            "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/logs",
+            "start",
+            "node"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.16884951799875125,
+          "stdout": "027.stdout",
+          "stderr": "027.stderr"
+        },
+        {
+          "argv": [
+            "curl",
+            "--noproxy",
+            "*",
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--max-time",
+            "5",
+            "http://127.0.0.1:22601/health"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.0032704240002203733,
+          "stdout": "028.stdout",
+          "stderr": "028.stderr"
+        },
+        {
+          "argv": [
+            "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-processctl",
+            "--prefix",
+            "/opt/afs-workspace-bind-epoch-20261008-r2/prefix",
+            "--config-dir",
+            "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/etc",
+            "--run-dir",
+            "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/run",
+            "--log-dir",
+            "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/logs",
+            "stop",
+            "node"
+          ],
+          "exit": 0,
+          "timeout": false,
+          "elapsed_seconds": 0.11815002100775018,
+          "stdout": "029.stdout",
+          "stderr": "029.stderr"
+        },
+        {
+          "argv": [
+            "findmnt",
+            "-rn",
+            "--mountpoint",
+            "/opt/afs-workspace-bind-epoch-20261008-r2/replacement/mount/dfs"
+          ],
+          "exit": 1,
+          "timeout": false,
+          "elapsed_seconds": 0.0015052570088300854,
+          "stdout": "030.stdout",
+          "stderr": "030.stderr"
+        }
+      ]
+    },
+    "r2-exact-physical-proof-after-close": {
+      "status": "PASS",
+      "value": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193"
+    },
+    "r2-meta-stop-actual-command0": {
+      "status": "PASS",
+      "value": null
+    },
+    "r2-unique-meta-lifecycle": {
+      "status": "PASS",
+      "value": null
+    },
+    "r2-meta-exact-wait0": {
+      "status": "PASS",
+      "value": {
+        "child": {
+          "pid": "103422",
+          "exe": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-meta",
+          "config": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/meta.toml",
+          "start_ticks": "13227931",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-bind-epoch-20261008-r2/run/meta.lifecycle.iTDS7l",
+          "supervisor_pid": "103406"
+        },
+        "ready": {
+          "supervisor_pid": "103406"
+        },
+        "exit": {
+          "pid": "103422",
+          "exe": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-meta",
+          "config": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/meta.toml",
+          "start_ticks": "13227931",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-bind-epoch-20261008-r2/run/meta.lifecycle.iTDS7l",
+          "supervisor_pid": "103406",
+          "exit_code": "0"
+        },
+        "both_gone": true
+      }
+    },
+    "r2-replacement-normal-wait0": {
+      "status": "PASS",
+      "value": null
+    },
+    "r2-driver-FAIL-remains": {
+      "status": "PASS",
+      "value": null
+    }
+  }
+}

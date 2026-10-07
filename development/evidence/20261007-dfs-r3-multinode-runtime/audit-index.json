@@ -1,0 +1,148 @@
+{
+  "archive": "runtime-audit-records.tar.gz",
+  "sha256": "2274c45c25d88a693b6f3c2214748098c478dddb924a04a8cc1d23265534bd63",
+  "bytes": 53768,
+  "members": {
+    "commands/runtime-record-audit-copy.command.json": {
+      "bytes": 302,
+      "sha256": "502b072534302296ccc33425623f8c0c0d9bae0a7362a40bf486d019aa52d348"
+    },
+    "commands/runtime-record-audit-copy.result.json": {
+      "bytes": 10,
+      "sha256": "b9a9f2b527e57115b6394e4f7ca2815f12b8b015ef9d11a3cb26ab186741d5e4"
+    },
+    "commands/runtime-record-audit-copy.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-copy.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-dir.command.json": {
+      "bytes": 202,
+      "sha256": "2ba9223ba9a93d24480b3e1bd6352d50a709a15166df636e4c87eb65c8c6abc0"
+    },
+    "commands/runtime-record-audit-dir.result.json": {
+      "bytes": 10,
+      "sha256": "b9a9f2b527e57115b6394e4f7ca2815f12b8b015ef9d11a3cb26ab186741d5e4"
+    },
+    "commands/runtime-record-audit-dir.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-dir.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-extract.command.json": {
+      "bytes": 271,
+      "sha256": "5ff8c2f8f992dce7261c5f489fb88cb948e5ebe3f72a45ec5cd96560e1aeba4f"
+    },
+    "commands/runtime-record-audit-extract.result.json": {
+      "bytes": 10,
+      "sha256": "b9a9f2b527e57115b6394e4f7ca2815f12b8b015ef9d11a3cb26ab186741d5e4"
+    },
+    "commands/runtime-record-audit-extract.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-extract.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-owner.command.json": {
+      "bytes": 197,
+      "sha256": "551931a43b816ac19785aef60ec8d4f5a4bd2124264a1c51c077343d6f6caeb6"
+    },
+    "commands/runtime-record-audit-owner.result.json": {
+      "bytes": 10,
+      "sha256": "b9a9f2b527e57115b6394e4f7ca2815f12b8b015ef9d11a3cb26ab186741d5e4"
+    },
+    "commands/runtime-record-audit-owner.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-owner.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-r2-copy.command.json": {
+      "bytes": 304,
+      "sha256": "76f2795e6f85f0672718bdb2ccb305ff976c6b484788e776bf1b750ce68eedf1"
+    },
+    "commands/runtime-record-audit-r2-copy.result.json": {
+      "bytes": 10,
+      "sha256": "b9a9f2b527e57115b6394e4f7ca2815f12b8b015ef9d11a3cb26ab186741d5e4"
+    },
+    "commands/runtime-record-audit-r2-copy.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-r2-copy.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-r2-run.command.json": {
+      "bytes": 262,
+      "sha256": "ceeb6db79522ed4adfb25f30153412e9416ebaa37ac1193059526f8ba899bb43"
+    },
+    "commands/runtime-record-audit-r2-run.result.json": {
+      "bytes": 10,
+      "sha256": "b9a9f2b527e57115b6394e4f7ca2815f12b8b015ef9d11a3cb26ab186741d5e4"
+    },
+    "commands/runtime-record-audit-r2-run.stderr": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "commands/runtime-record-audit-r2-run.stdout": {
+      "bytes": 994,
+      "sha256": "ef7d33e0ffe45b7a262ef4f4e9d4533a732e3b2732500d52df02849404442334"
+    },
+    "commands/runtime-record-audit-run.command.json": {
+      "bytes": 259,
+      "sha256": "a8e23fe51dc6a43f6b2c8c97d183acbc89dc20d4ecb1c2484cf69fae3fa8ca14"
+    },
+    "commands/runtime-record-audit-run.result.json": {
+      "bytes": 10,
+      "sha256": "68f152ddc1287f02a529e5a65e756e77f3c92f3f85becd7e059afe79187eaa60"
+    },
+    "commands/runtime-record-audit-run.stderr": {
+      "bytes": 429,
+      "sha256": "da3306a230bbdfc38e4b9a58152033f2b761683989d05d226dd15e46495de44e"
+    },
+    "commands/runtime-record-audit-run.stdout": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "runtime-audit-inputs.tar.gz": {
+      "bytes": 46902,
+      "sha256": "805cf78e7689f5345205f7b98ccd613de89f703354716c52ccfb0b10cdeacbce"
+    },
+    "runtime-record-audit/inputs.json": {
+      "bytes": 2190,
+      "sha256": "beba2cf04ece07ad5671f0315780f0853c9867875556d22d190b08a1b779ffc4"
+    },
+    "runtime-record-audit/report-r2.json": {
+      "bytes": 994,
+      "sha256": "ef7d33e0ffe45b7a262ef4f4e9d4533a732e3b2732500d52df02849404442334"
+    },
+    "runtime-record-audit/verify-rejected-r1.py": {
+      "bytes": 3646,
+      "sha256": "a3218d146087fe499e5b1527e57c151309c0cf4c05f89a997e351fceeaae300d"
+    },
+    "runtime-record-audit/verify.py": {
+      "bytes": 3752,
+      "sha256": "1d92d714f0101198c1bce6a9b73ec086bd330c6f55bb7ab96fdf97efb4019372"
+    },
+    "runtime-record-audit-host.py": {
+      "bytes": 1960,
+      "sha256": "b2c7082c5514ac97e6081f35403dc2f617893dcd75e420ed119b2764f6e7a1de"
+    }
+  },
+  "attempts": {
+    "r1": "FAIL verifier expected original rather than normalized driver-receipt schema; KeyError, no environment change or product rerun",
+    "r2": "PASS same fact bundle with corrected normalized receipt access"
+  },
+  "scope": "Recorded-fact verification only, not new product acceptance"
+}

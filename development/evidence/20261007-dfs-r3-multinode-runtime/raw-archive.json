@@ -1,0 +1,14 @@
+{
+  "status": "PASS_RAW_FILE_RESTORABILITY_ONLY",
+  "archive": "runtime-evidence-and-capacity-release.tar.gz",
+  "bytes": 1466127,
+  "sha256": "5fd8ce628b35dedac6a09a9265a234f7c2907aa36c041fa13aaf88a023da3789",
+  "separate_full_payload_archive": "capacity-release/root.tar.gz",
+  "separate_payload_sha256": "607a61105affcc4880802583baa4acb224dd0b1f70ec6fd769924357f1e2c042",
+  "previous_preparation_archive_preserved": true,
+  "product_runtime": "FAIL_FIRST_WARMUP_WRITE_COHORT",
+  "members": 991,
+  "member_index_sha256": "24d5e5dff1638188ed83f0a595044f2a2cb989955a6c42c15c5e24a021ad532c",
+  "raw_root": "rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-multinode-7e6-20261007-r1",
+  "scope": "All logs, failed stdout/stderr, post-admission lifecycle/metadata and exact orchestration; full recoverable OLD A root is in separately verified payload archive. No new chunk payload copied; new failed fixture retained in VMs."
+}

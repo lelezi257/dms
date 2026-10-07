@@ -1,0 +1,301 @@
+{
+  "status": "FAIL_FIRST_WARMUP_WRITE_COHORT",
+  "candidate_source": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d",
+  "measured_cohorts": 0,
+  "read_cohorts": 0,
+  "completed_warmup_cohorts": 0,
+  "c_done": {
+    "a": [
+      {
+        "batch": 0,
+        "clock_info": {
+          "adjustable": false,
+          "implementation": "clock_gettime(CLOCK_MONOTONIC)",
+          "monotonic": true,
+          "resolution": 1e-09
+        },
+        "cohort_token": "write-batch-0-route-0",
+        "event": "C_DONE",
+        "generation": 1,
+        "identity": {
+          "afs_meta_sha256": "76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2",
+          "afs_node_sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7",
+          "compiler_input_map": "151a2c6d0de361c1aa3ed2bc9d197102f59563a1ad2a98f56930c981f902c8f2",
+          "io_sha256": "8ac3ccedabf5f648723c4048eba1f5d11416224a4dd55b4baacd1b3d2e2490ed",
+          "product_source_commit": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d"
+        },
+        "index": 0,
+        "measured": false,
+        "member": "A",
+        "operation": "write",
+        "py_monotonic_elapsed_ns": 7095465,
+        "py_monotonic_raw_elapsed_ns": 7092417,
+        "rc": 2,
+        "reader_id": "A",
+        "relative_path": "r3-current-counter/round-00.bin",
+        "result": null,
+        "session_token": "write-batch-0-route-0-48b40aaf23424631868128d780a6b927",
+        "start_token": "write-batch-0-route-0-48b40aaf23424631868128d780a6b927:write-batch-0-route-0:start",
+        "status": "FAIL"
+      }
+    ],
+    "b": [
+      {
+        "batch": 0,
+        "clock_info": {
+          "adjustable": false,
+          "implementation": "clock_gettime(CLOCK_MONOTONIC)",
+          "monotonic": true,
+          "resolution": 1e-09
+        },
+        "cohort_token": "write-batch-0-route-0",
+        "event": "C_DONE",
+        "generation": 2,
+        "identity": {
+          "afs_meta_sha256": "76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2",
+          "afs_node_sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7",
+          "compiler_input_map": "151a2c6d0de361c1aa3ed2bc9d197102f59563a1ad2a98f56930c981f902c8f2",
+          "io_sha256": "8ac3ccedabf5f648723c4048eba1f5d11416224a4dd55b4baacd1b3d2e2490ed",
+          "product_source_commit": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d"
+        },
+        "index": 1,
+        "measured": false,
+        "member": "B",
+        "operation": "write",
+        "py_monotonic_elapsed_ns": 897471124,
+        "py_monotonic_raw_elapsed_ns": 897446292,
+        "rc": 0,
+        "reader_id": "B",
+        "relative_path": "r3-current-counter/round-01.bin",
+        "result": {
+          "barrier": "fdatasync",
+          "barrier_ns": 53458,
+          "block_bytes": 1048576,
+          "cache_requested": "unobserved",
+          "client_cpu_ns": 27314288,
+          "concurrency": 1,
+          "content_ok": true,
+          "dataset": "counter-generation-1m-v1",
+          "file_bytes": 67108864,
+          "generation": 2,
+          "io_bytes": 67108864,
+          "operation": "seq-write",
+          "operations": 64,
+          "pattern_byte": 97,
+          "residency_observed": false,
+          "wall_ns": 896717452
+        },
+        "session_token": "write-batch-0-route-0-48b40aaf23424631868128d780a6b927",
+        "start_token": "write-batch-0-route-0-48b40aaf23424631868128d780a6b927:write-batch-0-route-0:start",
+        "status": "PASS"
+      }
+    ],
+    "c": [
+      {
+        "batch": 0,
+        "clock_info": {
+          "adjustable": false,
+          "implementation": "clock_gettime(CLOCK_MONOTONIC)",
+          "monotonic": true,
+          "resolution": 1e-09
+        },
+        "cohort_token": "write-batch-0-route-0",
+        "event": "C_DONE",
+        "generation": 3,
+        "identity": {
+          "afs_meta_sha256": "76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2",
+          "afs_node_sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7",
+          "compiler_input_map": "151a2c6d0de361c1aa3ed2bc9d197102f59563a1ad2a98f56930c981f902c8f2",
+          "io_sha256": "8ac3ccedabf5f648723c4048eba1f5d11416224a4dd55b4baacd1b3d2e2490ed",
+          "product_source_commit": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d"
+        },
+        "index": 2,
+        "measured": false,
+        "member": "C",
+        "operation": "write",
+        "py_monotonic_elapsed_ns": 7117349,
+        "py_monotonic_raw_elapsed_ns": 7105541,
+        "rc": 2,
+        "reader_id": "C",
+        "relative_path": "r3-current-counter/round-02.bin",
+        "result": null,
+        "session_token": "write-batch-0-route-0-48b40aaf23424631868128d780a6b927",
+        "start_token": "write-batch-0-route-0-48b40aaf23424631868128d780a6b927:write-batch-0-route-0:start",
+        "status": "FAIL"
+      }
+    ]
+  },
+  "logs": {
+    "ctl": {
+      "file": "logs/meta.log",
+      "bytes": 296,
+      "sha256": "76f7879046ec4ebca04cc2b710a946475bed4b4a915b5e423494a9003be90328",
+      "lines": 2,
+      "errors": [],
+      "warnings": []
+    },
+    "a": {
+      "file": "logs/node.log",
+      "bytes": 1389,
+      "sha256": "cb4a3b068ef1c6914d32e892b5ac659ab047fa17054229ff5e8d0ed5a9eef23b",
+      "lines": 7,
+      "errors": [
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:09.055663217Z",
+          "instance": "dfs-a-r3",
+          "service_name": "afs-node",
+          "message": "DFS dentry not found",
+          "kind": "NotFound",
+          "code": 34078721
+        },
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:09.066727977Z",
+          "instance": "dfs-a-r3",
+          "service_name": "afs-node",
+          "message": "DFS dentry not found",
+          "kind": "NotFound",
+          "code": 34078721
+        },
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:09.071502815Z",
+          "instance": "dfs-a-r3",
+          "service_name": "afs-node",
+          "message": "DFS metadata condition changed during create",
+          "kind": "FailedPrecondition",
+          "code": 50528257
+        }
+      ],
+      "warnings": []
+    },
+    "b": {
+      "file": "logs/node.log",
+      "bytes": 1589,
+      "sha256": "8fee2835fcfa95eaef368b5cb00f9f298d4f57c035afba0d6d0481779531f786",
+      "lines": 8,
+      "errors": [
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:09.08003421Z",
+          "instance": "dfs-b-r3",
+          "service_name": "afs-node",
+          "message": "DFS dentry not found",
+          "kind": "NotFound",
+          "code": 34078721
+        },
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:09.08702497Z",
+          "instance": "dfs-b-r3",
+          "service_name": "afs-node",
+          "message": "DFS dentry not found",
+          "kind": "NotFound",
+          "code": 34078721
+        },
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:09.092864012Z",
+          "instance": "dfs-b-r3",
+          "service_name": "afs-node",
+          "message": "DFS currently supports only user.* xattrs",
+          "kind": "FailedPrecondition",
+          "code": 67305489
+        }
+      ],
+      "warnings": [
+        {
+          "msg": "[Not Implemented] ioctl(ino: 0x3, fh: 4, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)",
+          "level": "WARN",
+          "ts": "2026-10-07T13:56:09.989180503Z",
+          "instance": "dfs-b-r3",
+          "service_name": "afs-node"
+        }
+      ]
+    },
+    "c": {
+      "file": "logs/node.log",
+      "bytes": 1784,
+      "sha256": "778f79487a5706564f66d4fe6099c58e6134d15272a31f3b9575ffba1f226934",
+      "lines": 9,
+      "errors": [
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:08.997746386Z",
+          "instance": "dfs-c-r3",
+          "service_name": "afs-node",
+          "message": "DFS dentry not found",
+          "kind": "NotFound",
+          "code": 34078721
+        },
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:08.998527022Z",
+          "instance": "dfs-c-r3",
+          "service_name": "afs-node",
+          "message": "DFS dentry not found",
+          "kind": "NotFound",
+          "code": 34078721
+        },
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:09.05458643Z",
+          "instance": "dfs-c-r3",
+          "service_name": "afs-node",
+          "message": "DFS dentry not found",
+          "kind": "NotFound",
+          "code": 34078721
+        },
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:09.072417762Z",
+          "instance": "dfs-c-r3",
+          "service_name": "afs-node",
+          "message": "DFS dentry not found",
+          "kind": "NotFound",
+          "code": 34078721
+        },
+        {
+          "msg": "FUSE request failed",
+          "level": "ERRO",
+          "ts": "2026-10-07T13:56:09.076845866Z",
+          "instance": "dfs-c-r3",
+          "service_name": "afs-node",
+          "message": "DFS metadata condition changed during create",
+          "kind": "FailedPrecondition",
+          "code": 50528257
+        }
+      ],
+      "warnings": []
+    }
+  },
+  "facts": [
+    "A and C C probe rc2, result null; logs report DFS metadata condition changed during create",
+    "B C probe rc0 and content_ok, but worker final BLOCKED with ENOTCONN during postcheck; no full barrier/content/replica cohort PASS",
+    "coordinator BLOCKED on failed C_DONE",
+    "host relay finally stdin.close raised BrokenPipeError, so outer error obscures underlying probe failure and final relay event/rc files were not produced",
+    "four actual service wait0, eight product/supervisor PIDs gone, initial full mount inventory and11 protected identities exact"
+  ],
+  "inferences": [
+    "A/C concurrent creates appear to conflict on parent metadata version; not yet a verified root cause",
+    "B ENOTCONN may be teardown racing its postcheck because relay cleanup aborted; no evidence of a product panic"
+  ],
+  "missing": [
+    "C probe stderr was not persisted before worker failure; cannot reconstruct it",
+    "relay final rc/events receipts absent due cleanup exception",
+    "no qualified concurrent performance, pXX latency, full replica cohort or 3FS comparison"
+  ],
+  "not_retried": true,
+  "capacity_block_resolved_without_changing_predicate": true
+}

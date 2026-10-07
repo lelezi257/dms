@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir",
+    "/tmp",
+    "afs-g2-micro",
+    "--",
+    "sudo",
+    "python3",
+    "-B",
+    "/var/tmp/afs-workspace-bind-metadata-perf-20261007-r1/post-partial.py",
+    "/opt/afs-workspace-bind-metadata-perf-20261007-r1",
+    "/var/tmp/afs-workspace-bind-metadata-perf-20261007-r1"
+  ],
+  "exit": 0
+}

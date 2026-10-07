@@ -1,0 +1,41 @@
+{
+  "raw_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-perf-20261007-r1",
+  "artifacts": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-perf-20261007-r1/package.tar.gz",
+      "sha256": "c7ea49d7eb59a75275d613f44b17aaebc7b745f6488bcebd9372bc9158f2e386",
+      "bytes": 14831129
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-perf-20261007-r1/transport.tar.gz",
+      "sha256": "f27543913d576f016be70445aa3a68fd4d7310a56c318f76f9aa2cd42640a660",
+      "bytes": 14811678
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-perf-20261007-r1/results-r1.tar.gz",
+      "sha256": "11acfd2a5b8592303e06e7597cd1e3a89519b8180753818f0068ff450990bac5",
+      "bytes": 237400
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-perf-20261007-r1/post-results.tar.gz",
+      "sha256": "3635616a8ed586c0cd4fd7620cd98bca69be62dc516f0c5816dec8fc92624644",
+      "bytes": 11116
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-perf-20261007-r1/prepare.py",
+      "sha256": "31c1857f3e23f4a2209ebdf62d5cc5788e5f07babc4578f501fbf11f8b51c0ec",
+      "bytes": 4013
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-perf-20261007-r1/post-partial.py",
+      "sha256": "c7905e09a71ad4d10781aabb7deefcd8e43a4cfd67c78816a7652228ae9c2684",
+      "bytes": 9671
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-metadata-perf-20261007-r1/export.py",
+      "sha256": "cd36c563d1f6da94303464fdff7a2d73ba570c1cab267f9a474f86fc719827c3",
+      "bytes": 11087
+    }
+  ],
+  "unexecuted_post_draft": "post.py was an unused full-run collector draft; only post-partial.py executed"
+}

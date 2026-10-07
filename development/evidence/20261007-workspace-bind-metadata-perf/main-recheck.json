@@ -1,0 +1,76 @@
+{
+  "status": "PASS",
+  "base_commit": "e903b4b265a44d8adcc6becd338e008ec4911b32",
+  "origin_main": "e903b4b265a44d8adcc6becd338e008ec4911b32",
+  "fix_branch_in_main": true,
+  "core_path": "src/node/vfs/ownerfs/bind_mount.rs",
+  "core_exists": true,
+  "old_subdirectory_absent": true,
+  "runc_adapter_retained": true,
+  "preserved_worktrees": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-local-owner-preserved",
+      "head": "c2574a6df428c7f8c07a30033e8ee49ae245608d",
+      "patch_sha256": "f98f5523fe2025399f45dca648edd0776b34c78ce077ceb496cbd2d6cd0f9285",
+      "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/main-convergence-20261007-r1/source-local-owner-preserved/tracked.patch",
+      "status": "UNCHANGED_PRESERVED"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r45-verify-1789266256",
+      "head": "269c3f31c03e7163241ef3daa397b3f88d313dc5",
+      "patch_sha256": "d0c60f730ab0102aad18541d3b6ae8dba8bb3409d769780e7939907fab33bbb9",
+      "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/main-convergence-20261007-r1/source-r45-verify-1789266256/tracked.patch",
+      "status": "UNCHANGED_PRESERVED"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r7-verify-1789267073",
+      "head": "269c3f31c03e7163241ef3daa397b3f88d313dc5",
+      "patch_sha256": "022f97191d982a090c7c443f437ecb4fb35d049d72e1d7edd750324e9a955dd6",
+      "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/main-convergence-20261007-r1/source-r7-verify-1789267073/tracked.patch",
+      "status": "UNCHANGED_PRESERVED"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r7fix-verify-1789267497",
+      "head": "269c3f31c03e7163241ef3daa397b3f88d313dc5",
+      "patch_sha256": "3cff30b1be3bbe2380591e78104522594e74348f738a653e474ddcf39f0ba586",
+      "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/main-convergence-20261007-r1/source-r7fix-verify-1789267497/tracked.patch",
+      "status": "UNCHANGED_PRESERVED"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r7fix2-verify-1789267543",
+      "head": "269c3f31c03e7163241ef3daa397b3f88d313dc5",
+      "patch_sha256": "247123d3310485590c216141df5b946aa762c32b365d5c02b53ed6e5ac1c5fb8",
+      "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/main-convergence-20261007-r1/source-r7fix2-verify-1789267543/tracked.patch",
+      "status": "UNCHANGED_PRESERVED"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r7fix3-verify-1789267768",
+      "head": "269c3f31c03e7163241ef3daa397b3f88d313dc5",
+      "patch_sha256": "536cfca92614b04c23dda874d7f24cd1faa48b50323e1ffec0d49b2d087ffa60",
+      "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/main-convergence-20261007-r1/source-r7fix3-verify-1789267768/tracked.patch",
+      "status": "UNCHANGED_PRESERVED"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r7fix4-verify-1789267854",
+      "head": "269c3f31c03e7163241ef3daa397b3f88d313dc5",
+      "patch_sha256": "a3ea309605723f1ef6ddf4a68cb099d4ed9282ab44857935638bdb1efc5ad463",
+      "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/main-convergence-20261007-r1/source-r7fix4-verify-1789267854/tracked.patch",
+      "status": "UNCHANGED_PRESERVED"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/sv4",
+      "head": "269c3f31c03e7163241ef3daa397b3f88d313dc5",
+      "patch_sha256": "a3ea309605723f1ef6ddf4a68cb099d4ed9282ab44857935638bdb1efc5ad463",
+      "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/main-convergence-20261007-r1/sv4/tracked.patch",
+      "status": "UNCHANGED_PRESERVED"
+    }
+  ],
+  "untracked": [
+    {
+      "path": "docs/superpowers/plans/2026-09-23-dms-s5-private-local.md",
+      "sha256": "c96f5cf78f2ce79db3330a94d9e145dce03aa4ea3cf5c18b555c453ea9bb6f4f",
+      "bytes": 37709,
+      "recovery_copy": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/main-convergence-20261007-r1/source-local-owner-preserved/untracked/docs/superpowers/plans/2026-09-23-dms-s5-private-local.md"
+    }
+  ]
+}

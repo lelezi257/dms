@@ -1,0 +1,74 @@
+{
+  "expect_fstype": "ext4",
+  "final_identity": {
+    "flags": [
+      "rw",
+      "nosuid",
+      "nodev",
+      "relatime"
+    ],
+    "mount_id": 447,
+    "namespace": {
+      "dev": 4,
+      "ino": 4026532421
+    },
+    "scope": "final-view identity; not production READY or revocation ACK",
+    "source": {
+      "dev": 64769,
+      "ino": 828809
+    },
+    "unique_mount_id": 4294980969
+  },
+  "id": "on-reference",
+  "mountinfo": "404 107 253:1 /opt/afs-workspace-bind-metadata-perf-20261007-r1/rootfs-on-reference / ro,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30\n446 404 0:59 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw\n447 404 253:1 /opt/afs-workspace-bind-metadata-perf-20261007-r1/reference-on /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30\n",
+  "pid": 88333,
+  "rootfs_manifest": {
+    "/afs-workspace-probe": {
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+      "source": "/opt/afs-container-perf-template-20261007-r1/afs-workspace-probe"
+    },
+    "/benchmark": {
+      "sha256": "64f9d05b21e47f54d1cb025d9784182d3749bdd944c531acff10443ae6d5a551",
+      "source": "/opt/afs-container-perf-template-20261007-r1/benchmark"
+    },
+    "/bin/busybox": {
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "source": "/opt/afs-container-perf-template-20261007-r1/bin/busybox"
+    },
+    "/bin/sh": {
+      "sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+      "source": "/opt/afs-container-perf-template-20261007-r1/bin/sh"
+    },
+    "/io": {
+      "sha256": "70ac97c7634d406a177a74c783d446b62a2014ba198586132882a1d9228e55e8",
+      "source": "/opt/afs-container-perf-template-20261007-r1/io"
+    },
+    "/lib/aarch64-linux-gnu/libc.so.6": {
+      "sha256": "fe5966a43e068ad7cb389c3affa069f4ee6f296e07d7ccc0398a23cfde4f0b7e",
+      "source": "/opt/afs-container-perf-template-20261007-r1/lib/aarch64-linux-gnu/libc.so.6"
+    },
+    "/lib/aarch64-linux-gnu/libgcc_s.so.1": {
+      "sha256": "f2d3ad2bf0b61f6bc944cc37d7b6ab7f88d2582b41ff989ca164803f56cc5f20",
+      "source": "/opt/afs-container-perf-template-20261007-r1/lib/aarch64-linux-gnu/libgcc_s.so.1"
+    },
+    "/lib/ld-linux-aarch64.so.1": {
+      "sha256": "393384096ffa869e1be20d2f91fdf08dfadb9f3e531dfe724085d8501d3f85d9",
+      "source": "/opt/afs-container-perf-template-20261007-r1/lib/ld-linux-aarch64.so.1"
+    }
+  },
+  "source": "/opt/afs-workspace-bind-metadata-perf-20261007-r1/reference-on",
+  "source_object": {
+    "dev": 64769,
+    "ino": 828809
+  },
+  "state": {
+    "bundle": "/opt/afs-workspace-bind-metadata-perf-20261007-r1/bundle-on-reference",
+    "created": "2026-10-07T08:25:58.13572009Z",
+    "id": "on-reference",
+    "ociVersion": "1.3.0",
+    "owner": "",
+    "pid": 88333,
+    "rootfs": "/opt/afs-workspace-bind-metadata-perf-20261007-r1/rootfs-on-reference",
+    "status": "running"
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "Linux-ARM64-root": {
+    "status": "PASS",
+    "value": [
+      "Linux",
+      "aarch64",
+      0
+    ]
+  },
+  "dependencies": {
+    "status": "PASS",
+    "value": {
+      "bash": "/usr/bin/bash",
+      "python3": "/usr/bin/python3",
+      "openssl": "/usr/bin/openssl",
+      "findmnt": "/usr/bin/findmnt",
+      "fusermount3": "/usr/bin/fusermount3",
+      "ldd": "/usr/bin/ldd",
+      "sha256sum": "/usr/bin/sha256sum",
+      "tar": "/usr/bin/tar",
+      "ss": "/usr/bin/ss",
+      "curl": "/usr/bin/curl",
+      "flock": "/usr/bin/flock",
+      "sed": "/usr/bin/sed",
+      "awk": "/usr/bin/awk",
+      "grep": "/usr/bin/grep",
+      "mountpoint": "/usr/bin/mountpoint",
+      "install": "/usr/bin/install",
+      "readlink": "/usr/bin/readlink",
+      "setsid": "/usr/bin/setsid",
+      "timeout": "/usr/bin/timeout"
+    }
+  },
+  "owned-fresh-root": {
+    "status": "PASS",
+    "value": "/opt/afs-workspace-bind-metadata-perf-20261007-r1"
+  },
+  "exact-tool-inputs": {
+    "status": "PASS",
+    "value": {
+      "workspace-bind-metadata-perf-linux.py": "078d823294a79b33ab9b352f2ddc093b3ac388294e705a8970c3050a45f840cd",
+      "workspace-bind-data-perf-linux.py": "3d29e65b03d86cf60674665feb3b87ff04ab9dccdb5a17582b79b9339b6e64e0",
+      "workspace-host-linux.py": "5f17fe4a7c692febeda2b6d26f7355426d70432a5eac5ece7a4b3ba50d642e89",
+      "container-workspace-perf-linux.py": "efcd0afe79feb118df8ff55f81988145a4a5d52ea146daf20f5353769cb60ae0",
+      "native-workspace-linux.py": "ae1d55186e2f65d87e389dd6aa8c17445977ae42d888c51adc5a0a02ec3ecfcd",
+      "installed-smoke-linux.py": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+      "orderly-runtime-checks.py": "538122ed608735cfe11cfc89667a4ab28b2855cefeb62394596725289df4d957",
+      "probes/native_orderly_recovery.py": "3dc731423f47ee08bb35d7b020402466f74bcbdffdbf7d7ec72207ae710b4064",
+      "probes/fuse_callback_counts.py": "9690d6a885d6e27307f6a8782dd50103a36a34230cc213d70dc2ba6923894feb",
+      "probes/workspace_host.py": "6e87f46c0563565afe5c6994c2403930ca6828a1f46953cd2fd6369641e35b82"
+    }
+  },
+  "tool-map-sha": {
+    "status": "PASS",
+    "value": "19240c1b9316b4b755ce7ffa516e603335a0bd8fd169b72f26ace9af233bfe72"
+  },
+  "meta-admitted-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000eca692b5f000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000eca692020000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000eca691fe0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000eca691f30000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000eca691d70000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000eca692b10000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000eca691cc0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000eca691c70000)\n"
+  },
+  "node-admitted-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000ee664715f000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000ee6645f40000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ee6645f00000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ee6645e50000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ee6645c90000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ee6647110000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000ee6645be0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000ee6645b90000)\n"
+  },
+  "package-source-ELFs": {
+    "status": "PASS",
+    "value": {
+      "schema": "afs.release-package.v1",
+      "name": "afs",
+      "version": "0.1.0-g2-main-93169c8",
+      "target": "linux-aarch64",
+      "source_commit": "93169c8530beedff9e8e510dc9b9210d704f244f",
+      "source_date_epoch": 0,
+      "features": "ownerfs,dfs,rdma",
+      "rust_toolchain": "1.95.0",
+      "binaries": {
+        "afs-meta": {
+          "sha256": "4150942fd873b879ab6dc9034904116cf1670904a259d6a081f3b0c1fd1e7343"
+        },
+        "afs-node": {
+          "sha256": "9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d"
+        }
+      },
+      "contains": [
+        "afs-meta",
+        "afs-node",
+        "afs-processctl",
+        "afs-trial-config",
+        "afs-selfcheck",
+        "dep02-smoke.sh",
+        "docs/guides/trial.md"
+      ],
+      "installer": "install.sh",
+      "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+    }
+  },
+  "FUSE-device": {
+    "status": "PASS",
+    "value": "/dev/fuse"
+  },
+  "ext4": {
+    "status": "PASS",
+    "value": {
+      "filesystems": [
+        {
+          "target": "/",
+          "source": "/dev/vda1",
+          "fstype": "ext4",
+          "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+        }
+      ]
+    }
+  },
+  "ports-free": {
+    "status": "PASS",
+    "value": [
+      22400,
+      22401,
+      22500,
+      22501
+    ]
+  },
+  "budget-admission": {
+    "status": "PASS",
+    "value": {
+      "allocated_bytes": 57434112,
+      "apparent_bytes": 57358264,
+      "distinct_inodes": 43,
+      "free_bytes": 8112566272
+    }
+  }
+}

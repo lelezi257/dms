@@ -62,6 +62,8 @@ class Containers(perf.Driver):
 
 
 class Run(host.Run):
+    scope = 'G2.13 current container C1 64MiB write-then-read only; cache unobserved'
+
     def __init__(self, args):
         super().__init__(args)
         self.containers = Containers(self)
@@ -154,7 +156,7 @@ class Run(host.Run):
 
     def execute(self):
         result = dict(status='BLOCKED', source_commit=self.args.source_commit,
-                      scope='G2.13 current container C1 64MiB write-then-read only; cache unobserved')
+                      scope=self.scope)
         current, owned = None, False
         try:
             self.preflight()
@@ -221,8 +223,8 @@ class Run(host.Run):
         return 0 if result['status'] == 'DATA_RECORDED' else 1
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+def parse_args(description=__doc__):
+    parser = argparse.ArgumentParser(description=description)
     for name in ('root', 'out', 'transport', 'package', 'inputs', 'template-rootfs', 'rootfs-inputs'):
         parser.add_argument('--' + name, type=Path, required=True)
     for name in ('package-sha256', 'source-commit', 'afs-meta-sha256', 'afs-node-sha256',
@@ -232,7 +234,11 @@ def main():
     args = parser.parse_args()
     args.io_bin = args.template_rootfs / 'io'
     args.benchmark_bin = args.template_rootfs / 'benchmark'
-    return Run(args).execute()
+    return args
+
+
+def main():
+    return Run(parse_args()).execute()
 
 
 if __name__ == '__main__':

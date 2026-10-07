@@ -1,0 +1,13 @@
+test_direction_threshold_and_warmup_are_fixed (test_workspace_bind_data_perf.PairedDataGuards.test_direction_threshold_and_warmup_are_fixed) ... ok
+test_reject_content_and_cache_claims (test_workspace_bind_data_perf.PairedDataGuards.test_reject_content_and_cache_claims) ... ok
+test_reject_missing_pair_round_duplicate_and_changed_order (test_workspace_bind_data_perf.PairedDataGuards.test_reject_missing_pair_round_duplicate_and_changed_order) ... ok
+test_changed_shape_and_barrier_are_rejected (test_workspace_bind_metadata_perf.MetadataGuards.test_changed_shape_and_barrier_are_rejected) ... ok
+test_invalid_pairs_do_not_produce_results (test_workspace_bind_metadata_perf.MetadataGuards.test_invalid_pairs_do_not_produce_results) ... ok
+test_missing_or_reordered_phase_is_rejected (test_workspace_bind_metadata_perf.MetadataGuards.test_missing_or_reordered_phase_is_rejected) ... ok
+test_operation_latency_and_timing_accounting (test_workspace_bind_metadata_perf.MetadataGuards.test_operation_latency_and_timing_accounting) ... ok
+test_six_phase_decisions_warmup_and_ratio_direction (test_workspace_bind_metadata_perf.MetadataGuards.test_six_phase_decisions_warmup_and_ratio_direction) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.001s
+
+OK

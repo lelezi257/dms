@@ -1,0 +1,42 @@
+{
+  "classification": "HISTORICAL_E925_COMPLETE_REUSED_AT_ORIGINAL_SCOPE; NOT_CURRENT_100_FILE_RETEST_OR_TIMING",
+  "versions": {
+    "e925c5b": "e925c5bcf0408851ebfa08a59df29953374da9e9",
+    "6d51aeb4": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+    "7e6e00a6": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d",
+    "f03dc2b3": "f03dc2b3679c31daa51caee275fb2087413e949c"
+  },
+  "current_package": "7bfc6b520e551d2281790862c2968e990e376c5c490b2135f583f4da0ccc1972",
+  "unchanged_6d_to_f03_paths": {
+    "src/node/vfs/ownerfs/root.rs": "d30e2e5825e7057f41ab0f3ea2551cd37c6e6911db8018f44d4ddbfeb0ffc82e",
+    "src/node/vfs/ownerfs/remote.rs": "f56514b3f27eefcc88573c1d979ad54003cb3b223e5accec551c42afa9eba287",
+    "src/node/vfs/ownerfs/native_home.rs": "a058ad03102b0b91680ec1120229069a6f41583a7f75b2aa3294758f6f70e92b",
+    "src/node/storage/localfs.rs": "de710f0e53d9dfa14d3a3664cb443a33f5b8bac60e26212cfa4069e09e4751f3"
+  },
+  "changed_7e6_to_f03_compiler_inputs": [
+    "src/meta/dfs.rs"
+  ],
+  "ordinary_owner_module_diff": "bind module declaration/test visibility only; ordinary unlink/rmdir body unchanged",
+  "shared_fuse_unlink_diff": "additive record_request counter; context/backend dispatch and errno preserved",
+  "current_runtime_scope": "f03 installed OFF selfcheck exercises two basic unlink calls; NOT a current 100-file/5-pair deletion report",
+  "evidence": [
+    "../20261006-e2e-current/r4/README.md",
+    "../20261007-owner-standard-reuse/code-impact-review.json",
+    "../20261007-current-trial-7e6/impact-map.json",
+    "../20261008-current-trial-f03/independent-stored-audit.json"
+  ],
+  "raw_proof_index": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-local-delete-reuse-20261008-r1/owner_module_6d_to_f03.stdout",
+      "sha256": "fdd4b78d6fe01593b6de52637c501f182d6f051d55e220d2b4d637cb1b8b2930",
+      "bytes": 549
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-local-delete-reuse-20261008-r1/shared_fuse_e925_to_f03.stdout",
+      "sha256": "3f95ae89a4672636174554335fd610aba453a76599fe314c8aa1eb885944b00e",
+      "bytes": 17621
+    }
+  ],
+  "historical_conclusion_not_reopened": true,
+  "historical_rates_not_promoted": true
+}

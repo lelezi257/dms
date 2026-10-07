@@ -1687,6 +1687,8 @@ async fn run_node(
     #[cfg(feature = "ownerfs")]
     let mut native_workspace_startup_error = None;
     #[cfg(feature = "ownerfs")]
+    let mut native_workspace_worker = None;
+    #[cfg(feature = "ownerfs")]
     if cfg.experimental_native_workspace {
         let owner = state
             .ownerfs
@@ -1704,7 +1706,8 @@ async fn run_node(
             native_workspace::NativeWorkspace::start(owner, mount, native)
         })
         .await;
-        native_workspace_startup_error = register_native_workspace_startup(&mut services, startup);
+        (native_workspace_worker, native_workspace_startup_error) =
+            register_native_workspace_startup(&mut services, startup);
     }
     #[cfg(feature = "ownerfs")]
     let mut shutdown_error = if let Some(error) = native_workspace_startup_error {
@@ -1718,6 +1721,25 @@ async fn run_node(
         afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"dfs"=>cfg.dfs);
         services.run_with_shutdown(on_shutdown).await.err()
     };
+    // A Services timeout may abort its observer, never the owned mount worker.
+    // Keep FUSE alive until that same worker proves normal native closure. The
+    // process-wide watchdog bounds a permanently busy or unresolved claim.
+    #[cfg(feature = "ownerfs")]
+    if let Some(worker) = native_workspace_worker {
+        let closure = tokio::task::spawn_blocking(move || worker.shutdown()).await;
+        let error: Option<BoxError> = match closure {
+            Ok(Ok(())) => None,
+            Ok(Err(error)) => Some(error.into()),
+            Err(error) => Some(error.into()),
+        };
+        if let Some(error) = error {
+            afs_logging::error!("ownerfs.workspace_closure_failed"; "error" => error.to_string());
+            remember_shutdown_error(&mut shutdown_error, error);
+            // No successful closure proof (including a worker panic): keep
+            // FUSE owned until the process watchdog reports failure124.
+            std::future::pending::<()>().await;
+        }
+    }
     // Stop FUSE admission and observe its thread cleanup before the final dirty drain.
     // Dropping BackgroundSession alone detaches the thread and cannot prove this boundary.
     #[cfg(feature = "dfs")]
@@ -1821,24 +1843,12 @@ async fn run_node(
 fn register_native_workspace_startup(
     services: &mut Services,
     startup: Result<std::io::Result<native_workspace::NativeWorkspace>, tokio::task::JoinError>,
-) -> Option<BoxError> {
+) -> (Option<native_workspace::NativeWorkspace>, Option<BoxError>) {
     match startup {
         Ok(Ok(worker)) => {
-            let stop = services.stop.subscribe();
-            services.spawn(async move {
-                let shutdown = cancelled(stop);
-                tokio::pin!(shutdown);
-                let mut tick = tokio::time::interval(Duration::from_millis(100));
-                loop {
-                    tokio::select! {
-                        _ = &mut shutdown => break,
-                        _ = tick.tick() => if worker.is_finished() { break; },
-                    }
-                }
-                tokio::task::spawn_blocking(move || worker.shutdown()).await??;
-                Ok(())
-            });
-            None
+            let monitor = worker.monitor(services.stop.subscribe());
+            services.spawn(async move { monitor.await.map_err(Into::into) });
+            (Some(worker), None)
         }
         Ok(Err(error)) => {
             services.spawn(async {
@@ -1849,7 +1859,7 @@ fn register_native_workspace_startup(
                     .into(),
                 )
             });
-            Some(error.into())
+            (None, Some(error.into()))
         }
         Err(error) => {
             services.spawn(async {
@@ -1860,7 +1870,7 @@ fn register_native_workspace_startup(
                     .into(),
                 )
             });
-            Some(error.into())
+            (None, Some(error.into()))
         }
     }
 }
@@ -2008,6 +2018,7 @@ mod shutdown_tests {
             &mut services,
             Ok(Err(std::io::Error::from_raw_os_error(13))),
         )
+        .1
         .expect("startup error");
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
         let final_error = tokio::time::timeout(
@@ -2056,6 +2067,7 @@ mod shutdown_tests {
         )
         .await;
         let startup_error = super::register_native_workspace_startup(&mut services, startup)
+            .1
             .expect("startup join error");
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
         let final_error = tokio::time::timeout(

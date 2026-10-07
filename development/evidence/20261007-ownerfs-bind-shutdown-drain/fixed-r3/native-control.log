@@ -1,0 +1,31 @@
+   Compiling afs v0.1.0 (/workspace/dms/source)
+    Finished `release` profile [optimized] target(s) in 1m 01s
+     Running unittests src/lib.rs (/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2)
+
+running 19 tests
+test node::native_workspace::tests::cleanup_retry_after_clone_detach_does_not_unmount_twice ... ignored, requires root Linux private mount namespace; run explicitly
+test node::native_workspace::tests::cleanup_retry_after_deleted_container_retains_busy_export ... ignored, requires root Linux private mount namespace; run explicitly
+test node::native_workspace::tests::listener_failure_arms_shutdown_before_busy_export_drains ... ignored, requires root Linux private mount namespace; run explicitly
+test node::native_workspace::tests::native_command_sequence_rejects_symlinked_record ... ok
+test node::native_workspace::tests::native_container_has_only_workspace_and_drops_capabilities ... ok
+test node::native_workspace::tests::native_command_sequence_rejects_malformed_records_and_overflow ... ok
+test node::native_workspace::tests::native_control_rejects_source_injection_and_bad_identifiers ... ok
+test node::native_workspace::tests::native_control_replay_preserves_failure_and_capacity_never_blocks_stop ... ok
+test node::native_workspace::tests::native_command_cancellation_retains_failure_receipt_and_reaps_child ... ok
+test node::native_workspace::tests::runtime_rootfs_copy_keeps_template_reusable_after_mutable_dev_artifacts ... ignored, requires root Linux trusted rootfs fixture; run physical-native gate
+test node::native_workspace::tests::runtime_rootfs_copy_rejects_untrusted_source_and_destination_collision ... ignored, requires root Linux trusted rootfs fixture; run physical-native gate
+test node::native_workspace::tests::runtime_rootfs_workspace_is_the_oci_root_covered_directory ... ignored, requires root Linux trusted rootfs fixture; run physical-native gate
+test node::native_workspace::tests::shutdown_terminal_retains_claim_until_process_watchdog ... ignored, requires root Linux private mount namespace; run explicitly
+test node::native_workspace::tests::native_final_view_rejects_wrong_source_namespace_mount_and_policy ... ok
+test node::native_workspace::tests::shutdown_waits_for_busy_export_before_controller_closure ... ignored, requires root Linux private mount namespace; run explicitly
+test node::shutdown_tests::native_workspace_startup_io_failure_drains_services_and_keeps_original_errno ... ok
+
+thread 'tokio-rt-worker' (121136) panicked at src/node.rs:2065:17:
+native workspace startup panic
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test node::shutdown_tests::native_workspace_startup_join_error_drains_services_and_keeps_original_panic ... ok
+test node::native_workspace::tests::native_command_sequence_continues_after_retained_partial_records ... ok
+test node::native_workspace::tests::native_workspace_owner_survives_services_deadline_before_explicit_join ... ok
+
+test result: ok. 11 passed; 0 failed; 8 ignored; 0 measured; 575 filtered out; finished in 10.06s
+

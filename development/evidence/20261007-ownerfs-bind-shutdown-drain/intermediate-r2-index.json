@@ -1,0 +1,18 @@
+{
+  "status": "SUPERSEDED",
+  "source_base": "59f87533f06c0c2a394bee148458915ce4ef9bb8",
+  "map_sha256": "c7de2a517d224e1eefe4b52835ddc94c8d5ae2a056cf4655b72b1779efcf7ce6",
+  "completed_gates": [
+    "fmt",
+    "native-control",
+    "config-contracts",
+    "physical-build",
+    "owner-only",
+    "dfs-only",
+    "clippy",
+    "build"
+  ],
+  "full_archive_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-bind-shutdown-drain-20261007-r1/intermediate-r2",
+  "qualification": "partial repair before listener failure notification fix; not the current product",
+  "source_proof_sha256": "8476aaa1c6fa62d3a94d1ab4618a41bcc2e1f11741c7cd4cac438159ed42622b"
+}

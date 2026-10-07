@@ -1,0 +1,31 @@
+{
+  "source_base": "59f87533f06c0c2a394bee148458915ce4ef9bb8",
+  "map_sha256": "21c88fd70d93f45c23623765337511c15787c458628e6b2fee056fbeb4136889",
+  "status": "FAIL",
+  "selected_gates": [
+    "fmt",
+    "native-control",
+    "config-contracts",
+    "physical-build",
+    "owner-only",
+    "dfs-only",
+    "clippy",
+    "build"
+  ],
+  "commands": [
+    {
+      "label": "fmt",
+      "returncode": 0,
+      "elapsed_seconds": 1.0091325090033934,
+      "minimum_free_bytes": 40295243776,
+      "stop_reason": null
+    },
+    {
+      "label": "native-control",
+      "returncode": 101,
+      "elapsed_seconds": 5.032284474989865,
+      "minimum_free_bytes": 40295157760,
+      "stop_reason": null
+    }
+  ]
+}

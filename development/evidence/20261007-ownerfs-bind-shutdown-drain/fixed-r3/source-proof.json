@@ -1,0 +1,96 @@
+{
+  "source_base": "59f87533f06c0c2a394bee148458915ce4ef9bb8",
+  "map_sha256": "1fd613e55e28aac00c9514e74763501ec58aa83524956c2caf5ec1e675287e55",
+  "status": "PASS",
+  "selected_gates": [
+    "fmt",
+    "native-control",
+    "config-contracts",
+    "physical-build",
+    "physical-native",
+    "owner-only",
+    "dfs-only",
+    "clippy",
+    "build"
+  ],
+  "commands": [
+    {
+      "label": "fmt",
+      "returncode": 0,
+      "elapsed_seconds": 1.0104640609933995,
+      "minimum_free_bytes": 40290738176,
+      "stop_reason": null
+    },
+    {
+      "label": "native-control",
+      "returncode": 0,
+      "elapsed_seconds": 72.23428123697522,
+      "minimum_free_bytes": 40242323456,
+      "stop_reason": null
+    },
+    {
+      "label": "config-contracts",
+      "returncode": 0,
+      "elapsed_seconds": 67.15655639002216,
+      "minimum_free_bytes": 40289509376,
+      "stop_reason": null
+    },
+    {
+      "label": "physical-build",
+      "returncode": 0,
+      "elapsed_seconds": 1.011297510995064,
+      "minimum_free_bytes": 40301297664,
+      "stop_reason": null
+    },
+    {
+      "label": "physical-native",
+      "returncode": 0,
+      "elapsed_seconds": 1.0075648879865184,
+      "minimum_free_bytes": 40301019136,
+      "stop_reason": null
+    },
+    {
+      "label": "owner-only",
+      "returncode": 0,
+      "elapsed_seconds": 3.0034012210089713,
+      "minimum_free_bytes": 40300953600,
+      "stop_reason": null
+    },
+    {
+      "label": "dfs-only",
+      "returncode": 0,
+      "elapsed_seconds": 1.0046295539941639,
+      "minimum_free_bytes": 40300920832,
+      "stop_reason": null
+    },
+    {
+      "label": "clippy",
+      "returncode": 0,
+      "elapsed_seconds": 6.009642160992371,
+      "minimum_free_bytes": 40300654592,
+      "stop_reason": null
+    },
+    {
+      "label": "build",
+      "returncode": 0,
+      "elapsed_seconds": 66.12834951697732,
+      "minimum_free_bytes": 40300765184,
+      "stop_reason": null
+    }
+  ],
+  "inputs_unchanged": true,
+  "binaries": {
+    "afs-meta": {
+      "sha256": "78e7ad556b8767af4bcc34c81fb94075011152254e26ed24b26a8f528b97d3a8",
+      "bytes": 15788960
+    },
+    "afs-node": {
+      "sha256": "d264a470372593ab00bd6c691f1e389492decf8e4c750a6b29b608719407d58a",
+      "bytes": 25980792
+    },
+    "afs-workspace-probe": {
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+      "bytes": 560000
+    }
+  }
+}

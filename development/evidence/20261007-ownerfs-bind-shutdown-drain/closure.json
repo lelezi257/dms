@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "compiler_inputs_match": 157,
+  "local_links_checked": 23,
+  "protected_handoff_unchanged": true,
+  "vendor_and_mount_core_unchanged": true,
+  "actual_selected_cases": 26,
+  "new_cases": 4,
+  "source_gates": 9,
+  "root_cases": 8,
+  "whole_node_runc_e2e": false,
+  "package_deployed": false,
+  "g1_reopened": false,
+  "full_g2_exit": false
+}

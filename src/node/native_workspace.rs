@@ -33,6 +33,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+type WorkerFailure = Option<(Option<i32>, String)>;
+
 const MAX_REQUEST: u64 = 8192;
 const MAX_OPERATIONS: usize = 64;
 const PROBE: &str = "/afs-workspace-probe";
@@ -41,6 +43,7 @@ const COMMAND_SUFFIXES: [&str; 4] = [".stdout", ".stderr", ".command.json", ".ex
 pub(super) struct NativeWorkspace {
     stop: Arc<AtomicBool>,
     worker: Option<thread::JoinHandle<io::Result<()>>>,
+    finished: tokio::sync::watch::Receiver<WorkerFailure>,
 }
 
 impl NativeWorkspace {
@@ -52,10 +55,11 @@ impl NativeWorkspace {
         let stop = Arc::new(AtomicBool::new(false));
         let worker_stop = stop.clone();
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
+        let (finished_tx, finished) = tokio::sync::watch::channel(None::<(Option<i32>, String)>);
         let worker = thread::Builder::new()
             .name("afs-native-workspace".into())
             .spawn(move || {
-                let mut driver = match Driver::new(owner, mount, cfg, worker_stop) {
+                let driver = match Driver::new(owner, mount, cfg, worker_stop) {
                     Ok(driver) => {
                         let _ = ready_tx.send(Ok(()));
                         driver
@@ -65,12 +69,13 @@ impl NativeWorkspace {
                         return Err(error);
                     }
                 };
-                driver.serve()
+                driver.run(finished_tx)
             })?;
         match ready_rx.recv() {
             Ok(Ok(())) => Ok(Self {
                 stop,
                 worker: Some(worker),
+                finished,
             }),
             Ok(Err(error)) => {
                 stop.store(true, Ordering::Release);
@@ -85,10 +90,30 @@ impl NativeWorkspace {
         }
     }
 
-    pub(super) fn is_finished(&self) -> bool {
-        self.worker
-            .as_ref()
-            .is_none_or(|worker| worker.is_finished())
+    // The monitor owns no JoinHandle or mount resources. Node retains the
+    // worker until its explicit closure gate before FUSE teardown.
+    pub(super) fn monitor(
+        &self,
+        stop: tokio::sync::watch::Receiver<bool>,
+    ) -> impl std::future::Future<Output = io::Result<()>> + Send + 'static {
+        let worker_stop = self.stop.clone();
+        let mut finished = self.finished.clone();
+        async move {
+            tokio::select! {
+                biased;
+                _ = crate::runtime::cancelled(stop) => {
+                    worker_stop.store(true, Ordering::Release);
+                    Ok(())
+                }
+                _ = finished.changed() => {
+                    Err(match finished.borrow().as_ref() {
+                        Some((Some(errno), _)) => io::Error::from_raw_os_error(*errno),
+                        Some((None, message)) => io::Error::other(message.clone()),
+                        None => io::Error::other("native workspace worker exited unexpectedly"),
+                    })
+                }
+            }
+        }
     }
 
     pub(super) fn shutdown(mut self) -> io::Result<()> {
@@ -255,7 +280,49 @@ impl Driver {
         })
     }
 
-    fn serve(&mut self) -> io::Result<()> {
+    fn run(mut self, finished: tokio::sync::watch::Sender<WorkerFailure>) -> io::Result<()> {
+        let result = self.serve(&finished);
+        let failure = result
+            .as_ref()
+            .err()
+            .map(|e| (e.raw_os_error(), e.to_string()));
+        let _ = finished.send(failure);
+        if let Err(error) = &result {
+            afs_logging::error!("ownerfs.workspace_shutdown_unresolved"; "error" => error.to_string());
+            // Terminal identity/runtime errors are not retryable. Retain the
+            // Driver and its namespace/authority/export on this mount thread.
+            // The monitor starts Node shutdown; the existing process watchdog
+            // fails124 if closure cannot be proved. Never proceed to FUSE.
+            while self.active.is_some() {
+                thread::park();
+            }
+        }
+        result
+    }
+
+    fn cleanup_for_shutdown(&mut self) -> io::Result<()> {
+        loop {
+            match self.cleanup() {
+                Err(error) if error.raw_os_error() == Some(libc::EBUSY) => {
+                    thread::sleep(Duration::from_millis(50));
+                }
+                result => return result,
+            }
+        }
+    }
+
+    fn cleanup_listener_failure(
+        &mut self,
+        error: io::Error,
+        finished: &tokio::sync::watch::Sender<WorkerFailure>,
+    ) -> io::Result<()> {
+        // Publish the failure before an EBUSY drain can wait: Services must
+        // arm the existing process budget even without an external signal.
+        let _ = finished.send(Some((error.raw_os_error(), error.to_string())));
+        self.cleanup_for_shutdown().and(Err(error))
+    }
+
+    fn serve(&mut self, finished: &tokio::sync::watch::Sender<WorkerFailure>) -> io::Result<()> {
         while !self.stop.load(Ordering::Acquire) {
             match self.listener.accept() {
                 Ok((mut stream, _)) => {
@@ -269,12 +336,11 @@ impl Driver {
                     thread::sleep(Duration::from_millis(50))
                 }
                 Err(error) => {
-                    let cleanup = self.cleanup();
-                    return cleanup.and(Err(error));
+                    return self.cleanup_listener_failure(error, finished);
                 }
             }
         }
-        self.cleanup()?;
+        self.cleanup_for_shutdown()?;
         fs::remove_file(self.cfg.control_dir.join("control.sock"))?;
         self.lock.sync_all()?;
         fs::remove_file(self.cfg.control_dir.join("controller.lock"))?;
@@ -1112,8 +1178,8 @@ mod tests {
                 workload_gid: 501,
             },
             stop: Arc::new(AtomicBool::new(false)),
-            listener: UnixListener::bind(temp.path().join("test.sock")).unwrap(),
-            lock: File::create(temp.path().join("test.lock")).unwrap(),
+            listener: UnixListener::bind(temp.path().join("control.sock")).unwrap(),
+            lock: File::create(temp.path().join("controller.lock")).unwrap(),
             active: Some(Active {
                 permit,
                 export,
@@ -1132,6 +1198,253 @@ mod tests {
             sequence: 0,
         };
         (temp, source_temp, driver)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn native_workspace_owner_survives_services_deadline_before_explicit_join() {
+        let stop = Arc::new(AtomicBool::new(false));
+        let (finished_tx, finished) = tokio::sync::watch::channel(None::<(Option<i32>, String)>);
+        let (release_tx, release_rx) = mpsc::channel();
+        let worker = NativeWorkspace {
+            stop: stop.clone(),
+            worker: Some(thread::spawn(move || {
+                release_rx.recv().unwrap();
+                let _ = finished_tx.send(None);
+                Ok(())
+            })),
+            finished,
+        };
+        let mut services = crate::runtime::Services::new();
+        let (owner, error) =
+            super::super::register_native_workspace_startup(&mut services, Ok(Ok(worker)));
+        assert!(error.is_none());
+        services.spawn(async { std::future::pending::<crate::runtime::ServiceResult>().await });
+        services.spawn(async { Err(io::Error::other("test sibling failure").into()) });
+        let began = Instant::now();
+        let error = tokio::time::timeout(Duration::from_secs(15), services.run())
+            .await
+            .unwrap()
+            .unwrap_err();
+        assert!(error.to_string().contains("tasks aborted"));
+        assert!(began.elapsed() >= Duration::from_secs(10));
+        let owner = owner.expect("Node still owns its original worker");
+        assert!(stop.load(Ordering::Acquire));
+        assert!(!owner.worker.as_ref().unwrap().is_finished());
+        let mut closure = tokio::task::spawn_blocking(move || owner.shutdown());
+        assert!(
+            tokio::time::timeout(Duration::from_millis(50), &mut closure)
+                .await
+                .is_err()
+        );
+        // This is the Node-owned closure gate: teardown may continue only
+        // after the same worker completes, not after Services aborts observers.
+        release_tx.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(2), closure)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    fn shutdown_terminal_claim_child() {
+        let record = std::env::var_os("AFS_TEST_WORKSPACE_TERMINAL_RECORD")
+            .expect("run only from terminal retention parent");
+        let (temp, _source, driver) = cleanup_retry_fixture();
+        fs::write(&driver.cfg.runtime, format!(
+            "#!/bin/sh\nset -eu\ncd '{}'\nprintf '%s\n' \"$3\" >> calls\nprintf '%s\n' '{{\"id\":\"wrong-container\",\"status\":\"stopped\"}}'\n",
+            temp.path().display())).unwrap();
+        driver.stop.store(true, Ordering::Release);
+        let target = driver.mount.join("workspace");
+        let expected = driver.active.as_ref().unwrap().permit.source_identity();
+        let (finished_tx, finished) = tokio::sync::watch::channel(None::<(Option<i32>, String)>);
+        let deadline = crate::runtime::ShutdownDeadline::new(Duration::from_millis(500)).unwrap();
+        deadline.trigger().arm();
+        thread::spawn(move || {
+            let until = Instant::now() + Duration::from_millis(300);
+            while finished.borrow().is_none() {
+                assert!(Instant::now() < until, "terminal error must be observable");
+                thread::sleep(Duration::from_millis(5));
+            }
+            let failure = finished.borrow().clone().unwrap();
+            assert_eq!(failure.0, Some(libc::ESTALE));
+            thread::sleep(Duration::from_millis(100));
+            let observed = fs::metadata(target).unwrap();
+            let calls = fs::read_to_string(temp.path().join("calls")).unwrap();
+            assert_eq!(calls, "state\n");
+            assert_eq!(
+                (observed.dev(), observed.ino()),
+                (expected.dev, expected.ino)
+            );
+            assert!(temp.path().join("control.sock").exists());
+            assert!(temp.path().join("controller.lock").exists());
+            fs::write(
+                record,
+                serde_json::to_vec(&json!({
+                    "errno":failure.0,"calls":calls,"same_physical_mount_retained":true,
+                    "control_claim_retained":true,"normal_closure":false
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+        });
+        let _ = driver.run(finished_tx);
+        panic!("terminal claim must stay owned until failure watchdog exits");
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    #[ignore = "requires root Linux private mount namespace; run explicitly"]
+    fn shutdown_terminal_retains_claim_until_process_watchdog() {
+        if std::env::var_os("AFS_TEST_WORKSPACE_TERMINAL_RECORD").is_some() {
+            shutdown_terminal_claim_child();
+            return;
+        }
+        require_root().unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let record = temp.path().join("record.json");
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "node::native_workspace::tests::shutdown_terminal_retains_claim_until_process_watchdog",
+                "--ignored",
+                "--exact",
+                "--test-threads=1",
+                "--nocapture",
+            ])
+            .env("AFS_TEST_WORKSPACE_TERMINAL_RECORD", &record)
+            .env("TMPDIR", temp.path())
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(124),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let proof: Value = serde_json::from_slice(&fs::read(record).unwrap()).unwrap();
+        assert_eq!(proof["errno"], libc::ESTALE);
+        assert_eq!(proof["calls"], "state\n");
+        assert_eq!(proof["same_physical_mount_retained"], true);
+        assert_eq!(proof["control_claim_retained"], true);
+        println!("terminal child: exit124, {proof}");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "requires root Linux private mount namespace; run explicitly"]
+    async fn listener_failure_arms_shutdown_before_busy_export_drains() {
+        require_root().unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let worker_stop = stop.clone();
+        let (finished_tx, finished) = tokio::sync::watch::channel(None::<(Option<i32>, String)>);
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            let (temp, _source, mut driver) = cleanup_retry_fixture();
+            driver.stop = worker_stop;
+            let target = driver.mount.join("workspace");
+            let mut holder = Command::new("sleep")
+                .arg("30")
+                .current_dir(&target)
+                .spawn()
+                .unwrap();
+            let release = thread::spawn(move || {
+                // A backup release keeps the regression bounded if notification
+                // ordering breaks; the parent must observe failure much sooner.
+                let _ = release_rx.recv_timeout(Duration::from_secs(1));
+                holder.kill().unwrap();
+                holder.wait().unwrap();
+            });
+            ready_tx
+                .send((
+                    File::open(target).unwrap(),
+                    driver.active.as_ref().unwrap().permit.source_identity(),
+                ))
+                .unwrap();
+            let result = driver
+                .cleanup_listener_failure(io::Error::from_raw_os_error(libc::EMFILE), &finished_tx);
+            release.join().unwrap();
+            assert!(driver.active.is_none());
+            assert_eq!(
+                fs::read_to_string(temp.path().join("calls")).unwrap(),
+                "state\nstate\ndelete\n"
+            );
+            result
+        });
+        let (target, expected) = ready_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        let worker = NativeWorkspace {
+            stop,
+            worker: Some(worker),
+            finished,
+        };
+        let mut services = crate::runtime::Services::new();
+        let (owner, error) =
+            super::super::register_native_workspace_startup(&mut services, Ok(Ok(worker)));
+        assert!(error.is_none());
+        let deadline = crate::runtime::ShutdownDeadline::new(Duration::from_secs(2)).unwrap();
+        let trigger = deadline.trigger();
+        let armed = Arc::new(AtomicBool::new(false));
+        let armed_callback = armed.clone();
+        let began = Instant::now();
+        let error = services
+            .run_with_shutdown(move || {
+                trigger.arm();
+                armed_callback.store(true, Ordering::Release);
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.downcast_ref::<io::Error>().unwrap().raw_os_error(),
+            Some(libc::EMFILE)
+        );
+        assert!(began.elapsed() < Duration::from_millis(500));
+        assert!(armed.load(Ordering::Acquire));
+        let owner = owner.unwrap();
+        assert!(!owner.worker.as_ref().unwrap().is_finished());
+        let observed = target.metadata().unwrap();
+        assert_eq!(
+            (observed.dev(), observed.ino()),
+            (expected.dev, expected.ino)
+        );
+        drop(target);
+        release_tx.send(()).unwrap();
+        let error = tokio::task::spawn_blocking(move || owner.shutdown())
+            .await
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(libc::EMFILE));
+        deadline.complete();
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    #[ignore = "requires root Linux private mount namespace; run explicitly"]
+    fn shutdown_waits_for_busy_export_before_controller_closure() {
+        let (temp, _source, mut driver) = cleanup_retry_fixture();
+        let mut holder = Command::new("sleep")
+            .arg("30")
+            .current_dir(driver.mount.join("workspace"))
+            .spawn()
+            .unwrap();
+        driver.stop.store(true, Ordering::Release);
+        let release = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(150));
+            holder.kill().unwrap();
+            holder.wait().unwrap();
+        });
+        let began = Instant::now();
+        let (finished_tx, _) = tokio::sync::watch::channel(None::<(Option<i32>, String)>);
+        let result = driver.serve(&finished_tx);
+        release.join().unwrap();
+        result.expect("shutdown retains the busy export until normal detach can finish");
+        assert!(began.elapsed() >= Duration::from_millis(150));
+        assert!(driver.active.is_none());
+        assert!(!temp.path().join("control.sock").exists());
+        assert!(!temp.path().join("controller.lock").exists());
+        assert_eq!(
+            fs::read_to_string(temp.path().join("calls")).unwrap(),
+            "state\nstate\ndelete\n"
+        );
     }
 
     #[test]
@@ -1298,8 +1611,8 @@ mod tests {
             mount: temp.path().into(),
             cfg,
             stop: Arc::new(AtomicBool::new(false)),
-            listener: UnixListener::bind(temp.path().join("test.sock")).unwrap(),
-            lock: File::create(temp.path().join("test.lock")).unwrap(),
+            listener: UnixListener::bind(temp.path().join("control.sock")).unwrap(),
+            lock: File::create(temp.path().join("controller.lock")).unwrap(),
             active: None,
             responses: HashMap::new(),
             sequence: 0,
@@ -1392,8 +1705,8 @@ mod tests {
             mount: temp.path().into(),
             cfg,
             stop: Arc::new(AtomicBool::new(false)),
-            listener: UnixListener::bind(temp.path().join("test.sock")).unwrap(),
-            lock: File::create(temp.path().join("test.lock")).unwrap(),
+            listener: UnixListener::bind(temp.path().join("control.sock")).unwrap(),
+            lock: File::create(temp.path().join("controller.lock")).unwrap(),
             active: None,
             responses: HashMap::new(),
             sequence: next_command_sequence(temp.path()).unwrap(),
@@ -1440,8 +1753,8 @@ mod tests {
             mount: temp.path().into(),
             cfg,
             stop: Arc::new(AtomicBool::new(false)),
-            listener: UnixListener::bind(temp.path().join("test.sock")).unwrap(),
-            lock: File::create(temp.path().join("test.lock")).unwrap(),
+            listener: UnixListener::bind(temp.path().join("control.sock")).unwrap(),
+            lock: File::create(temp.path().join("controller.lock")).unwrap(),
             active: None,
             responses: HashMap::new(),
             sequence: next_command_sequence(temp.path()).unwrap(),

@@ -1,0 +1,15 @@
+
+running 1 test
+test node::native_workspace::tests::shutdown_waits_for_busy_export_before_controller_closure ... FAILED
+
+failures:
+
+failures:
+    node::native_workspace::tests::shutdown_waits_for_busy_export_before_controller_closure
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 590 filtered out; finished in 0.16s
+
+
+thread 'node::native_workspace::tests::shutdown_waits_for_busy_export_before_controller_closure' (120190) panicked at src/node/native_workspace.rs:1156:16:
+shutdown retains the busy export until normal detach can finish: Os { code: 16, kind: ResourceBusy, message: "Device or resource busy" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

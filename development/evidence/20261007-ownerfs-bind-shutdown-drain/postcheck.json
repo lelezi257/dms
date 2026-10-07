@@ -1,0 +1,8 @@
+{
+  "test_elf_sha256": "94cffe459d2208244c444bea93015c1b0e02f06d11bf3a1037f08cf56d285979",
+  "scope": "post-run caller namespace and relevant test process scan; no protected-process identity claim",
+  "relevant_processes": [],
+  "host_test_mounts": [],
+  "free_bytes": 40299163648,
+  "status": "PASS"
+}

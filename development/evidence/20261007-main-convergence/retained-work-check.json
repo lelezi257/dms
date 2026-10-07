@@ -1,0 +1,45 @@
+{
+  "status": "PASS",
+  "checks": [
+    {
+      "worktree": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-local-owner-preserved",
+      "sha256": "f98f5523fe2025399f45dca648edd0776b34c78ce077ceb496cbd2d6cd0f9285",
+      "unchanged": true
+    },
+    {
+      "worktree": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r45-verify-1789266256",
+      "sha256": "d0c60f730ab0102aad18541d3b6ae8dba8bb3409d769780e7939907fab33bbb9",
+      "unchanged": true
+    },
+    {
+      "worktree": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r7-verify-1789267073",
+      "sha256": "022f97191d982a090c7c443f437ecb4fb35d049d72e1d7edd750324e9a955dd6",
+      "unchanged": true
+    },
+    {
+      "worktree": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r7fix-verify-1789267497",
+      "sha256": "3cff30b1be3bbe2380591e78104522594e74348f738a653e474ddcf39f0ba586",
+      "unchanged": true
+    },
+    {
+      "worktree": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r7fix2-verify-1789267543",
+      "sha256": "247123d3310485590c216141df5b946aa762c32b365d5c02b53ed6e5ac1c5fb8",
+      "unchanged": true
+    },
+    {
+      "worktree": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r7fix3-verify-1789267768",
+      "sha256": "536cfca92614b04c23dda874d7f24cd1faa48b50323e1ffec0d49b2d087ffa60",
+      "unchanged": true
+    },
+    {
+      "worktree": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source-r7fix4-verify-1789267854",
+      "sha256": "a3ea309605723f1ef6ddf4a68cb099d4ed9282ab44857935638bdb1efc5ad463",
+      "unchanged": true
+    },
+    {
+      "worktree": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/sv4",
+      "sha256": "a3ea309605723f1ef6ddf4a68cb099d4ed9282ab44857935638bdb1efc5ad463",
+      "unchanged": true
+    }
+  ]
+}

@@ -32,8 +32,8 @@ Use [validation.md](validation.md) to size verification. Reuse historical eviden
 
 ## Publication and handoff
 
-The previous publication hold is superseded for the current user request: this documentation/code snapshot is authorized to be committed and pushed after review and verification. Future publication still requires the same kind of explicit user instruction.
+The user's 2026-10-07 standing authorization makes main the sole daily development and delivery entry. Commit each completed independent item under Lore and normally push origin/main after the necessary affected checks. No feature PR/MR or per-feature human review/approval gate is required; review the overall project after the overall goal is complete. Preserve incomplete work and its evidence, and do not rewrite history or force push. See the [main convergence inventory](evidence/20261007-main-convergence/README.md).
 
-Refresh [docs/handoff.md](../docs/handoff.md) only when the user asks for a handoff or a publication checkpoint. This current systematic GitHub snapshot qualifies.
+Refresh [docs/handoff.md](../docs/handoff.md) only when the user explicitly asks for its refresh. Routine convergence/publication updates current-checkpoint.md and the evidence index; the protected historical handoff remains unchanged in this slice.
 
 Every commit follows the workspace Lore protocol. Commit messages must record the intent, verification, known gaps and scope risk. Do not claim G2 completion, full POSIX qualification, native ON readiness, formal 69-case release, 8 GiB qualification or etcd/Redis parity unless those exact gates have fresh evidence.

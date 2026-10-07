@@ -1,0 +1,5 @@
+{
+  "status": "FAIL",
+  "cause": "A prunable worktree path exists but no longer has valid Git metadata; no checkout or deletion occurred",
+  "correction": "Classify explicit prunable metadata before reading its filesystem directory; rerun only archival inventory"
+}

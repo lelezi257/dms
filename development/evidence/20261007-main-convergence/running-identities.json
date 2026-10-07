@@ -1,0 +1,192 @@
+{
+  "recorded_at": "2026-10-07T05:00:51.118Z",
+  "scope": "read only; preserve historical processes/mounts; no currently owned E2E worker remains after startup slice",
+  "vms": [
+    {
+      "vm": "afs-accept-ctl",
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/var/tmp",
+        "afs-accept-ctl",
+        "--",
+        "sudo",
+        "-n",
+        "python3",
+        "-c",
+        "import pathlib,os,json,hashlib\nrows=[]\nfor p in pathlib.Path('/proc').iterdir():\n if not p.name.isdigit(): continue\n try:\n  exe=os.readlink(p/'exe')\n  if pathlib.Path(exe).name not in ('afs-node','afs-meta','fdbserver'): continue\n  rows.append({'pid':int(p.name),'executable':exe,'sha256':hashlib.sha256(pathlib.Path(exe).read_bytes()).hexdigest(),'starttick':(p/'stat').read_text().rsplit(')',1)[1].split()[19]})\n except (FileNotFoundError,PermissionError,ProcessLookupError): pass\nprint(json.dumps({'processes':rows,'afs_mounts':[x for x in pathlib.Path('/proc/self/mountinfo').read_text().splitlines() if ' - fuse afs-' in x]}))"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "processes": [
+        {
+          "pid": 1136874,
+          "executable": "/mnt/lima-afsctlstate/afs-delivery/p1b/bin/afs-meta",
+          "sha256": "0cc53e784027582815be40fd89c5b9efb48235bee8061146399d7a4d20fcfac1",
+          "starttick": "1233842"
+        },
+        {
+          "pid": 1418880,
+          "executable": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-meta",
+          "sha256": "64d85fc3933637ccd7fdf4eafded5e5c8cb2354e73b4c8d1a27b2b8d43f4c7e7",
+          "starttick": "10164420"
+        }
+      ],
+      "afs_mounts": []
+    },
+    {
+      "vm": "afs-accept-a",
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/var/tmp",
+        "afs-accept-a",
+        "--",
+        "sudo",
+        "-n",
+        "python3",
+        "-c",
+        "import pathlib,os,json,hashlib\nrows=[]\nfor p in pathlib.Path('/proc').iterdir():\n if not p.name.isdigit(): continue\n try:\n  exe=os.readlink(p/'exe')\n  if pathlib.Path(exe).name not in ('afs-node','afs-meta','fdbserver'): continue\n  rows.append({'pid':int(p.name),'executable':exe,'sha256':hashlib.sha256(pathlib.Path(exe).read_bytes()).hexdigest(),'starttick':(p/'stat').read_text().rsplit(')',1)[1].split()[19]})\n except (FileNotFoundError,PermissionError,ProcessLookupError): pass\nprint(json.dumps({'processes':rows,'afs_mounts':[x for x in pathlib.Path('/proc/self/mountinfo').read_text().splitlines() if ' - fuse afs-' in x]}))"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "processes": [
+        {
+          "pid": 150904,
+          "executable": "/usr/sbin/fdbserver",
+          "sha256": "cddf55256ba2ca1249f98481d6c9995fd7fda091d23bc0551b96c1ae9537128c",
+          "starttick": "2268457"
+        },
+        {
+          "pid": 706366,
+          "executable": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v45/bin/afs-meta",
+          "sha256": "8bcfbcbd2f84be5029ab848c214aaff258ba8147684a141b17b262d0b6cc8d10",
+          "starttick": "5849843"
+        },
+        {
+          "pid": 707560,
+          "executable": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta",
+          "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+          "starttick": "6127754"
+        },
+        {
+          "pid": 722421,
+          "executable": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta",
+          "sha256": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d",
+          "starttick": "6782793"
+        },
+        {
+          "pid": 723627,
+          "executable": "/mnt/lima-afsadata/afs-delivery/repair-v55-a/prefix/bin/afs-meta",
+          "sha256": "f08de71b873f9e9f5564acdd09ce58ab62b62472b36db7a8b0a514c2d47849fb",
+          "starttick": "7187988"
+        },
+        {
+          "pid": 724361,
+          "executable": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-meta",
+          "sha256": "37218622c1cfd1cfadc696269f0ea01a2570052ec460528c748d525fe982ef9d",
+          "starttick": "7349623"
+        },
+        {
+          "pid": 727122,
+          "executable": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/prefix/bin/afs-meta",
+          "sha256": "d10d5683935aa70c2e8d3968be9818a83df9cb1267d1b9a29f6494a1d146865c",
+          "starttick": "7806618"
+        },
+        {
+          "pid": 729413,
+          "executable": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/prefix/bin/afs-meta",
+          "sha256": "d10d5683935aa70c2e8d3968be9818a83df9cb1267d1b9a29f6494a1d146865c",
+          "starttick": "7870207"
+        }
+      ],
+      "afs_mounts": [
+        "84 243 0:50 / /mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/mount-ownerfs rw,nosuid,nodev,noatime shared:357 - fuse afs-ownerfs rw,user_id=0,group_id=0,default_permissions,allow_other",
+        "163 243 0:51 / /mnt/lima-afsadata/afs-delivery/p2-shutdown-v47/mount-dfs rw,nosuid,nodev,noatime shared:367 - fuse afs-dfs rw,user_id=0,group_id=0,default_permissions,allow_other"
+      ]
+    },
+    {
+      "vm": "afs-accept-b",
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/var/tmp",
+        "afs-accept-b",
+        "--",
+        "sudo",
+        "-n",
+        "python3",
+        "-c",
+        "import pathlib,os,json,hashlib\nrows=[]\nfor p in pathlib.Path('/proc').iterdir():\n if not p.name.isdigit(): continue\n try:\n  exe=os.readlink(p/'exe')\n  if pathlib.Path(exe).name not in ('afs-node','afs-meta','fdbserver'): continue\n  rows.append({'pid':int(p.name),'executable':exe,'sha256':hashlib.sha256(pathlib.Path(exe).read_bytes()).hexdigest(),'starttick':(p/'stat').read_text().rsplit(')',1)[1].split()[19]})\n except (FileNotFoundError,PermissionError,ProcessLookupError): pass\nprint(json.dumps({'processes':rows,'afs_mounts':[x for x in pathlib.Path('/proc/self/mountinfo').read_text().splitlines() if ' - fuse afs-' in x]}))"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "processes": [],
+      "afs_mounts": []
+    },
+    {
+      "vm": "afs-accept-c",
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/var/tmp",
+        "afs-accept-c",
+        "--",
+        "sudo",
+        "-n",
+        "python3",
+        "-c",
+        "import pathlib,os,json,hashlib\nrows=[]\nfor p in pathlib.Path('/proc').iterdir():\n if not p.name.isdigit(): continue\n try:\n  exe=os.readlink(p/'exe')\n  if pathlib.Path(exe).name not in ('afs-node','afs-meta','fdbserver'): continue\n  rows.append({'pid':int(p.name),'executable':exe,'sha256':hashlib.sha256(pathlib.Path(exe).read_bytes()).hexdigest(),'starttick':(p/'stat').read_text().rsplit(')',1)[1].split()[19]})\n except (FileNotFoundError,PermissionError,ProcessLookupError): pass\nprint(json.dumps({'processes':rows,'afs_mounts':[x for x in pathlib.Path('/proc/self/mountinfo').read_text().splitlines() if ' - fuse afs-' in x]}))"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "processes": [],
+      "afs_mounts": []
+    },
+    {
+      "vm": "afs-g2-micro",
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/var/tmp",
+        "afs-g2-micro",
+        "--",
+        "sudo",
+        "-n",
+        "python3",
+        "-c",
+        "import pathlib,os,json,hashlib\nrows=[]\nfor p in pathlib.Path('/proc').iterdir():\n if not p.name.isdigit(): continue\n try:\n  exe=os.readlink(p/'exe')\n  if pathlib.Path(exe).name not in ('afs-node','afs-meta','fdbserver'): continue\n  rows.append({'pid':int(p.name),'executable':exe,'sha256':hashlib.sha256(pathlib.Path(exe).read_bytes()).hexdigest(),'starttick':(p/'stat').read_text().rsplit(')',1)[1].split()[19]})\n except (FileNotFoundError,PermissionError,ProcessLookupError): pass\nprint(json.dumps({'processes':rows,'afs_mounts':[x for x in pathlib.Path('/proc/self/mountinfo').read_text().splitlines() if ' - fuse afs-' in x]}))"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "processes": [],
+      "afs_mounts": []
+    },
+    {
+      "vm": "afs-build",
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/var/tmp",
+        "afs-build",
+        "--",
+        "sudo",
+        "-n",
+        "python3",
+        "-c",
+        "import pathlib,os,json,hashlib\nrows=[]\nfor p in pathlib.Path('/proc').iterdir():\n if not p.name.isdigit(): continue\n try:\n  exe=os.readlink(p/'exe')\n  if pathlib.Path(exe).name not in ('afs-node','afs-meta','fdbserver'): continue\n  rows.append({'pid':int(p.name),'executable':exe,'sha256':hashlib.sha256(pathlib.Path(exe).read_bytes()).hexdigest(),'starttick':(p/'stat').read_text().rsplit(')',1)[1].split()[19]})\n except (FileNotFoundError,PermissionError,ProcessLookupError): pass\nprint(json.dumps({'processes':rows,'afs_mounts':[x for x in pathlib.Path('/proc/self/mountinfo').read_text().splitlines() if ' - fuse afs-' in x]}))"
+      ],
+      "returncode": 0,
+      "stderr": "",
+      "processes": [
+        {
+          "pid": 742,
+          "executable": "/usr/sbin/fdbserver",
+          "sha256": "cddf55256ba2ca1249f98481d6c9995fd7fda091d23bc0551b96c1ae9537128c",
+          "starttick": "572"
+        }
+      ],
+      "afs_mounts": []
+    }
+  ]
+}

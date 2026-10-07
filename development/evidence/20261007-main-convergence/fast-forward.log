@@ -1,0 +1,1295 @@
+Updating f09185e..73842cd
+Fast-forward
+ development/acceptance/native-workspace-linux.py   |  62 +-
+ .../acceptance/node-startup-rejection-linux.py     | 185 ++++++
+ development/acceptance/orderly-runtime-checks.py   | 460 +++++++++++++++
+ .../acceptance/probes/native_orderly_recovery.py   | 305 ++++++++++
+ .../probes/test_native_orderly_recovery.py         | 183 ++++++
+ development/acceptance/source-slice-linux.py       |   7 +-
+ .../acceptance/test_orderly_runtime_checks.py      | 178 ++++++
+ development/current-checkpoint.md                  |  32 +-
+ .../README.md                                      |  11 +
+ .../SHA256SUMS                                     |  23 +
+ .../afs-meta.ldd                                   |   8 +
+ .../afs-node.ldd                                   |   8 +
+ .../afs-workspace-probe.ldd                        |   4 +
+ .../build.command.json                             |  14 +
+ .../build.exit                                     |   1 +
+ .../build.log                                      |   3 +
+ .../clippy.command.json                            |  18 +
+ .../clippy.exit                                    |   1 +
+ .../clippy.log                                     |   2 +
+ .../driver.stderr                                  |   0
+ .../driver.stdout                                  |   5 +
+ .../helper-idle.command.json                       |  11 +
+ .../helper-idle.exit                               |   1 +
+ .../helper-idle.log                                |   1 +
+ .../library.command.json                           |  18 +
+ .../library.exit                                   |   1 +
+ .../library.log                                    | 641 +++++++++++++++++++++
+ .../package-build-receipt.json                     |  48 ++
+ .../package-transfer-first-attempt.json            |   8 +
+ .../packaging-inputs.json                          |  61 ++
+ .../preflight.json                                 |  95 +++
+ .../source-proof.json                              |  56 ++
+ .../README.md                                      |  11 +
+ .../SHA256SUMS                                     | 320 ++++++++++
+ .../admission.stderr                               |   0
+ .../admission.stdout                               | 272 +++++++++
+ .../copy-first-attempt.json                        |  11 +
+ .../driver.stderr                                  |   0
+ .../driver.stdout                                  |  12 +
+ .../outer-admission-r1.json                        | 272 +++++++++
+ .../outer-postcheck-r1.json                        |  80 +++
+ .../outer-postcheck-r2.json                        | 284 +++++++++
+ .../postcheck.stderr                               |   0
+ .../postcheck.stdout                               |  80 +++
+ .../results-r1/000.stderr                          |   0
+ .../results-r1/000.stdout                          |  10 +
+ .../results-r1/001.stderr                          |   0
+ .../results-r1/001.stdout                          |   6 +
+ .../results-r1/002.stderr                          |   0
+ .../results-r1/002.stdout                          |   0
+ .../results-r1/003.stderr                          |   0
+ .../results-r1/003.stdout                          |  24 +
+ .../results-r1/004.stderr                          |   0
+ .../results-r1/004.stdout                          |   8 +
+ .../results-r1/005.stderr                          |   0
+ .../results-r1/005.stdout                          |   8 +
+ .../results-r1/006.stderr                          |   0
+ .../results-r1/006.stdout                          |   1 +
+ .../results-r1/007.stderr                          |   0
+ .../results-r1/007.stdout                          |   2 +
+ .../results-r1/008.stderr                          |   0
+ .../results-r1/008.stdout                          |  11 +
+ .../results-r1/009.stderr                          |   0
+ .../results-r1/009.stdout                          |   7 +
+ .../results-r1/010.stderr                          |   0
+ .../results-r1/010.stdout                          |  14 +
+ .../results-r1/011.stderr                          |   0
+ .../results-r1/011.stdout                          |  10 +
+ .../results-r1/012.stderr                          |   0
+ .../results-r1/012.stdout                          |  14 +
+ .../results-r1/013.stderr                          |   0
+ .../results-r1/013.stdout                          |  10 +
+ .../results-r1/014.stderr                          |   0
+ .../results-r1/014.stdout                          |   8 +
+ .../results-r1/015.stderr                          |   0
+ .../results-r1/015.stdout                          |   8 +
+ .../results-r1/016.stderr                          |   0
+ .../results-r1/016.stdout                          |   7 +
+ .../results-r1/017.stderr                          |   0
+ .../results-r1/017.stdout                          |   7 +
+ .../results-r1/018.stderr                          |   0
+ .../results-r1/018.stdout                          |   1 +
+ .../results-r1/019.stderr                          |   0
+ .../results-r1/019.stdout                          |   2 +
+ .../results-r1/020.stderr                          |   0
+ .../results-r1/020.stdout                          |   0
+ .../results-r1/021.stderr                          |   2 +
+ .../results-r1/021.stdout                          |   2 +
+ .../results-r1/022.stderr                          |   0
+ .../results-r1/022.stdout                          |  11 +
+ .../results-r1/023.stderr                          |   0
+ .../results-r1/023.stdout                          |  14 +
+ .../results-r1/024.stderr                          |   0
+ .../results-r1/024.stdout                          |  14 +
+ .../results-r1/025.stderr                          |   0
+ .../results-r1/025.stdout                          |  10 +
+ .../results-r1/026.stderr                          |   0
+ .../results-r1/026.stdout                          |   8 +
+ .../results-r1/027.stderr                          |   0
+ .../results-r1/027.stdout                          |   7 +
+ .../results-r1/028.stderr                          |   0
+ .../results-r1/028.stdout                          |   7 +
+ .../results-r1/029.stderr                          |   0
+ .../results-r1/029.stdout                          |   1 +
+ .../results-r1/030.stderr                          |   0
+ .../results-r1/030.stdout                          |   7 +
+ .../results-r1/031.stderr                          |   0
+ .../results-r1/031.stdout                          |   2 +
+ .../results-r1/032.stderr                          |   0
+ .../results-r1/032.stdout                          |   0
+ .../results-r1/033.stderr                          |   0
+ .../results-r1/033.stdout                          |   0
+ .../results-r1/artifact-archive-tool.json          |   4 +
+ .../results-r1/checks.json                         | 570 ++++++++++++++++++
+ .../results-r1/commands.json                       | 557 ++++++++++++++++++
+ .../control/bundle-afs-native-first/config.json    |  83 +++
+ .../bundle-afs-native-orderly-second/config.json   |  83 +++
+ .../results-r1/control/command-0001.command.json   |   1 +
+ .../results-r1/control/command-0001.exit.json      |   1 +
+ .../results-r1/control/command-0001.stderr         |   0
+ .../results-r1/control/command-0001.stdout         |   0
+ .../results-r1/control/command-0002.command.json   |   1 +
+ .../results-r1/control/command-0002.exit.json      |   1 +
+ .../results-r1/control/command-0002.stderr         |   0
+ .../results-r1/control/command-0002.stdout         |   0
+ .../results-r1/control/command-0003.command.json   |   1 +
+ .../results-r1/control/command-0003.exit.json      |   1 +
+ .../results-r1/control/command-0003.stderr         |   0
+ .../results-r1/control/command-0003.stdout         |  10 +
+ .../results-r1/control/command-0004.command.json   |   1 +
+ .../results-r1/control/command-0004.exit.json      |   1 +
+ .../results-r1/control/command-0004.stderr         |   0
+ .../results-r1/control/command-0004.stdout         |   1 +
+ .../results-r1/control/command-0005.command.json   |   1 +
+ .../results-r1/control/command-0005.exit.json      |   1 +
+ .../results-r1/control/command-0005.stderr         |   0
+ .../results-r1/control/command-0005.stdout         |   1 +
+ .../results-r1/control/command-0006.command.json   |   1 +
+ .../results-r1/control/command-0006.exit.json      |   1 +
+ .../results-r1/control/command-0006.stderr         |   0
+ .../results-r1/control/command-0006.stdout         |   0
+ .../results-r1/control/command-0007.command.json   |   1 +
+ .../results-r1/control/command-0007.exit.json      |   1 +
+ .../results-r1/control/command-0007.stderr         |   0
+ .../results-r1/control/command-0007.stdout         |   1 +
+ .../results-r1/control/command-0008.command.json   |   1 +
+ .../results-r1/control/command-0008.exit.json      |   1 +
+ .../results-r1/control/command-0008.stderr         |   0
+ .../results-r1/control/command-0008.stdout         |   4 +
+ .../results-r1/control/command-0009.command.json   |   1 +
+ .../results-r1/control/command-0009.exit.json      |   1 +
+ .../results-r1/control/command-0009.stderr         |   0
+ .../results-r1/control/command-0009.stdout         |  10 +
+ .../results-r1/control/command-0010.command.json   |   1 +
+ .../results-r1/control/command-0010.exit.json      |   1 +
+ .../results-r1/control/command-0010.stderr         |   0
+ .../results-r1/control/command-0010.stdout         |   0
+ .../results-r1/control/command-0011.command.json   |   1 +
+ .../results-r1/control/command-0011.exit.json      |   1 +
+ .../results-r1/control/command-0011.stderr         |   0
+ .../results-r1/control/command-0011.stdout         |  10 +
+ .../results-r1/control/command-0012.command.json   |   1 +
+ .../results-r1/control/command-0012.exit.json      |   1 +
+ .../results-r1/control/command-0012.stderr         |   0
+ .../results-r1/control/command-0012.stdout         |   0
+ .../results-r1/control/command-0013.command.json   |   1 +
+ .../results-r1/control/command-0013.exit.json      |   1 +
+ .../results-r1/control/command-0013.stderr         |   0
+ .../results-r1/control/command-0013.stdout         |   0
+ .../results-r1/control/command-0014.command.json   |   1 +
+ .../results-r1/control/command-0014.exit.json      |   1 +
+ .../results-r1/control/command-0014.stderr         |   0
+ .../results-r1/control/command-0014.stdout         |   0
+ .../results-r1/control/command-0015.command.json   |   1 +
+ .../results-r1/control/command-0015.exit.json      |   1 +
+ .../results-r1/control/command-0015.stderr         |   0
+ .../results-r1/control/command-0015.stdout         |  10 +
+ .../results-r1/control/command-0016.command.json   |   1 +
+ .../results-r1/control/command-0016.exit.json      |   1 +
+ .../results-r1/control/command-0016.stderr         |   0
+ .../results-r1/control/command-0016.stdout         |   1 +
+ .../results-r1/control/command-0017.command.json   |   1 +
+ .../results-r1/control/command-0017.exit.json      |   1 +
+ .../results-r1/control/command-0017.stderr         |   0
+ .../results-r1/control/command-0017.stdout         |   1 +
+ .../results-r1/control/command-0018.command.json   |   1 +
+ .../results-r1/control/command-0018.exit.json      |   1 +
+ .../results-r1/control/command-0018.stderr         |   0
+ .../results-r1/control/command-0018.stdout         |   4 +
+ .../results-r1/control/command-0019.command.json   |   1 +
+ .../results-r1/control/command-0019.exit.json      |   1 +
+ .../results-r1/control/command-0019.stderr         |   0
+ .../results-r1/control/command-0019.stdout         |  10 +
+ .../results-r1/control/command-0020.command.json   |   1 +
+ .../results-r1/control/command-0020.exit.json      |   1 +
+ .../results-r1/control/command-0020.stderr         |   0
+ .../results-r1/control/command-0020.stdout         |   0
+ .../results-r1/control/command-0021.command.json   |   1 +
+ .../results-r1/control/command-0021.exit.json      |   1 +
+ .../results-r1/control/command-0021.stderr         |   0
+ .../results-r1/control/command-0021.stdout         |  10 +
+ .../results-r1/control/command-0022.command.json   |   1 +
+ .../results-r1/control/command-0022.exit.json      |   1 +
+ .../results-r1/control/command-0022.stderr         |   0
+ .../results-r1/control/command-0022.stdout         |   0
+ .../results-r1/final-identity.json                 |  34 ++
+ .../results-r1/logs/meta.log                       |   4 +
+ .../results-r1/logs/node.log                       |  10 +
+ .../results-r1/meta.toml                           |  19 +
+ .../results-r1/node.toml                           |  32 +
+ .../results-r1/orderly-final-actual-waits.json     |  54 ++
+ .../orderly-final-runtime-roots-local-only.json    | 530 +++++++++++++++++
+ .../results-r1/orderly-inputs-after-phase2.json    | 158 +++++
+ .../orderly-inputs-before-first-start.json         | 158 +++++
+ .../results-r1/orderly-inputs-before.json          | 158 +++++
+ .../results-r1/orderly-phase1-actual-waits.json    |  54 ++
+ .../results-r1/orderly-phase1-content.json         |  20 +
+ .../results-r1/orderly-phase1-private-root.json    |  93 +++
+ .../results-r1/orderly-phase1-read-content.json    |  18 +
+ .../orderly-phase1-runtime-roots-local-only.json   | 266 +++++++++
+ .../results-r1/orderly-phase2-private-root.json    |  93 +++
+ .../results-r1/orderly-phase2-read-content.json    |  18 +
+ .../results-r1/orderly-recovery-result.json        | 325 +++++++++++
+ .../results-r1/orderly-recovery-tool.json          |   4 +
+ .../results-r1/package-manifest.json               |  29 +
+ .../results-r1/phase1/commands.json                | 346 +++++++++++
+ .../control/bundle-afs-native-first/config.json    |  83 +++
+ .../phase1/control/command-0001.command.json       |   1 +
+ .../phase1/control/command-0001.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0001.stderr  |   0
+ .../results-r1/phase1/control/command-0001.stdout  |   0
+ .../phase1/control/command-0002.command.json       |   1 +
+ .../phase1/control/command-0002.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0002.stderr  |   0
+ .../results-r1/phase1/control/command-0002.stdout  |   0
+ .../phase1/control/command-0003.command.json       |   1 +
+ .../phase1/control/command-0003.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0003.stderr  |   0
+ .../results-r1/phase1/control/command-0003.stdout  |  10 +
+ .../phase1/control/command-0004.command.json       |   1 +
+ .../phase1/control/command-0004.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0004.stderr  |   0
+ .../results-r1/phase1/control/command-0004.stdout  |   1 +
+ .../phase1/control/command-0005.command.json       |   1 +
+ .../phase1/control/command-0005.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0005.stderr  |   0
+ .../results-r1/phase1/control/command-0005.stdout  |   1 +
+ .../phase1/control/command-0006.command.json       |   1 +
+ .../phase1/control/command-0006.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0006.stderr  |   0
+ .../results-r1/phase1/control/command-0006.stdout  |   0
+ .../phase1/control/command-0007.command.json       |   1 +
+ .../phase1/control/command-0007.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0007.stderr  |   0
+ .../results-r1/phase1/control/command-0007.stdout  |   1 +
+ .../phase1/control/command-0008.command.json       |   1 +
+ .../phase1/control/command-0008.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0008.stderr  |   0
+ .../results-r1/phase1/control/command-0008.stdout  |   4 +
+ .../phase1/control/command-0009.command.json       |   1 +
+ .../phase1/control/command-0009.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0009.stderr  |   0
+ .../results-r1/phase1/control/command-0009.stdout  |  10 +
+ .../phase1/control/command-0010.command.json       |   1 +
+ .../phase1/control/command-0010.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0010.stderr  |   0
+ .../results-r1/phase1/control/command-0010.stdout  |   0
+ .../phase1/control/command-0011.command.json       |   1 +
+ .../phase1/control/command-0011.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0011.stderr  |   0
+ .../results-r1/phase1/control/command-0011.stdout  |  10 +
+ .../phase1/control/command-0012.command.json       |   1 +
+ .../phase1/control/command-0012.exit.json          |   1 +
+ .../results-r1/phase1/control/command-0012.stderr  |   0
+ .../results-r1/phase1/control/command-0012.stdout  |   0
+ .../results-r1/phase1/final-identity.json          |  34 ++
+ .../results-r1/phase1/logs/meta.log                |   2 +
+ .../results-r1/phase1/logs/node.log                |   6 +
+ .../results-r1/phase1/run/meta.identity            |   8 +
+ .../results-r1/phase1/run/meta.launch              |   1 +
+ .../phase1/run/meta.lifecycle.QVJIM1/child         |   7 +
+ .../phase1/run/meta.lifecycle.QVJIM1/exit          |   8 +
+ .../results-r1/phase1/run/meta.lifecycle.QVJIM1/go |   0
+ .../phase1/run/meta.lifecycle.QVJIM1/ready         |   1 +
+ .../results-r1/phase1/run/meta.pid                 |   1 +
+ .../results-r1/phase1/run/node.identity            |   8 +
+ .../results-r1/phase1/run/node.launch              |   1 +
+ .../phase1/run/node.lifecycle.I95ThI/child         |   7 +
+ .../phase1/run/node.lifecycle.I95ThI/exit          |   8 +
+ .../results-r1/phase1/run/node.lifecycle.I95ThI/go |   0
+ .../phase1/run/node.lifecycle.I95ThI/ready         |   1 +
+ .../results-r1/phase1/run/node.pid                 |   1 +
+ .../results-r1/phase1/run/node.sock.lock           |   0
+ .../results-r1/phase1/running-identity.json        |  35 ++
+ .../results-r1/preflight.json                      |  72 +++
+ .../results-r1/result.json                         |  12 +
+ .../results-r1/rootfs-inputs.json                  |  38 ++
+ .../results-r1/run/meta.identity                   |   8 +
+ .../results-r1/run/meta.launch                     |   1 +
+ .../results-r1/run/meta.lifecycle.1sapyz/child     |   7 +
+ .../results-r1/run/meta.lifecycle.1sapyz/exit      |   8 +
+ .../results-r1/run/meta.lifecycle.1sapyz/go        |   0
+ .../results-r1/run/meta.lifecycle.1sapyz/ready     |   1 +
+ .../results-r1/run/meta.pid                        |   1 +
+ .../results-r1/run/node.identity                   |   8 +
+ .../results-r1/run/node.launch                     |   1 +
+ .../results-r1/run/node.lifecycle.7pctlk/child     |   7 +
+ .../results-r1/run/node.lifecycle.7pctlk/exit      |   8 +
+ .../results-r1/run/node.lifecycle.7pctlk/go        |   0
+ .../results-r1/run/node.lifecycle.7pctlk/ready     |   1 +
+ .../results-r1/run/node.pid                        |   1 +
+ .../results-r1/run/node.sock.lock                  |   0
+ .../results-r1/running-identity.json               |  35 ++
+ .../source-rejection-orderly-phase1.json           |  52 ++
+ .../source-rejection-orderly-phase2.json           | 100 ++++
+ .../results-r1/tool-inputs.json                    |   5 +
+ .../tool-checks/outer-checks-guards-r1-0.json      |   9 +
+ .../tool-checks/outer-checks-guards-r1-0.stderr    |   0
+ .../tool-checks/outer-checks-guards-r1-0.stdout    |   0
+ .../tool-checks/outer-checks-guards-r1-1.json      |   9 +
+ .../tool-checks/outer-checks-guards-r1-1.stderr    |   0
+ .../tool-checks/outer-checks-guards-r1-1.stdout    |   0
+ .../tool-checks/outer-checks-guards-r1-2.json      |  13 +
+ .../tool-checks/outer-checks-guards-r1-2.stderr    |  18 +
+ .../tool-checks/outer-checks-guards-r1-2.stdout    |   2 +
+ .../tool-checks/outer-checks-guards-r2-0.json      |   9 +
+ .../tool-checks/outer-checks-guards-r2-0.stderr    |   0
+ .../tool-checks/outer-checks-guards-r2-0.stdout    |   0
+ .../tool-checks/outer-checks-guards-r2-1.json      |   9 +
+ .../tool-checks/outer-checks-guards-r2-1.stderr    |   0
+ .../tool-checks/outer-checks-guards-r2-1.stdout    |   0
+ .../tool-checks/outer-checks-guards-r2-2.json      |   9 +
+ .../tool-checks/outer-checks-guards-r2-2.stderr    |   0
+ .../tool-checks/outer-checks-guards-r2-2.stdout    |   0
+ .../tool-checks/outer-checks-guards-r2-3.json      |  13 +
+ .../tool-checks/outer-checks-guards-r2-3.stderr    |   8 +
+ .../tool-checks/outer-checks-guards-r2-3.stdout    |  42 ++
+ .../tool-checks/outer-checks-wait-fix-r1-0.json    |   9 +
+ .../tool-checks/outer-checks-wait-fix-r1-0.stderr  |   0
+ .../tool-checks/outer-checks-wait-fix-r1-0.stdout  |   0
+ .../tool-checks/outer-checks-wait-fix-r1-1.json    |   9 +
+ .../tool-checks/outer-checks-wait-fix-r1-1.stderr  |   0
+ .../tool-checks/outer-checks-wait-fix-r1-1.stdout  |   0
+ .../tool-checks/outer-checks-wait-fix-r1-2.json    |  13 +
+ .../tool-checks/outer-checks-wait-fix-r1-2.stderr  |  14 +
+ .../tool-checks/outer-checks-wait-fix-r1-2.stdout  |   2 +
+ .../tool-checks/outer-postcheck-r2.json            |  49 ++
+ .../tool-checks/outer-postcheck-r2.stderr          |   2 +
+ .../tool-checks/outer-postcheck-r2.stdout          | 284 +++++++++
+ .../tool-checks/outer-postcheck-trace-r1.json      |  13 +
+ .../tool-checks/outer-postcheck-trace-r1.stderr    |  38 ++
+ .../tool-checks/outer-postcheck-trace-r1.stdout    |   0
+ .../tool-identity-r4.json                          |  31 +
+ .../README.md                                      |  13 +
+ .../SHA256SUMS                                     |  22 +
+ .../afs-meta.ldd                                   |   8 +
+ .../afs-node.ldd                                   |   8 +
+ .../afs-workspace-probe.ldd                        |   4 +
+ .../driver.stderr                                  |   0
+ .../driver.stdout                                  |   5 +
+ .../fmt.command.json                               |  12 +
+ .../fmt.exit                                       |   1 +
+ .../fmt.log                                        |   0
+ .../identity-read-first-attempt.json               |   1 +
+ .../native-control.command.json                    |  19 +
+ .../native-control.exit                            |   1 +
+ .../native-control.log                             |  26 +
+ .../physical-build.command.json                    |  18 +
+ .../physical-build.exit                            |   1 +
+ .../physical-build.log                             | 322 +++++++++++
+ .../physical-native.command.json                   |  16 +
+ .../physical-native.exit                           |   1 +
+ .../physical-native.log                            |  12 +
+ .../preflight.json                                 |  95 +++
+ .../source-proof.json                              |  56 ++
+ .../test-binary-identity.json                      |   9 +
+ .../20261007-native-orderly-recovery/README.md     |  23 +
+ .../20261007-native-orderly-recovery/SHA256SUMS    |  94 +++
+ .../build/afs-build-admissibility.txt              |  16 +
+ .../build/afs-build-preflight-2.txt                |   9 +
+ .../build/afs-build-preflight.txt                  |   2 +
+ .../build/afs-build-pwd.txt                        |   1 +
+ .../build/afs-build-source-paths.txt               |   0
+ .../build/afs-build-toolchain-cache.txt            |  20 +
+ .../build/afs-build-uname.txt                      |   1 +
+ .../build/afs-g2-micro-preflight.txt               |  10 +
+ .../build/cargo-clippy-afs-lib-tests-sudo.txt      |  26 +
+ .../build/cargo-clippy-afs-lib-tests.txt           |   4 +
+ .../build/cargo-fmt-apply.txt                      |   1 +
+ .../build/cargo-fmt-check-1.txt                    |  75 +++
+ .../build/cargo-fmt-check-2.txt                    | 260 +++++++++
+ .../build/cargo-fmt-check-3-after-inode.txt        |   0
+ .../build/cargo-fmt-check-4-records.txt            |  37 ++
+ .../build/cargo-fmt-check-5-final.txt              |   0
+ .../build/cargo-test-command-sequence.txt          |   5 +
+ .../build/cargo-test-native-mount-ignored.txt      |  32 +
+ .../build/cargo-test-native-workspace-1.txt        | 496 ++++++++++++++++
+ .../build/cargo-test-native-workspace-2.txt        |  43 ++
+ .../build/enospc-after-clippy.txt                  |  25 +
+ .../build/final-diff-stat.txt                      |   2 +
+ .../build/final-git-status.txt                     |   6 +
+ .../build/git-diff-check.txt                       |   0
+ .../build/linux-toolchain-survey.txt               |  13 +
+ .../build/pre-test-diff-env.txt                    | 224 +++++++
+ .../build/provenance-native-rootfs-repair.json     | 153 +++++
+ .../build/root-postblock-guest-disk-process.txt    |   2 +
+ .../commands/guard-archive-r2.json                 |  21 +
+ .../commands/guard-archive-r2.stderr               |   6 +
+ .../commands/guard-archive-r2.stdout               |   0
+ .../commands/guard-current-read-r3.json            |  21 +
+ .../commands/guard-current-read-r3.stderr          |   6 +
+ .../commands/guard-current-read-r3.stdout          |   0
+ .../commands/guard-shared-archive-r4.json          |  21 +
+ .../commands/guard-shared-archive-r4.stderr        |   6 +
+ .../commands/guard-shared-archive-r4.stdout        |   0
+ .../commands/guards-r1.json                        |  19 +
+ .../commands/guards-r1.stderr                      |  13 +
+ .../commands/guards-r1.stdout                      |   0
+ .../commands/tools-copy-r1.json                    |   9 +
+ .../commands/tools-copy-r1.stderr                  |   0
+ .../commands/tools-copy-r1.stdout                  |   0
+ .../commands/tools-copy-r2.json                    |   9 +
+ .../commands/tools-copy-r2.stderr                  |   0
+ .../commands/tools-copy-r2.stdout                  |   0
+ .../commands/tools-copy-r3.json                    |   9 +
+ .../commands/tools-copy-r3.stderr                  |   0
+ .../commands/tools-copy-r3.stdout                  |   0
+ .../commands/tools-copy-r4.json                    |   9 +
+ .../commands/tools-copy-r4.stderr                  |   0
+ .../commands/tools-copy-r4.stdout                  |   0
+ .../commands/tools-deploy-r1.json                  |  15 +
+ .../commands/tools-deploy-r1.stderr                |   0
+ .../commands/tools-deploy-r1.stdout                |   0
+ .../commands/tools-deploy-r2.json                  |  15 +
+ .../commands/tools-deploy-r2.stderr                |   0
+ .../commands/tools-deploy-r2.stdout                |   0
+ .../commands/tools-deploy-r3.json                  |  15 +
+ .../commands/tools-deploy-r3.stderr                |   0
+ .../commands/tools-deploy-r3.stdout                |   0
+ .../commands/tools-deploy-r4.json                  |  15 +
+ .../commands/tools-deploy-r4.stderr                |   0
+ .../commands/tools-deploy-r4.stdout                |   0
+ .../commands/tools-root-r1.json                    |  14 +
+ .../commands/tools-root-r1.stderr                  |   0
+ .../commands/tools-root-r1.stdout                  |   0
+ .../compiler-inputs.json                           | 169 ++++++
+ .../driver.canonical-to-r3.patch                   | 130 +++++
+ .../final-tools.json                               |   9 +
+ .../independent-default-test-entry-review-r1.json  |  31 +
+ .../independent-default-test-entry-review-r2.json  |  24 +
+ .../independent-final-source-tools-review-r1.json  |  65 +++
+ .../independent-orderly-tools-review-r1.json       |  67 +++
+ .../independent-rootfs-repair-plan-review.json     |  78 +++
+ .../inventory-command-provenance.json              |  42 ++
+ .../native-workspace-linux.py.r1-to-r2.patch       |  18 +
+ .../native-workspace-linux.py.r3-to-r4.patch       |  40 ++
+ .../native_orderly_recovery.py.r1-to-r2.patch      |  58 ++
+ .../native_orderly_recovery.py.r2-to-r3.patch      |  19 +
+ .../native_orderly_recovery.py.r3-to-r4.patch      |  31 +
+ .../root-local-only-input-index.json               |  30 +
+ .../rootfs-restart-static-boundary.json            | 563 ++++++++++++++++++
+ .../test_native_orderly_recovery.py.r1-to-r2.patch |  37 ++
+ .../test_native_orderly_recovery.py.r2-to-r3.patch |  28 +
+ .../test_native_orderly_recovery.py.r3-to-r4.patch |  33 ++
+ .../text-selection-index.json                      | 553 ++++++++++++++++++
+ .../tool-identity-r1.json                          |  29 +
+ .../tool-identity-r2.json                          |  31 +
+ .../tool-identity-r3.json                          |  31 +
+ .../tool-identity-r4.json                          |  31 +
+ .../tools-preparation-r3.json                      |  52 ++
+ .../tools-preparation-r4.json                      |  28 +
+ .../20261007-owner-standard-reuse/README.md        |  17 +
+ .../20261007-owner-standard-reuse/SHA256SUMS       |   7 +
+ .../code-impact-review.json                        | 302 ++++++++++
+ .../current-installed-suite-readonly.command.json  |  14 +
+ .../current-installed-suite-readonly.txt           |  14 +
+ .../current-ltp-install-readonly.command.json      |  14 +
+ .../current-ltp-install-readonly.txt               |   8 +
+ .../reference-index.json                           |  74 +++
+ .../20261007-ownerfs-bind-core-fuse/README.md      |  37 ++
+ .../20261007-ownerfs-bind-core-fuse/SHA256SUMS     |  30 +
+ .../20261007-ownerfs-bind-core-fuse/afs-meta.ldd   |   8 +
+ .../20261007-ownerfs-bind-core-fuse/afs-node.ldd   |   8 +
+ .../afs-workspace-probe.ldd                        |   4 +
+ .../clippy.command.json                            |  18 +
+ .../20261007-ownerfs-bind-core-fuse/clippy.exit    |   1 +
+ .../20261007-ownerfs-bind-core-fuse/clippy.log     |   2 +
+ .../compiler-inputs.json                           | 167 ++++++
+ .../fixture-preflight.json                         |  84 +++
+ .../fmt.command.json                               |  12 +
+ .../20261007-ownerfs-bind-core-fuse/fmt.exit       |   1 +
+ .../20261007-ownerfs-bind-core-fuse/fmt.log        |   0
+ .../format-receipt.json                            |  10 +
+ .../manifest-first-attempt.json                    |   8 +
+ .../mountinfo-after.json                           |  33 ++
+ .../physical-build.command.json                    |  18 +
+ .../physical-build.exit                            |   1 +
+ .../physical-build.log                             | 323 +++++++++++
+ .../20261007-ownerfs-bind-core-fuse/preflight.json |  95 +++
+ .../publication-checks.json                        |  17 +
+ .../publication-checks.pre-manifest.json           |  21 +
+ .../runtime-command.json                           |  23 +
+ .../runtime-postcheck.json                         |  24 +
+ .../runtime-result.json                            |   5 +
+ .../runtime-review.json                            |  19 +
+ .../20261007-ownerfs-bind-core-fuse/runtime.stderr |   0
+ .../20261007-ownerfs-bind-core-fuse/runtime.stdout |  14 +
+ .../source-proof.json                              |  48 ++
+ .../static-review.json                             |  19 +
+ .../test-artifact.json                             |   9 +
+ .../20261007-ownerfs-bind-node-startup/README.md   |  26 +
+ .../20261007-ownerfs-bind-node-startup/SHA256SUMS  |  67 +++
+ .../build/afs-meta.ldd                             |   8 +
+ .../build/afs-node.ldd                             |   8 +
+ .../build/afs-workspace-probe.ldd                  |   4 +
+ .../build/build.command.json                       |  14 +
+ .../build/build.exit                               |   1 +
+ .../build/build.log                                |   2 +
+ .../build/clippy.command.json                      |  18 +
+ .../build/clippy.exit                              |   1 +
+ .../build/clippy.log                               |   2 +
+ .../build/dfs-only.command.json                    |  15 +
+ .../build/dfs-only.exit                            |   1 +
+ .../build/dfs-only.log                             |  23 +
+ .../build/fmt.command.json                         |  12 +
+ .../build/fmt.exit                                 |   1 +
+ .../build/fmt.log                                  |   0
+ .../build/node-unit-identity.txt                   |   1 +
+ .../build/node-unit.exit                           |   1 +
+ .../build/node-unit.log                            |  14 +
+ .../build/owner-only.command.json                  |  15 +
+ .../build/owner-only.exit                          |   1 +
+ .../build/owner-only.log                           |  24 +
+ .../build/physical-build.command.json              |  18 +
+ .../build/physical-build.exit                      |   1 +
+ .../build/physical-build.log                       | 323 +++++++++++
+ .../build/preflight.json                           |  95 +++
+ .../build/source-proof.json                        |  72 +++
+ .../commands-receipt.json                          | 122 ++++
+ .../compiler-inputs.json                           | 165 ++++++
+ .../format-receipt.json                            |   7 +
+ .../publication-checks.json                        |  10 +
+ .../runtime-r1/before.json                         |  31 +
+ .../runtime-r1/checks.json                         | 237 ++++++++
+ .../runtime-r1/commands.json                       |  70 +++
+ .../runtime-r1/failure.json                        |   7 +
+ .../runtime-r1/meta-failure-stop.json              |   5 +
+ .../runtime-r1/meta-health.json                    |   4 +
+ .../runtime-r1/meta-process.json                   |  10 +
+ .../runtime-r1/meta.stderr                         |   3 +
+ .../runtime-r1/meta.stdout                         |   0
+ .../runtime-r1/meta.toml                           |  19 +
+ .../runtime-r1/node-print-config.json              |  48 ++
+ .../runtime-r1/node-process.json                   |  10 +
+ .../runtime-r1/node-wait.json                      |   5 +
+ .../runtime-r1/node.stderr                         |   5 +
+ .../runtime-r1/node.stdout                         |   0
+ .../runtime-r1/node.toml                           |  32 +
+ .../runtime-r1/result.json                         |   6 +
+ .../runtime-r1/tool-inputs.json                    |   4 +
+ .../runtime-r2/after.json                          |  31 +
+ .../runtime-r2/before.json                         |  31 +
+ .../runtime-r2/checks.json                         | 309 ++++++++++
+ .../runtime-r2/commands.json                       |  70 +++
+ .../runtime-r2/meta-health.json                    |   4 +
+ .../runtime-r2/meta-process.json                   |  10 +
+ .../runtime-r2/meta-wait.json                      |   5 +
+ .../runtime-r2/meta.stderr                         |   3 +
+ .../runtime-r2/meta.stdout                         |   0
+ .../runtime-r2/meta.toml                           |  19 +
+ .../runtime-r2/node-print-config.json              |  48 ++
+ .../runtime-r2/node-process.json                   |  10 +
+ .../runtime-r2/node-wait.json                      |   5 +
+ .../runtime-r2/node.stderr                         |   5 +
+ .../runtime-r2/node.stdout                         |   0
+ .../runtime-r2/node.toml                           |  32 +
+ .../runtime-r2/result.json                         |   6 +
+ .../runtime-r2/tool-inputs.json                    |   4 +
+ .../20261007-ownerfs-bind-remediation/README.md    |  25 +
+ .../20261007-ownerfs-bind-remediation/SHA256SUMS   |  46 ++
+ .../adapter.format.stderr                          |   0
+ .../20261007-ownerfs-bind-remediation/afs-meta.ldd |   8 +
+ .../20261007-ownerfs-bind-remediation/afs-node.ldd |   8 +
+ .../afs-workspace-probe.ldd                        |   4 +
+ .../bind-core.command.json                         |  19 +
+ .../bind-core.exit                                 |   1 +
+ .../bind-core.log                                  |  14 +
+ .../bind-mount.format.stderr                       |   0
+ .../build.command.json                             |  14 +
+ .../20261007-ownerfs-bind-remediation/build.exit   |   1 +
+ .../20261007-ownerfs-bind-remediation/build.log    |   2 +
+ .../clippy.command.json                            |  18 +
+ .../20261007-ownerfs-bind-remediation/clippy.exit  |   1 +
+ .../20261007-ownerfs-bind-remediation/clippy.log   |   2 +
+ .../compiler-inputs.json                           | 165 ++++++
+ .../config-contracts.command.json                  |  19 +
+ .../config-contracts.exit                          |   1 +
+ .../config-contracts.log                           |  15 +
+ .../driver.stderr                                  |   0
+ .../driver.stdout                                  |  10 +
+ .../fmt.command.json                               |  12 +
+ .../20261007-ownerfs-bind-remediation/fmt.exit     |   1 +
+ .../20261007-ownerfs-bind-remediation/fmt.log      |   0
+ .../format-receipt.json                            |  22 +
+ .../format.stderr                                  |   1 +
+ .../format.stdout                                  |   0
+ .../native-control.command.json                    |  19 +
+ .../native-control.exit                            |   1 +
+ .../native-control.log                             |  19 +
+ .../ownerfs.format.stderr                          |   0
+ .../path-mapping.json                              |  12 +
+ .../physical-bind.command.json                     |  16 +
+ .../physical-bind.exit                             |   1 +
+ .../physical-bind.log                              |   9 +
+ .../physical-build.command.json                    |  18 +
+ .../physical-build.exit                            |   1 +
+ .../physical-build.log                             | 322 +++++++++++
+ .../physical-native.command.json                   |  16 +
+ .../physical-native.exit                           |   1 +
+ .../physical-native.log                            |   8 +
+ .../preflight.json                                 |  95 +++
+ .../publication-checks.json                        |  16 +
+ .../20261007-ownerfs-bind-remediation/review.json  |  17 +
+ .../source-proof.json                              |  96 +++
+ .../test-artifact.json                             |   8 +
+ development/evidence/20261007-vm-archive/README.md |  13 +
+ .../evidence/20261007-vm-archive/SHA256SUMS        |   8 +
+ .../20261007-vm-archive/archive-receipt.json       |  45 ++
+ .../20261007-vm-archive/guest-space-inventory.txt  | 322 +++++++++++
+ .../20261007-vm-archive/inventory-summary.json     |  25 +
+ .../20261007-vm-archive/protected-after.txt        |   8 +
+ .../20261007-vm-archive/protected-before.txt       |   8 +
+ .../20261007-vm-archive/removal-authorization.json |   9 +
+ .../20261007-vm-archive/removal-receipt.json       |  26 +
+ development/issues.md                              |   1 +
+ .../native-rootfs-restart-records-addendum.md      |  11 +
+ development/native-rootfs-restart-repair.md        |  23 +
+ development/native-workspace-slice.md              |   6 +-
+ development/ownerfs-bind-node-startup-slice.md     |  26 +
+ development/ownerfs-workspace-bind-core-slice.md   |  25 +
+ development/ownerfs-workspace-bind-remediation.md  |  25 +
+ development/plan.md                                |   6 +-
+ development/trial-release-goals.md                 |  34 +-
+ docs/architecture/module-map.md                    |   2 +
+ docs/architecture/ownerfs.md                       |  14 +-
+ docs/guides/trial.md                               |   8 +-
+ docs/rfcs/0001-ownerfs-native-bind-mount.md        |   8 +-
+ docs/status.md                                     |  34 +-
+ examples/node.toml                                 |   5 +
+ scripts/deploy/templates/node.toml                 |   5 +
+ src/node.rs                                        | 203 ++++++-
+ src/node/native_workspace.rs                       | 418 +++++++++++++-
+ src/node/vfs/ownerfs.rs                            |   1 +
+ .../mount.rs => vfs/ownerfs/bind_mount.rs}         | 167 +++---
+ src/node/vfs/ownerfs/native_home_fuse_fixture.rs   | 447 ++++++++++++++
+ 655 files changed, 20344 insertions(+), 139 deletions(-)
+ create mode 100644 development/acceptance/node-startup-rejection-linux.py
+ create mode 100644 development/acceptance/orderly-runtime-checks.py
+ create mode 100644 development/acceptance/probes/native_orderly_recovery.py
+ create mode 100644 development/acceptance/probes/test_native_orderly_recovery.py
+ create mode 100644 development/acceptance/test_orderly_runtime_checks.py
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/README.md
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/SHA256SUMS
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/afs-meta.ldd
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/afs-node.ldd
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/afs-workspace-probe.ldd
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/build.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/build.exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/build.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/clippy.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/clippy.exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/clippy.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/driver.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/driver.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/helper-idle.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/helper-idle.exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/helper-idle.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/library.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/library.exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/library.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/package-build-receipt.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/package-transfer-first-attempt.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/packaging-inputs.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/preflight.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-build/source-proof.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/README.md
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/SHA256SUMS
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/admission.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/admission.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/copy-first-attempt.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/driver.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/driver.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/outer-admission-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/outer-postcheck-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/outer-postcheck-r2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/postcheck.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/postcheck.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/000.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/000.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/001.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/001.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/002.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/002.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/003.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/003.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/004.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/004.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/005.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/005.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/006.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/006.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/007.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/007.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/008.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/008.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/009.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/009.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/010.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/010.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/011.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/011.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/012.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/012.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/013.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/013.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/014.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/014.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/015.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/015.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/016.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/016.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/017.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/017.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/018.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/018.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/019.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/019.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/020.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/020.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/021.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/021.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/022.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/022.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/023.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/023.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/024.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/024.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/025.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/025.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/026.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/026.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/027.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/027.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/028.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/028.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/029.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/029.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/030.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/030.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/031.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/031.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/032.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/032.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/033.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/033.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/artifact-archive-tool.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/checks.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/commands.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/bundle-afs-native-first/config.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/bundle-afs-native-orderly-second/config.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0001.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0001.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0001.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0001.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0002.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0002.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0002.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0002.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0003.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0003.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0003.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0003.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0004.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0004.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0004.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0004.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0005.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0005.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0005.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0005.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0006.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0006.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0006.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0006.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0007.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0007.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0007.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0007.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0008.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0008.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0008.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0008.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0009.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0009.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0009.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0009.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0010.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0010.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0010.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0010.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0011.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0011.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0011.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0011.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0012.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0012.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0012.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0012.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0013.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0013.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0013.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0013.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0014.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0014.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0014.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0014.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0015.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0015.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0015.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0015.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0016.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0016.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0016.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0016.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0017.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0017.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0017.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0017.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0018.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0018.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0018.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0018.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0019.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0019.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0019.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0019.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0020.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0020.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0020.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0020.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0021.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0021.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0021.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0021.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0022.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0022.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0022.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/control/command-0022.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/final-identity.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/logs/meta.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/logs/node.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/meta.toml
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/node.toml
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-final-actual-waits.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-final-runtime-roots-local-only.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-inputs-after-phase2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-inputs-before-first-start.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-inputs-before.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-phase1-actual-waits.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-phase1-content.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-phase1-private-root.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-phase1-read-content.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-phase1-runtime-roots-local-only.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-phase2-private-root.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-phase2-read-content.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-recovery-result.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/orderly-recovery-tool.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/package-manifest.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/commands.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/bundle-afs-native-first/config.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0001.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0001.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0001.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0001.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0002.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0002.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0002.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0002.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0003.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0003.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0003.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0003.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0004.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0004.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0004.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0004.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0005.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0005.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0005.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0005.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0006.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0006.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0006.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0006.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0007.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0007.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0007.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0007.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0008.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0008.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0008.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0008.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0009.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0009.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0009.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0009.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0010.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0010.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0010.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0010.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0011.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0011.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0011.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0011.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0012.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0012.exit.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0012.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/control/command-0012.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/final-identity.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/logs/meta.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/logs/node.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/meta.identity
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/meta.launch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/meta.lifecycle.QVJIM1/child
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/meta.lifecycle.QVJIM1/exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/meta.lifecycle.QVJIM1/go
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/meta.lifecycle.QVJIM1/ready
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/meta.pid
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/node.identity
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/node.launch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/node.lifecycle.I95ThI/child
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/node.lifecycle.I95ThI/exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/node.lifecycle.I95ThI/go
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/node.lifecycle.I95ThI/ready
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/node.pid
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/run/node.sock.lock
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/phase1/running-identity.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/preflight.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/result.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/rootfs-inputs.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/meta.identity
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/meta.launch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/meta.lifecycle.1sapyz/child
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/meta.lifecycle.1sapyz/exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/meta.lifecycle.1sapyz/go
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/meta.lifecycle.1sapyz/ready
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/meta.pid
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/node.identity
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/node.launch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/node.lifecycle.7pctlk/child
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/node.lifecycle.7pctlk/exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/node.lifecycle.7pctlk/go
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/node.lifecycle.7pctlk/ready
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/node.pid
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/run/node.sock.lock
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/running-identity.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/source-rejection-orderly-phase1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/source-rejection-orderly-phase2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/results-r1/tool-inputs.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r1-0.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r1-0.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r1-0.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r1-1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r1-1.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r1-1.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r1-2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r1-2.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r1-2.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-0.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-0.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-0.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-1.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-1.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-2.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-2.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-3.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-3.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-guards-r2-3.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-wait-fix-r1-0.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-wait-fix-r1-0.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-wait-fix-r1-0.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-wait-fix-r1-1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-wait-fix-r1-1.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-wait-fix-r1-1.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-wait-fix-r1-2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-wait-fix-r1-2.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-checks-wait-fix-r1-2.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-postcheck-r2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-postcheck-r2.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-postcheck-r2.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-postcheck-trace-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-postcheck-trace-r1.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-checks/outer-postcheck-trace-r1.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-runtime/tool-identity-r4.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/README.md
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/SHA256SUMS
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/afs-meta.ldd
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/afs-node.ldd
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/afs-workspace-probe.ldd
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/driver.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/driver.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/fmt.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/fmt.exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/fmt.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/identity-read-first-attempt.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/native-control.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/native-control.exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/native-control.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/physical-build.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/physical-build.exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/physical-build.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/physical-native.command.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/physical-native.exit
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/physical-native.log
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/preflight.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/source-proof.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery-source/test-binary-identity.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/README.md
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/SHA256SUMS
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/afs-build-admissibility.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/afs-build-preflight-2.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/afs-build-preflight.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/afs-build-pwd.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/afs-build-source-paths.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/afs-build-toolchain-cache.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/afs-build-uname.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/afs-g2-micro-preflight.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-clippy-afs-lib-tests-sudo.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-clippy-afs-lib-tests.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-fmt-apply.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-fmt-check-1.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-fmt-check-2.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-fmt-check-3-after-inode.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-fmt-check-4-records.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-fmt-check-5-final.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-test-command-sequence.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-test-native-mount-ignored.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-test-native-workspace-1.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/cargo-test-native-workspace-2.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/enospc-after-clippy.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/final-diff-stat.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/final-git-status.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/git-diff-check.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/linux-toolchain-survey.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/pre-test-diff-env.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/provenance-native-rootfs-repair.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/build/root-postblock-guest-disk-process.txt
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guard-archive-r2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guard-archive-r2.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guard-archive-r2.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guard-current-read-r3.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guard-current-read-r3.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guard-current-read-r3.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guard-shared-archive-r4.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guard-shared-archive-r4.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guard-shared-archive-r4.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guards-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guards-r1.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/guards-r1.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r1.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r1.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r2.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r2.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r3.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r3.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r3.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r4.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r4.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-copy-r4.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r1.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r1.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r2.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r2.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r3.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r3.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r3.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r4.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r4.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-deploy-r4.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-root-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-root-r1.stderr
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/commands/tools-root-r1.stdout
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/compiler-inputs.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/driver.canonical-to-r3.patch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/final-tools.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/independent-default-test-entry-review-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/independent-default-test-entry-review-r2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/independent-final-source-tools-review-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/independent-orderly-tools-review-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/independent-rootfs-repair-plan-review.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/inventory-command-provenance.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/native-workspace-linux.py.r1-to-r2.patch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/native-workspace-linux.py.r3-to-r4.patch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/native_orderly_recovery.py.r1-to-r2.patch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/native_orderly_recovery.py.r2-to-r3.patch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/native_orderly_recovery.py.r3-to-r4.patch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/root-local-only-input-index.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/rootfs-restart-static-boundary.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/test_native_orderly_recovery.py.r1-to-r2.patch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/test_native_orderly_recovery.py.r2-to-r3.patch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/test_native_orderly_recovery.py.r3-to-r4.patch
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/text-selection-index.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/tool-identity-r1.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/tool-identity-r2.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/tool-identity-r3.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/tool-identity-r4.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/tools-preparation-r3.json
+ create mode 100644 development/evidence/20261007-native-orderly-recovery/tools-preparation-r4.json
+ create mode 100644 development/evidence/20261007-owner-standard-reuse/README.md
+ create mode 100644 development/evidence/20261007-owner-standard-reuse/SHA256SUMS
+ create mode 100644 development/evidence/20261007-owner-standard-reuse/code-impact-review.json
+ create mode 100644 development/evidence/20261007-owner-standard-reuse/current-installed-suite-readonly.command.json
+ create mode 100644 development/evidence/20261007-owner-standard-reuse/current-installed-suite-readonly.txt
+ create mode 100644 development/evidence/20261007-owner-standard-reuse/current-ltp-install-readonly.command.json
+ create mode 100644 development/evidence/20261007-owner-standard-reuse/current-ltp-install-readonly.txt
+ create mode 100644 development/evidence/20261007-owner-standard-reuse/reference-index.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/README.md
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/SHA256SUMS
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/afs-meta.ldd
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/afs-node.ldd
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/afs-workspace-probe.ldd
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/clippy.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/clippy.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/clippy.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/compiler-inputs.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/fixture-preflight.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/fmt.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/fmt.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/fmt.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/format-receipt.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/manifest-first-attempt.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/mountinfo-after.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/physical-build.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/physical-build.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/physical-build.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/preflight.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/publication-checks.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/publication-checks.pre-manifest.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/runtime-command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/runtime-postcheck.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/runtime-result.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/runtime-review.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/runtime.stderr
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/runtime.stdout
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/source-proof.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/static-review.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-core-fuse/test-artifact.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/README.md
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/SHA256SUMS
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/afs-meta.ldd
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/afs-node.ldd
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/afs-workspace-probe.ldd
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/build.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/build.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/build.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/clippy.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/clippy.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/clippy.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/dfs-only.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/dfs-only.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/dfs-only.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/fmt.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/fmt.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/fmt.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/node-unit-identity.txt
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/node-unit.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/node-unit.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/owner-only.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/owner-only.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/owner-only.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/physical-build.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/physical-build.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/physical-build.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/preflight.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/build/source-proof.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/commands-receipt.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/compiler-inputs.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/format-receipt.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/publication-checks.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/before.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/checks.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/commands.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/failure.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/meta-failure-stop.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/meta-health.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/meta-process.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/meta.stderr
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/meta.stdout
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/meta.toml
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/node-print-config.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/node-process.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/node-wait.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/node.stderr
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/node.stdout
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/node.toml
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/result.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r1/tool-inputs.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/after.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/before.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/checks.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/commands.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/meta-health.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/meta-process.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/meta-wait.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/meta.stderr
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/meta.stdout
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/meta.toml
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/node-print-config.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/node-process.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/node-wait.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/node.stderr
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/node.stdout
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/node.toml
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/result.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-node-startup/runtime-r2/tool-inputs.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/README.md
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/SHA256SUMS
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/adapter.format.stderr
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/afs-meta.ldd
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/afs-node.ldd
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/afs-workspace-probe.ldd
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/bind-core.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/bind-core.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/bind-core.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/bind-mount.format.stderr
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/build.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/build.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/build.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/clippy.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/clippy.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/clippy.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/compiler-inputs.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/config-contracts.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/config-contracts.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/config-contracts.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/driver.stderr
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/driver.stdout
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/fmt.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/fmt.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/fmt.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/format-receipt.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/format.stderr
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/format.stdout
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/native-control.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/native-control.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/native-control.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/ownerfs.format.stderr
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/path-mapping.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/physical-bind.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/physical-bind.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/physical-bind.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/physical-build.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/physical-build.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/physical-build.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/physical-native.command.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/physical-native.exit
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/physical-native.log
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/preflight.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/publication-checks.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/review.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/source-proof.json
+ create mode 100644 development/evidence/20261007-ownerfs-bind-remediation/test-artifact.json
+ create mode 100644 development/evidence/20261007-vm-archive/README.md
+ create mode 100644 development/evidence/20261007-vm-archive/SHA256SUMS
+ create mode 100644 development/evidence/20261007-vm-archive/archive-receipt.json
+ create mode 100644 development/evidence/20261007-vm-archive/guest-space-inventory.txt
+ create mode 100644 development/evidence/20261007-vm-archive/inventory-summary.json
+ create mode 100644 development/evidence/20261007-vm-archive/protected-after.txt
+ create mode 100644 development/evidence/20261007-vm-archive/protected-before.txt
+ create mode 100644 development/evidence/20261007-vm-archive/removal-authorization.json
+ create mode 100644 development/evidence/20261007-vm-archive/removal-receipt.json
+ create mode 100644 development/native-rootfs-restart-records-addendum.md
+ create mode 100644 development/native-rootfs-restart-repair.md
+ create mode 100644 development/ownerfs-bind-node-startup-slice.md
+ create mode 100644 development/ownerfs-workspace-bind-core-slice.md
+ create mode 100644 development/ownerfs-workspace-bind-remediation.md
+ rename src/node/{native_workspace/mount.rs => vfs/ownerfs/bind_mount.rs} (84%)

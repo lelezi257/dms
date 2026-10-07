@@ -1,0 +1,184 @@
+{
+  "path_relative_to_project": "evidence/afs-delivery/dfs-create-contention-20261007-r1/source-gate-raw.tar.gz",
+  "sha256": "e330e7f99545e2f7c13458739f7c6f5f60f9da375e20f020bc39914f91842993",
+  "bytes": 15007,
+  "members": {
+    "boundary-tests-r1.stderr": {
+      "sha256": "1039a4df020eb403533f38d47a12aebea902b838293e0ffbe125f223f18640a0",
+      "bytes": 1076
+    },
+    "boundary-tests-r1.stdout": {
+      "sha256": "65bcee48fbfbee0e220f6952ec2f10cb600cdc70c471db23743a7dbadf892695",
+      "bytes": 531
+    },
+    "cargo-check-lib-test.stderr": {
+      "sha256": "6725843d88bbb84f7897b9f0b22a43a255082252b3b48a31eeb31cf6d9a251c7",
+      "bytes": 7268
+    },
+    "cargo-check-lib-test.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "cargo-clippy-lib-test-allow-preexisting-deadcode.stderr": {
+      "sha256": "fd4a4168155ea198482cbddd12a3bb6bb2955e203a137e02f70a2eda09e4fbf6",
+      "bytes": 856
+    },
+    "cargo-clippy-lib-test-allow-preexisting-deadcode.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "cargo-clippy-lib-test.stderr": {
+      "sha256": "912950de19f117baaa6f84f9921b2e6db2284b1452e60c535202a404a8213c32",
+      "bytes": 1494
+    },
+    "cargo-clippy-lib-test.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "cargo-fmt-apply.stderr": {
+      "sha256": "13198cfa2bb467228a9f7041439576a8fddaa6ce13dae92138e94ad79e1497d5",
+      "bytes": 631
+    },
+    "cargo-fmt-apply.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "cargo-fmt-check-r2.stderr": {
+      "sha256": "ccf60fca7d30525ddc5838b86746184dc0d8b557165597142c853d847dba7b0b",
+      "bytes": 177
+    },
+    "cargo-fmt-check-r2.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "cargo-fmt-check.stderr": {
+      "sha256": "ccf60fca7d30525ddc5838b86746184dc0d8b557165597142c853d847dba7b0b",
+      "bytes": 177
+    },
+    "cargo-fmt-check.stdout": {
+      "sha256": "33820165eee4092b8dbd0d52dd3b3748b8a08fd9ed34f1aba79da0f7b19de2ec",
+      "bytes": 2030
+    },
+    "final-linux-verify-r2.stderr": {
+      "sha256": "67848cee28bb0002bf8b3636a458b726b754ee1656368aa5fd0a9a8787823fdb",
+      "bytes": 2728
+    },
+    "final-linux-verify-r2.stdout": {
+      "sha256": "dbbbaf5d9b4014666afd8407d880a1c0222a447a12d98f8fc22472580f20e0fd",
+      "bytes": 1672
+    },
+    "final-linux-verify.stderr": {
+      "sha256": "d6efe426760aee373e75fc881cc90a521ec3920e1ff1c450aff267e4592b69fa",
+      "bytes": 2824
+    },
+    "final-linux-verify.stdout": {
+      "sha256": "73d52d1d83bfc2adaea0e2139658cd6943bd907fd43079fbf5bb9abdf06269eb",
+      "bytes": 1533
+    },
+    "final-rust.diff": {
+      "sha256": "3ac7a2e8319154179218e8afa417bb54fe425fdd42eab9e4ba04a056c4368c22",
+      "bytes": 9003
+    },
+    "git-status-after.txt": {
+      "sha256": "ae9e57e4ed9c95526099edac7221b0093059b7d22d52dcb85f474b27e445c85a",
+      "bytes": 433
+    },
+    "meta-contract-dfs-namespace.stderr": {
+      "sha256": "529c78bb66248f3403af57b396dafb88407f92cc22afca79e2391f113d27ce2e",
+      "bytes": 1059
+    },
+    "meta-contract-dfs-namespace.stdout": {
+      "sha256": "3ddf8ead38d468c984d87124f77b31437126a09bd1c08fc46494ec63d085233b",
+      "bytes": 1141
+    },
+    "new-dfs-create-contention-test-r2.stderr": {
+      "sha256": "58ac09506bc19e6dedde689bfaf44032101eb9d1801b2bc0d777f5fc08650600",
+      "bytes": 1076
+    },
+    "new-dfs-create-contention-test-r2.stdout": {
+      "sha256": "b67e593f25e6787ef20d1d6665c9cbbcd5c75aa5a31059bfefe6584d52aa98f2",
+      "bytes": 392
+    },
+    "new-dfs-create-contention-test-r3.stderr": {
+      "sha256": "c4e60a3f8ab800d9cdc900f3f8a5e09f338136000ecfea413f016f2fd1f835f2",
+      "bytes": 1076
+    },
+    "new-dfs-create-contention-test-r3.stdout": {
+      "sha256": "b67e593f25e6787ef20d1d6665c9cbbcd5c75aa5a31059bfefe6584d52aa98f2",
+      "bytes": 392
+    },
+    "new-dfs-create-contention-test.stderr": {
+      "sha256": "654d354bb79b209a27e805f431869bdd1d627938db33ce4678f3bfdec7629b13",
+      "bytes": 1517
+    },
+    "new-dfs-create-contention-test.stdout": {
+      "sha256": "ffe6f7ab190a2f458b82d53ad8544e85544d9e32c43ecb630cd2800fd14c816b",
+      "bytes": 495
+    },
+    "old-distinct-create-test.stderr": {
+      "sha256": "9fc2dfa8d9d595c79bc8f9f317d2cda7cc31afd2ba433c31e48be2ad1b212a53",
+      "bytes": 9138
+    },
+    "old-distinct-create-test.stdout": {
+      "sha256": "141d747d5c38a44b228499d77477aa1dcddf964fd64a71754c9112b9ac4cd390",
+      "bytes": 296
+    },
+    "plan.md": {
+      "sha256": "19a51c267a83106a93e35e3a2d0f1ff54de73e4c40ce3a79999ae217bafa321a",
+      "bytes": 1516
+    },
+    "preflight-afs-build-r2.stderr": {
+      "sha256": "6482b7f06496cb6e747edad2ad74d0bc617944bb1d2505916be2343027265b98",
+      "bytes": 180
+    },
+    "preflight-afs-build-r2.stdout": {
+      "sha256": "b54f24d8cbb8b02b96df67ee3a15d6fdc4dfe9862cc192c14b2c514c597cffb1",
+      "bytes": 230
+    },
+    "preflight-afs-build-r3.stderr": {
+      "sha256": "ccf60fca7d30525ddc5838b86746184dc0d8b557165597142c853d847dba7b0b",
+      "bytes": 177
+    },
+    "preflight-afs-build-r3.stdout": {
+      "sha256": "ca092c0d2222c65df2551ea89cc448455a0378171c3598ccc77206d0cda649ac",
+      "bytes": 1795
+    },
+    "preflight-afs-build.stderr": {
+      "sha256": "89918e4edd968c392be512a0be83e028c37681bec920d976455a828c378db170",
+      "bytes": 326
+    },
+    "preflight-afs-build.stdout": {
+      "sha256": "9c58b664546cb94b9c7b89989d9b4986b4a524a007bf7f43e54c887f6ad0b039",
+      "bytes": 86
+    },
+    "preflight.stderr": {
+      "sha256": "b25dbbd1fe4d65daf926e56d77db65688cad484b78bbe8239568c38f51ceb9cc",
+      "bytes": 67
+    },
+    "preflight.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "source-hashes-after.stderr": {
+      "sha256": "ccf60fca7d30525ddc5838b86746184dc0d8b557165597142c853d847dba7b0b",
+      "bytes": 177
+    },
+    "source-hashes-after.stdout": {
+      "sha256": "1bac4401501aaec34e41f9c4210058ba84ecbb23f5faf8a1e3bd6468dc5b199a",
+      "bytes": 179
+    },
+    "src-meta-dfs-fix.patch": {
+      "sha256": "3f7972f036cf2f2b80312805f1e5011f13464ef44cef3e29937daf994d70a791",
+      "bytes": 8725
+    },
+    "strict-clippy-all-features-r1.stderr": {
+      "sha256": "f3eff05fade7f1e5eb0692ecabbde25d2c6d5a68b2f3221a697cd8f87a519152",
+      "bytes": 856
+    },
+    "strict-clippy-all-features-r1.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  },
+  "restore_verification": "Every regular archive member decoded and SHA compared to retained original; no raw failure/output overwritten"
+}

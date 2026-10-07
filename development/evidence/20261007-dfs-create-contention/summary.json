@@ -1,0 +1,80 @@
+{
+  "status": "PASS_TARGETED_LINUX_SOURCE_GATE_ONLY",
+  "base_main": "9a8aeeb8c36d37776ebfe1e37498b8d450a5fb4f",
+  "input_sha256": {
+    "src/meta/dfs.rs": "ad4d0290183448e338c2ccf7bc2b0099ff67d7e7a46e8e8d4d89a11420007baa",
+    "tests/dfs_create_contention.rs": "121696320ba12c5fbb1230d454bca400e41bf945a53c1493a2e4833c3560779d"
+  },
+  "linux": {
+    "vm": "afs-build",
+    "source": "/workspace/dms/source",
+    "rustc": "1.95.0 (59807616e 2026-04-14)",
+    "target_dir": "/var/tmp/afs-dfs-create-contention-20261007-r1/target"
+  },
+  "checks": [
+    {
+      "argv": [
+        "cargo",
+        "fmt",
+        "--check"
+      ],
+      "result": "PASS"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--test",
+        "dfs_create_contention"
+      ],
+      "result": "PASS",
+      "passed": 6
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--test",
+        "meta_contract",
+        "dfs_namespace"
+      ],
+      "result": "PASS",
+      "passed": 14,
+      "filtered": 47
+    },
+    {
+      "argv": [
+        "cargo",
+        "check",
+        "--lib",
+        "--test",
+        "dfs_create_contention"
+      ],
+      "result": "PASS with two pre-existing default-feature dead-code warnings"
+    },
+    {
+      "argv": [
+        "cargo",
+        "clippy",
+        "--all-features",
+        "--lib",
+        "--test",
+        "dfs_create_contention",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "result": "PASS"
+    }
+  ],
+  "provenance": "Existing child-executed Linux output retained and reused without rerun; argv/results are execution-owner handoff records, original outputs do not contain separately serialized shell exit receipts. Final six-test/14-test output and completed check/clippy logs bind the final workspace files by owner handoff and post-completion SHA, not the earlier source-hashes-after snapshot.",
+  "historical_failure": "old distinct create test FAIL: DFS metadata condition changed during create; original old runtime7e6 FAIL unchanged",
+  "not_proven": [
+    "new release build/deployment",
+    "local-file multi-node runtime recovery",
+    "current full POSIX suite",
+    "performance or 3FS qualification"
+  ],
+  "g1": "8/8 closed, unchanged",
+  "g2": "11 limited outputs /1 bind functional in progress /15 unaccepted, unchanged"
+}

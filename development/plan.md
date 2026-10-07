@@ -1,3 +1,5 @@
+**2026-10-07 新增源码小项：** DFS create只对父目录revision/mtime/ctime漂移作64次有界重试，同名/权限/属性变化和真实冲突仍报错、原OperationId/inode/lease/digest不变。Linux6针对性+14 namespace回归、fmt/check及未放宽的strict all-features Clippy PASS；原并发创建FAIL/default-feature lint失败和工具准备记录完整保留。未构建/部署新候选，旧7e6运行FAIL及历史通过不改，G1历史8/8关闭、G2计数不变。下一独立构建新release，再新候选local-file/R3/gRPC小规模多节点回归；环境按B/C42GiB、A/ctl保持运行。 [命令、范围和证据](evidence/20261007-dfs-create-contention/README.md)。以下保留原时点记录。
+
 **2026-10-07 独立环境维护：** 用户决定 A/ctl 保持运行；B/C 数据盘各32→42GiB完成正常停机、字节相同离线备份/Linux只读恢复及扩容后全量身份检查（24,544/10,559条，无缺失/变更）。UUID/分区起点/挂载/内容权限不变，主机实空127.96GiB、本批全容量+备份+临时预留后91.04GiB；无运行测试被打断，不重跑历史通过项。大备份在源码树外，G1历史8/8和G2计数不变。[环境、分级预算与日志规则](vm-capacity.md)、[证据](evidence/20261007-vm-capacity-maintenance/README.md)。下一立即返回G2.24：create修复6+14 Linux回归及strict all-features clippy已有工作区证据，待独立提交/新候选运行，不继承旧7e6 PASS。以下保留原时点记录。
 
 **2026-10-07 新增工具小项：** DFS失败探针sample现保留完整rc/stdout/stderr/error；旧Linux回归KeyError FAIL保留，修后10 worker+6实际进程relay guards PASS。中继保留原失败、排空尾部、逐进程收尾；Lima代理退出不替代远端PID核验。原7e6多节点预热FAIL不变，未跑产品/性能；create竞争Rust修复独立待验收，G1历史8/8及G2计数不变。 [证据](evidence/20261007-dfs-cohort-failure-records/README.md)。以下保留原时点记录。

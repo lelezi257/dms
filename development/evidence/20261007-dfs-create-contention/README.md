@@ -1,0 +1,11 @@
+# DFS create contention — targeted source gate
+
+This independent repair follows the failed first warmup of [G2.24 on product7e6](../20261007-dfs-r3-multinode-runtime/README.md). It does not reopen G1 historical8/8, change the current trial package, or qualify a new runtime/performance result.
+
+Distinct names created under the same parent previously lost their namespace transaction when another create updated parent revision/timestamps. `src/meta/dfs.rs` now retains the same operation identity, inode, lease and digest while retrying only parent revision/mtime/ctime drift, bounded to64 attempts (the Store gather batch is64). Target dentry/inode/lease absence and parent identity/type/permissions/link count/atime/xattrs remain fenced. True conflicts and backend errors propagate. No public API or third-party code changed.
+
+Linux afs-build: six targeted tests PASS (24 simultaneous distinct names, same-name conflict, exact replay/changed-digest rejection, non-directory, injected permission change, injected64-attempt exhaustion);14 existing namespace contracts PASS; format/check and strict all-features Clippy PASS. The24-writer test is concurrent; injected boundary cases are deterministic. Existing default-feature strict Clippy initially failed on two unchanged dead-code fields; its failure and the diagnostic suppression run remain in the raw archive. Only the subsequent un-suppressed all-features run is the strict PASS.
+
+[Summary and exact checked commands](summary.json) describes command provenance and limits. [Raw index](raw-archive-index.json) preserves every old/new output, preparation mistake, formatting failure and patch outside the source tree; each archived member was decoded and checked. The earlier `source-hashes-after` predates the final boundary tests and is retained as historical, not used as their final identity.
+
+Next: build separately identified release binaries without replacing old7e6 binaries; preflight a fresh small local-file/R3/gRPC multi-node case and use the [maintained failure-preserving relay](../../acceptance/dfs_cohort_relay.py), then explicitly verify remote process/mount closure. New candidate standard/runtime qualification remains pending; unchanged historical Owner checks keep their original identity.

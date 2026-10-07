@@ -35,6 +35,12 @@ pub struct DfsService {
     read_grant_key: Arc<Option<[u8; 32]>>,
 }
 
+// Store batches at most 64 submitted transactions in one durable commit pass.
+// A create can therefore observe up to one full batch of same-parent namespace
+// timestamp churn before the next fair turn should either succeed or report
+// contention instead of spinning without a boundary.
+const CREATE_PARENT_DRIFT_RETRY_LIMIT: usize = 64;
+
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct CreateFileRequest {
     pub caller_id: String,
@@ -1060,9 +1066,6 @@ impl DfsService {
             return Ok((inode, lease));
         }
         validate_name(&name)?;
-        let parent = self
-            .directory_for_mutation(&namespace_id, &parent_inode_id)
-            .await?;
         let inode = InodeRecord {
             namespace_id: namespace_id.clone(),
             inode_id: namespace_inode_id(&caller_id, &operation_id),
@@ -1073,13 +1076,10 @@ impl DfsService {
             xattrs: Default::default(),
             revision: 1,
         };
-        let dentry = Dentry {
-            key: DentryKey {
-                namespace_id,
-                parent_inode_id,
-                name,
-            },
-            inode_id: inode.inode_id.clone(),
+        let dentry_key = DentryKey {
+            namespace_id: namespace_id.clone(),
+            parent_inode_id: parent_inode_id.clone(),
+            name,
         };
         let lease = WriteLease {
             inode_id: inode.inode_id.clone(),
@@ -1089,35 +1089,126 @@ impl DfsService {
             expires_at_unix_ms: lease_expiry(lease_seconds)?,
         };
         let request = RequestKey::new(caller_id, operation_id.0.clone());
-        let outcome = RequestOutcome {
-            request: request.clone(),
-            operation: StoreOperation::DfsCreate,
-            result: namespace_result(
+        let mut parent = self
+            .directory_for_mutation(&namespace_id, &parent_inode_id)
+            .await?;
+        let max_attempts = CREATE_PARENT_DRIFT_RETRY_LIMIT;
+        for attempt in 0..max_attempts {
+            let outcome = RequestOutcome {
+                request: request.clone(),
+                operation: StoreOperation::DfsCreate,
+                result: namespace_result(
+                    request_digest,
+                    OperationResult::DfsInodeWithLease {
+                        inode: inode.clone(),
+                        lease: lease.clone(),
+                    },
+                ),
+            };
+            let dentry = Dentry {
+                key: dentry_key.clone(),
+                inode_id: inode.inode_id.clone(),
+            };
+            let mut txn = MetaTxn::new(request.clone(), StoreOperation::DfsCreate);
+            txn.conditions.extend([
+                TxnCondition::RequestAbsent(request.clone()),
+                TxnCondition::Missing(MetaKey::DfsDentry(dentry.key.clone())),
+                TxnCondition::Missing(MetaKey::DfsInode(inode.inode_id.clone())),
+                TxnCondition::Missing(MetaKey::DfsWriteLease(inode.inode_id.clone())),
+            ]);
+            push_parent_namespace_change(&mut txn, parent.clone(), 0);
+            txn.mutations.extend([
+                TxnMutation::Put(MetaEntity::DfsDentry(dentry)),
+                TxnMutation::Put(MetaEntity::DfsInode(inode.clone())),
+                TxnMutation::Put(MetaEntity::DfsWriteLease(lease.clone())),
+                TxnMutation::RecordRequestOutcome(outcome),
+            ]);
+            let outcome = validate_namespace_outcome(
+                self.store.compare_and_commit(txn).await?,
                 request_digest,
-                OperationResult::DfsInodeWithLease {
-                    inode: inode.clone(),
-                    lease: lease.clone(),
-                },
-            ),
+            )?;
+            match inode_and_lease_outcome(outcome, StoreOperation::DfsCreate) {
+                Ok(created) => return Ok(created),
+                Err(error) if error.code() == afs_error::META_DFS_CONFLICT => {
+                    if let Some(created) = self
+                        .replayed_namespace_inode_and_lease(
+                            &request.caller_id,
+                            &OperationId::new(request.request_id.clone()),
+                            StoreOperation::DfsCreate,
+                            request_digest,
+                        )
+                        .await?
+                    {
+                        return Ok(created);
+                    }
+                    let current_parent = self
+                        .retryable_create_parent_drift(
+                            &namespace_id,
+                            &parent_inode_id,
+                            &dentry_key,
+                            &inode.inode_id,
+                            parent.as_ref(),
+                        )
+                        .await?;
+                    let Some(current_parent) = current_parent else {
+                        return Err(error);
+                    };
+                    if attempt + 1 >= max_attempts {
+                        return Err(conflict(
+                            "DFS create parent changed repeatedly during bounded retry",
+                        ));
+                    }
+                    parent = Some(current_parent);
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        unreachable!("bounded DFS create retry loop returns on every outcome")
+    }
+
+    async fn retryable_create_parent_drift(
+        &self,
+        namespace_id: &NamespaceId,
+        parent_inode_id: &InodeId,
+        dentry_key: &DentryKey,
+        inode_id: &InodeId,
+        previous_parent: Option<&InodeRecord>,
+    ) -> Result<Option<InodeRecord>> {
+        if self
+            .store
+            .read(MetaRead::DfsDentry(dentry_key.clone()))
+            .await?
+            .entity
+            .is_some()
+            || self
+                .store
+                .read(MetaRead::DfsInode(inode_id.clone()))
+                .await?
+                .entity
+                .is_some()
+            || self
+                .store
+                .read(MetaRead::DfsWriteLease(inode_id.clone()))
+                .await?
+                .entity
+                .is_some()
+        {
+            return Ok(None);
+        }
+        let Some(previous_parent) = previous_parent else {
+            return Ok(None);
         };
-        let mut txn = MetaTxn::new(request.clone(), StoreOperation::DfsCreate);
-        txn.conditions.extend([
-            TxnCondition::RequestAbsent(request),
-            TxnCondition::Missing(MetaKey::DfsDentry(dentry.key.clone())),
-            TxnCondition::Missing(MetaKey::DfsInode(inode.inode_id.clone())),
-            TxnCondition::Missing(MetaKey::DfsWriteLease(inode.inode_id.clone())),
-        ]);
-        push_parent_namespace_change(&mut txn, parent, 0);
-        txn.mutations.extend([
-            TxnMutation::Put(MetaEntity::DfsDentry(dentry)),
-            TxnMutation::Put(MetaEntity::DfsInode(inode.clone())),
-            TxnMutation::Put(MetaEntity::DfsWriteLease(lease)),
-            TxnMutation::RecordRequestOutcome(outcome),
-        ]);
-        inode_and_lease_outcome(
-            validate_namespace_outcome(self.store.compare_and_commit(txn).await?, request_digest)?,
-            StoreOperation::DfsCreate,
-        )
+        let Some(current_parent) = self
+            .directory_for_mutation(namespace_id, parent_inode_id)
+            .await?
+        else {
+            return Ok(None);
+        };
+        if create_parent_retry_drift_only(previous_parent, &current_parent) {
+            Ok(Some(current_parent))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn mkdir(&self, request: MkdirRequest) -> Result<InodeRecord> {
@@ -4283,6 +4374,28 @@ fn push_parent_namespace_change(txn: &mut MetaTxn, parent: Option<InodeRecord>, 
     parent.revision = parent.revision.saturating_add(1);
     txn.mutations
         .push(TxnMutation::Put(MetaEntity::DfsInode(parent)));
+}
+
+fn create_parent_retry_drift_only(previous: &InodeRecord, current: &InodeRecord) -> bool {
+    if previous == current
+        || previous.namespace_id != current.namespace_id
+        || previous.inode_id != current.inode_id
+        || previous.kind != InodeKind::Directory
+        || current.kind != InodeKind::Directory
+        || previous.head_version != current.head_version
+        || previous.symlink_target != current.symlink_target
+        || previous.xattrs != current.xattrs
+        || previous.attributes.mode != current.attributes.mode
+        || previous.attributes.uid != current.attributes.uid
+        || previous.attributes.gid != current.attributes.gid
+        || previous.attributes.nlink != current.attributes.nlink
+        || previous.attributes.atime_unix_ms != current.attributes.atime_unix_ms
+    {
+        return false;
+    }
+    current.revision > previous.revision
+        && current.attributes.mtime_unix_ms >= previous.attributes.mtime_unix_ms
+        && current.attributes.ctime_unix_ms >= previous.attributes.ctime_unix_ms
 }
 
 fn validate_name(name: &[u8]) -> Result<()> {

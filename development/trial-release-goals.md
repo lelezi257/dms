@@ -1,3 +1,5 @@
+**2026-10-07 新增源码小项：** DFS create只对父目录revision/mtime/ctime漂移作64次有界重试，同名/权限/属性变化和真实冲突仍报错、原OperationId/inode/lease/digest不变。Linux6针对性+14 namespace回归、fmt/check及未放宽的strict all-features Clippy PASS；原并发创建FAIL/default-feature lint失败和工具准备记录完整保留。未构建/部署新候选，旧7e6运行FAIL及历史通过不改，G1历史8/8关闭、G2计数不变。下一独立构建新release，再新候选local-file/R3/gRPC小规模多节点回归；环境按B/C42GiB、A/ctl保持运行。 [命令、范围和证据](evidence/20261007-dfs-create-contention/README.md)。以下保留原时点记录。
+
 **当前覆盖说明（2026-10-07，决策）：** 普通OwnerFs本地/远端核心读写采用[普通OwnerFs性能准则](ownerfs-performance-criteria.md)：吞吐>=同条件MooseFS的1.2倍，操作时延<=同条件MooseFS的0.8倍，两项分别测量且同时满足；吞吐默认配对中位数，时延默认测前声明的逐操作样本p95。G2当前主表口径为11项限定完成、1项bind功能进行中、15项待验收；下方日期快照的旧ext4/持平判据、旧FAIL和旧计数保持历史身份。
 
 **2026-10-07新增事实：G2.22当前7e6/c3bb的A单读者64MiB小项完成内容/计时/正常闭合，正式3FS对照仍待验。** 1预热5读，中位65.624896MiB/s；前后48物理副本，四actualwait0/八PID消失及11保护进程/完整mount库存不变。Linux11工具guards及独立观察校验通过；首轮遗漏结果目录导致写前拒绝，原FAIL及四正常退出保留，修测试准备后一次数据运行，无Rust/vendor/VM修补。G1历史8/8、G2大项计数/defaultOFF不变，G2.23写性能/G2.27/full bind仍开放。当前OFF标准限定复用已由既有impact-map及当前安装恢复覆盖，不重跑整套；下一G2.23三同步副本小写入摸底。 [证据](evidence/20261007-dfs-r3-local-read/README.md)。

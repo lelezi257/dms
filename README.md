@@ -47,4 +47,4 @@ Use the guides for local commands:
 
 Published default-OFF Linux ARM64 trial: [historical7e6 package instructions](docs/guides/trial-7e6.md) and [current reproducible archive / fresh installed recovery](development/evidence/20261007-current-trial-7e6/README.md). The [fixed prerelease](https://github.com/lelezi257/dms/releases/tag/afs-trial-7e6e00a) is published; its four remote asset digests are confirmed by the publication receipt there. The [6d checklist](docs/guides/trial-6d.md) remains historical. Complete G2 performance/ON gates remain open.
 
-The [f03 default-OFF candidate guide](docs/guides/trial.md) prepares the next bounded installed/recovery validation; its new package is not yet published or qualified by the historical7e6 result.
+The [f03 default-OFF trial guide](docs/guides/trial.md) and [fresh Linux install/recovery evidence](development/evidence/20261008-current-trial-f03/README.md) identify the new reproducible package; fixed publication is pending. Both workspace switches remain OFF. This current result does not relabel historical7e6 standards or complete G2 performance.

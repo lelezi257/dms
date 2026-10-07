@@ -1,0 +1,19 @@
+# f03 default-OFF current trial — 2026-10-08
+
+Product [f03dc2b3](https://github.com/lelezi257/dms/commit/f03dc2b3679c31daa51caee275fb2087413e949c),157 compiler inputs/map `2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4`.
+[Predeclared slice](../../current-trial-f03-slice.md), [candidate](candidate.json), [independent Linux stored audit](independent-stored-audit.json), [commands/results/full logs index](raw-index.json).
+
+| Classification | Scope and evidence |
+| --- | --- |
+| **Current PASS** | ARM64 ordinary package twice reproduced on Linux from fixed f03 ELFs,14,437,256B/SHA `7bfc6b520e551d2281790862c2968e990e376c5c490b2135f583f4da0ccc1972`. No source, test probe, rootfs or private keys. [Package members/reproduction](package-reproduction.json). |
+| **Current PASS** | Fresh existing afs-g2-micro Linux/ext4 installation with no compilers:43 driver checks; OwnerFs+DFS each64MiB/full-content SHA/EOF after one normal local-file Meta restart. gRPC/R1, both workspace switches OFF; basic selfcheck is not full POSIX. Node incarnation and both mount identities stable across restart. |
+| **Current PASS** | Three actualwait0 receipts/six child+supervisor PIDs gone, mounts/sockets closed normally. Protected one process/44 existing ELF identities/26 full mount rows unchanged. Allocation234,840,064B<512MiB, free7,249,047,552B>1GiB. [Audit](independent-stored-audit.json). |
+| **Current PASS, scoped reuse** | [f03 multi-node read/write](../20261007-dfs-r3-multinode-current/README.md) and [f03600-delete](../20261007-dfs-delete-current/README.md) keep original e622 package/commands/results. Linux complete runtime-member comparison proves the new7bfc package differs only in guide, manifest feature label and SHA256SUMS; actual ELFs/deployment tools/templates identical, ownerfs,dfs equals Cargo defaults. No rerun or relabeling original package. |
+| **Historical PASS, scoped reuse** | Owner[e925 standards](../20261007-owner-standard-reuse/README.md)/DFS[0891 standards](../20261007-standard-reuse/README.md),each236files/8819checks/28 upstream TODO retain versions/profiles. Historical7e6 installed recovery and tool qualification retain their identity. [15 unchanged Linux tool guards](tool-qualification-reuse.json) reused; only observer fixture NAME changed with [recoverable mapping](observer-reconstruction.json). New DFS create has6 targeted+14 namespace source gates; no new full standard-suite result. |
+| **Pending** | G2.27 full selected performance exit, full ON function, ordinary Owner throughput>=1.2×MooseFS and independent operation latency<=0.8×, formal DFS3FS comparator and broader reliability. G1 historical8/8 remains closed; G2 headline counts unchanged. No new product/environment FAIL in this bounded trial. Official fuser public-API gap and prior performance/metadata failures remain separate. |
+
+INFO logs10,494B retain26 ERRO/13 WARN: NotFound/xattr/ioctl diagnostics, including one initial Owner root-not-registered error. [Grouped messages](log-summary.json) and full indexed logs retained; this is not a zero-error claim or an exemption from functional completeness. No compiler/vendor/runtime edits or restart of protected services.
+
+Raw commands/results/93-member runtime text export/tools' provenance are outside the Git source tree; [archive/member hashes](raw-index.json) were decoded and verified. Fresh guest data root remains; this text archive does not establish full user-data backup/restore. Packaged [trial guide](../../../docs/guides/trial.md) SHA is frozen in reproduction; future overview/status edits cannot change this package's identity.
+
+Publication is the next independent step: new fixed f03 prerelease, preserve6d/7e6 releases and verify every remote asset digest. Full goal is active; no complete G2/performance claim.

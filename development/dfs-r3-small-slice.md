@@ -53,3 +53,5 @@ main; retain full logs/binaries/TLS outside Git with hashes/recovery paths.
 Outcome: the declared frozen931 content/copy/lifecycle slice is complete;
 [recorded data and limitations](evidence/20261007-dfs-r3-small/README.md).
 Current7e6 regression and qualified3FS parity remain separate open items.
+
+The separate [current7e6 normal recovery result](evidence/20261007-dfs-r3-current-recovery/README.md) now closes that bounded compatibility/recovery subitem. It does not relabel the931 five-round timing or close qualified3FS parity.

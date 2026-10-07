@@ -1,0 +1,22 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-B",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/stage/replica-check.py",
+    "combine",
+    "--manifest",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/stage/before-restart-replica-meta.json",
+    "--node-report",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/stage/before-restart-replica-node-a.json",
+    "--node-report",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/stage/before-restart-replica-node-b.json",
+    "--node-report",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/stage/before-restart-replica-node-c.json"
+  ],
+  "timeout": 90
+}

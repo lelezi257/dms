@@ -1,0 +1,28 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-B",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/tools/dfs_r3_small.py",
+    "check",
+    "--dfs-root",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount/dfs",
+    "--io-tool",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/tools/dfs_unique_io",
+    "--identity",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/tools/identity.json",
+    "--candidate",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/tools/expected-candidate.json",
+    "--manifest",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/stage/writer-confirmed.json",
+    "--output",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/results/before-restart-reader",
+    "--round-timeout",
+    "60"
+  ],
+  "timeout": 90
+}

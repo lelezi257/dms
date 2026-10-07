@@ -41,10 +41,21 @@ def expected_content():
             'bytes': sync.DATA_BYTES, 'dataset': DATASET}
 
 
-def validate_identity(value):
+def validate_identity(value, candidate=None):
     require(isinstance(value, dict), 'identity must be an object')
-    for key, expected in (('product_source_commit', PRODUCT), ('compiler_input_map', MAP),
-                          ('afs_meta_sha256', META_SHA), ('afs_node_sha256', NODE_SHA)):
+    expected_fields = {'product_source_commit': PRODUCT, 'compiler_input_map': MAP,
+                       'afs_meta_sha256': META_SHA, 'afs_node_sha256': NODE_SHA}
+    if candidate is not None:
+        require(isinstance(candidate, dict), 'candidate must be an object')
+        expected_fields = {}
+        for key in ('product_source_commit', 'compiler_input_map', 'afs_meta_sha256',
+                    'afs_node_sha256', 'io_sha256'):
+            expected = candidate.get(key)
+            length = 40 if key == 'product_source_commit' else 64
+            require(isinstance(expected, str) and len(expected) == length and
+                    all(c in '0123456789abcdef' for c in expected), 'invalid candidate: ' + key)
+            expected_fields[key] = expected
+    for key, expected in expected_fields.items():
         require(value.get(key) == expected, f'current identity mismatch: {key}')
     digest = value.get('io_sha256')
     require(isinstance(digest, str) and len(digest) == 64 and
@@ -75,7 +86,9 @@ def prepare(args):
     sync.require_existing_directory(root, 'dfs-root')
     mount = sync.find_mount(root)
     sync.require_dfs_mount(mount, root)
-    identity = validate_identity(sync.read_json(Path(args.identity)))
+    candidate_path = getattr(args, 'candidate', None)
+    candidate = sync.read_json(sync.require_absolute_path(candidate_path, 'candidate')) if candidate_path else None
+    identity = validate_identity(sync.read_json(Path(args.identity)), candidate)
     tool = sync.require_absolute_path(args.io_tool, 'io-tool')
     require(tool.is_file() and not tool.is_symlink(), 'probe must be an actual file')
     require(sync.sha256_file(tool) == identity['io_sha256'], 'probe identity mismatch')
@@ -182,16 +195,38 @@ def reader(args):
     return result
 
 
+def check_reader(args):
+    """One fresh-open functional read, with no warmup or performance claim."""
+    result, output = {'role': 'check', 'status': 'BLOCKED'}, None
+    try:
+        output, _, payload, tool, identity = prepare(args)
+        manifest = validate_manifest(sync.read_json(Path(args.manifest)), identity)
+        result['pre_content'] = verify_content(payload, manifest['content'])
+        sample = run_sample(tool, payload, 'read', output, 0, args.round_timeout)
+        result['sample'] = sample
+        require(sample['status'] == 'PASS', 'functional read probe failed')
+        result.update(final_content=verify_content(payload, manifest['content']),
+                      identity=identity, status='DATA_RECORDED', performance_claim=False)
+    except Exception as error:
+        result['error'] = repr(error)
+    finally:
+        if output is not None:
+            sync.write_json(output / 'summary.json', result)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='role', required=True)
-    for role in ('writer', 'reader'):
+    for role in ('writer', 'reader', 'check'):
         item = sub.add_parser(role)
         for name in ('dfs-root', 'io-tool', 'identity', 'output'):
             item.add_argument('--' + name, required=True)
         item.add_argument('--round-timeout', type=float, default=60)
-        if role == 'reader':
+        item.add_argument('--candidate', help='separate expected source/map/ELF/probe identity manifest')
+        if role in ('reader', 'check'):
             item.add_argument('--manifest', required=True)
+        if role == 'reader':
             item.add_argument('--reader-id', choices=('B', 'C'), required=True)
             item.add_argument('--session-token', required=True)
     item = sub.add_parser('coordinator')
@@ -200,10 +235,11 @@ def main():
     item.add_argument('--round-timeout', type=float, default=60)
     item.set_defaults(readers=['B', 'C'])
     args = parser.parse_args()
-    result = writer(args) if args.role == 'writer' else reader(args) if args.role == 'reader' else sync.coordinator(args)
+    result = (writer(args) if args.role == 'writer' else reader(args) if args.role == 'reader'
+              else check_reader(args) if args.role == 'check' else sync.coordinator(args))
     # Coordinator protocol validates the common shape; readers separately reject
     # uniform content. Keep that boundary explicit instead of changing old code.
-    print(json.dumps(result, indent=2), file=sys.stdout if args.role == 'writer' else sys.stderr)
+    print(json.dumps(result, indent=2), file=sys.stdout if args.role in ('writer', 'check') else sys.stderr)
     return 0 if result['status'] == 'DATA_RECORDED' else 1
 
 

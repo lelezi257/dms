@@ -1,0 +1,72 @@
+{
+  "status": "PASS_META_ONLY_NORMAL_RESTART_IDENTITY",
+  "old_meta_pid": 1687687,
+  "new_meta_pid": 1688136,
+  "first_actual_wait0": {
+    "child": {
+      "pid": "1687687",
+      "exe": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/prefix/bin/afs-meta",
+      "config": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/meta.toml",
+      "start_ticks": "61971209",
+      "boot_id": "18c9c087-49d6-458f-817b-0f84c0effd7a",
+      "lifecycle": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run/meta.lifecycle.PJZieG",
+      "supervisor_pid": "1687671"
+    },
+    "ready": {
+      "supervisor_pid": "1687671"
+    },
+    "exit": {
+      "pid": "1687687",
+      "exe": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/prefix/bin/afs-meta",
+      "config": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/meta.toml",
+      "start_ticks": "61971209",
+      "boot_id": "18c9c087-49d6-458f-817b-0f84c0effd7a",
+      "lifecycle": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run/meta.lifecycle.PJZieG",
+      "supervisor_pid": "1687671",
+      "exit_code": "0"
+    },
+    "path": "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run/meta.lifecycle.PJZieG"
+  },
+  "nodes": {
+    "a": {
+      "status": "PASS_UNCHANGED_NODE_MOUNT_UDS",
+      "pid": 855281,
+      "mount_rows": [
+        "52 243 0:48 / /mnt/lima-afsadata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount/dfs rw,nosuid,nodev,noatime shared:44 - fuse afs-dfs rw,user_id=0,group_id=0,default_permissions,allow_other"
+      ],
+      "uds": {
+        "path": "/mnt/lima-afsadata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run/node.sock",
+        "dev": 64785,
+        "ino": 1598978,
+        "mode": 49536
+      }
+    },
+    "b": {
+      "status": "PASS_UNCHANGED_NODE_MOUNT_UDS",
+      "pid": 244488,
+      "mount_rows": [
+        "92 100 0:48 / /mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount/dfs rw,nosuid,nodev,noatime shared:307 - fuse afs-dfs rw,user_id=0,group_id=0,default_permissions,allow_other"
+      ],
+      "uds": {
+        "path": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run/node.sock",
+        "dev": 64785,
+        "ino": 1321508,
+        "mode": 49536
+      }
+    },
+    "c": {
+      "status": "PASS_UNCHANGED_NODE_MOUNT_UDS",
+      "pid": 19866,
+      "mount_rows": [
+        "361 100 0:48 / /mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount/dfs rw,nosuid,nodev,noatime shared:339 - fuse afs-dfs rw,user_id=0,group_id=0,default_permissions,allow_other"
+      ],
+      "uds": {
+        "path": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run/node.sock",
+        "dev": 64785,
+        "ino": 136693,
+        "mode": 49536
+      }
+    }
+  },
+  "scope": "normal Meta-only restart; content and copies after restart checked separately"
+}

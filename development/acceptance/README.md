@@ -83,3 +83,7 @@ Each result artifact must contain:
 - PASS/FAIL/BLOCKED/INCONCLUSIVE with the reason.
 
 Never promote a smoke profile to full coverage. Never use memory Meta success as durable-backend evidence. Never use OFF/FUSE results as bind/native ON evidence. Never rewrite historical failures after a later candidate passes.
+
+## Current DFS R3 normal recovery
+
+`dfs_r3_small.py writer/check --candidate /absolute/expected-candidate.json` explicitly binds the current source/map/Meta/Node/probe identities; omitted candidate retains the historical931 default. `check` performs one fresh-open content/EOF read with no performance claim. `probes/dfs_r3_fixture.py --fixture-name NAME --meta-sha256 SHA --node-sha256 SHA` selects a fresh fixture while retaining exact generatedR2-to-finalR3 admission and initialized-state refusal. [Plan](../dfs-r3-current-recovery.md) / [current7e6 runtime evidence](../evidence/20261007-dfs-r3-current-recovery/README.md).

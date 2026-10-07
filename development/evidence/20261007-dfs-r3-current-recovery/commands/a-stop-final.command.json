@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-accept-a",
+    "sudo",
+    "/mnt/lima-afsadata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/prefix/bin/afs-processctl",
+    "--prefix",
+    "/mnt/lima-afsadata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/prefix",
+    "--config-dir",
+    "/mnt/lima-afsadata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc",
+    "--run-dir",
+    "/mnt/lima-afsadata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run",
+    "--log-dir",
+    "/mnt/lima-afsadata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/logs",
+    "--timeout",
+    "30",
+    "stop",
+    "node"
+  ],
+  "timeout": 90
+}

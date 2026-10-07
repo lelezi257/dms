@@ -1,0 +1,364 @@
+{
+  "fixture": "dfs-r3-current-7e6-recovery-20261007-r1",
+  "role": "c",
+  "root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1",
+  "commands": [
+    {
+      "argv": [
+        "ip",
+        "-j",
+        "-4",
+        "addr"
+      ],
+      "rc": 0,
+      "stdout": "[{\"ifindex\":1,\"ifname\":\"lo\",\"flags\":[\"LOOPBACK\",\"UP\",\"LOWER_UP\"],\"mtu\":65536,\"qdisc\":\"noqueue\",\"operstate\":\"UNKNOWN\",\"group\":\"default\",\"txqlen\":1000,\"addr_info\":[{\"family\":\"inet\",\"local\":\"127.0.0.1\",\"prefixlen\":8,\"scope\":\"host\",\"label\":\"lo\",\"valid_life_time\":4294967295,\"preferred_life_time\":4294967295}]},{\"ifindex\":2,\"ifname\":\"eth0\",\"flags\":[\"BROADCAST\",\"MULTICAST\",\"UP\",\"LOWER_UP\"],\"mtu\":1500,\"qdisc\":\"fq_codel\",\"operstate\":\"UP\",\"group\":\"default\",\"txqlen\":1000,\"addr_info\":[{\"family\":\"inet\",\"local\":\"192.168.109.14\",\"prefixlen\":24,\"metric\":200,\"broadcast\":\"192.168.109.255\",\"scope\":\"global\",\"dynamic\":true,\"label\":\"eth0\",\"valid_life_time\":3326,\"preferred_life_time\":3326}]}]\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "ldd",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/prefix/bin/afs-node"
+      ],
+      "rc": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000f88b1994d000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f88b18800000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f88b18750000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f88b18590000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f88b19910000)\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/prefix/bin/afs-node",
+        "--config",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/node.toml",
+        "--print-config"
+      ],
+      "rc": 0,
+      "stdout": "{\n  \"id\": \"dfs-c-r3\",\n  \"grpc_listen\": \"0.0.0.0:24800\",\n  \"rest_listen\": \"0.0.0.0:24801\",\n  \"meta_endpoint\": \"https://192.168.109.11:24700\",\n  \"etcd_endpoint\": null,\n  \"redis_endpoint\": null,\n  \"meta_store\": \"etcd\",\n  \"allow_volatile_meta\": false,\n  \"peer_endpoint\": null,\n  \"advertise_endpoint\": \"https://192.168.109.14:24800\",\n  \"tls_ca_certificate\": \"/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem\",\n  \"tls_identity_certificate\": \"/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem\",\n  \"tls_identity_private_key\": \"/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3-key.pem\",\n  \"tls_server_name\": \"afs-meta\",\n  \"trusted_node_certs\": {\n    \"dfs-c-r3\": \"/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem\",\n    \"dfs-b-r3\": \"/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-b-r3.pem\",\n    \"dfs-a-r3\": \"/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-a-r3.pem\"\n  },\n  \"ownerfs\": false,\n  \"dfs\": true,\n  \"data_mode\": \"grpc\",\n  \"rdma_device\": null,\n  \"data_dir\": \"/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/state/node\",\n  \"uds_path\": \"/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run/node.sock\",\n  \"ownerfs_mount\": null,\n  \"experimental_native_workspace\": false,\n  \"native_workspace\": null,\n  \"experimental_ownerfs_workspace_bind\": false,\n  \"ownerfs_workspace_bind\": null,\n  \"dfs_mount\": \"/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount/dfs\",\n  \"dfs_desired_copies\": 3,\n  \"dfs_sync_required_copies\": 3,\n  \"dfs_min_distinct_nodes\": 3,\n  \"dfs_min_distinct_failure_domains\": 3,\n  \"dfs_local_copy\": \"required\",\n  \"dfs_read_max_ops_per_batch\": 128,\n  \"dfs_read_max_inflight_bytes\": 8388608,\n  \"dfs_read_source_cache_ttl_ms\": 500,\n  \"timeout_ms\": 5000,\n  \"log_level\": \"info\",\n  \"trace_enabled\": false,\n  \"trace_endpoint\": \"http://127.0.0.1:4317\",\n  \"trace_sample_ratio\": 0.01\n}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem",
+        "-verify_hostname",
+        "afs-meta",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/meta.pem"
+      ],
+      "rc": 0,
+      "stdout": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/meta.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem",
+        "-verify_ip",
+        "192.168.109.11",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/meta.pem"
+      ],
+      "rc": 0,
+      "stdout": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/meta.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/meta.pem",
+        "-noout",
+        "-subject",
+        "-nameopt",
+        "RFC2253"
+      ],
+      "rc": 0,
+      "stdout": "subject=CN=afs-meta\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem",
+        "-verify_hostname",
+        "dfs-a-r3",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-a-r3.pem"
+      ],
+      "rc": 0,
+      "stdout": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-a-r3.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem",
+        "-verify_ip",
+        "192.168.109.12",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-a-r3.pem"
+      ],
+      "rc": 0,
+      "stdout": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-a-r3.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-a-r3.pem",
+        "-noout",
+        "-subject",
+        "-nameopt",
+        "RFC2253"
+      ],
+      "rc": 0,
+      "stdout": "subject=CN=dfs-a-r3\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem",
+        "-verify_hostname",
+        "dfs-b-r3",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-b-r3.pem"
+      ],
+      "rc": 0,
+      "stdout": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-b-r3.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem",
+        "-verify_ip",
+        "192.168.109.13",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-b-r3.pem"
+      ],
+      "rc": 0,
+      "stdout": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-b-r3.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-b-r3.pem",
+        "-noout",
+        "-subject",
+        "-nameopt",
+        "RFC2253"
+      ],
+      "rc": 0,
+      "stdout": "subject=CN=dfs-b-r3\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem",
+        "-verify_hostname",
+        "dfs-c-r3",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem"
+      ],
+      "rc": 0,
+      "stdout": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "verify",
+        "-CAfile",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem",
+        "-verify_ip",
+        "192.168.109.14",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem"
+      ],
+      "rc": 0,
+      "stdout": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem: OK\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem",
+        "-noout",
+        "-subject",
+        "-nameopt",
+        "RFC2253"
+      ],
+      "rc": 0,
+      "stdout": "subject=CN=dfs-c-r3\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "x509",
+        "-in",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem",
+        "-pubkey",
+        "-noout"
+      ],
+      "rc": 0,
+      "stdout": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzLW8DpEyq5LetDkVP9CU\noXwqpExlzZ/Te1GP8ps/7+3SL1GiYXpc3DJh0i4eJcqdhcI7EDMH+cR//ButUTRG\nVAed6YS5ckAC4+pJYG+7rmpMrxm7C6z/SvK4P7ebOWI3iyvroHQL1gB6/87GgedI\nf4Iw7zWWYB4utyICeGPzPlHzFHqJjjhODaskOIfGSrm4SFO15ABfxGi46jOBdTKv\nNPe0T2NwWAeydS1Y8RsfuezRx2lKQMDCHvrOM5b2GH/KMcX8THa1LAICm8hBDdMI\n1X14DBa0AAmgERq9IEv09hHyV29toxYqNlqRjlhhxfyefdDi51xycJFQfxBXrooq\nvQIDAQAB\n-----END PUBLIC KEY-----\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "openssl",
+        "pkey",
+        "-in",
+        "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3-key.pem",
+        "-pubout"
+      ],
+      "rc": 0,
+      "stdout": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzLW8DpEyq5LetDkVP9CU\noXwqpExlzZ/Te1GP8ps/7+3SL1GiYXpc3DJh0i4eJcqdhcI7EDMH+cR//ButUTRG\nVAed6YS5ckAC4+pJYG+7rmpMrxm7C6z/SvK4P7ebOWI3iyvroHQL1gB6/87GgedI\nf4Iw7zWWYB4utyICeGPzPlHzFHqJjjhODaskOIfGSrm4SFO15ABfxGi46jOBdTKv\nNPe0T2NwWAeydS1Y8RsfuezRx2lKQMDCHvrOM5b2GH/KMcX8THa1LAICm8hBDdMI\n1X14DBa0AAmgERq9IEv09hHyV29toxYqNlqRjlhhxfyefdDi51xycJFQfxBXrooq\nvQIDAQAB\n-----END PUBLIC KEY-----\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afscdata"
+      ],
+      "rc": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afscdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    }
+  ],
+  "status": "PASS_CONFIG_ADMISSION_ONLY",
+  "config_sha256": "1b7bde971fb3a384013c390ca60eb5c408d0b40b5e9d2d43ede77c68395dcfd8",
+  "original_sha256": "6e51049fd234d5632b1d2bcd40f49e8aa42a276348b9687f2d233ec8f3b95754",
+  "helper_sha256": {
+    "afs-processctl": "1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896"
+  },
+  "elf_sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7",
+  "print_config": {
+    "id": "dfs-c-r3",
+    "grpc_listen": "0.0.0.0:24800",
+    "rest_listen": "0.0.0.0:24801",
+    "meta_endpoint": "https://192.168.109.11:24700",
+    "etcd_endpoint": null,
+    "redis_endpoint": null,
+    "meta_store": "etcd",
+    "allow_volatile_meta": false,
+    "peer_endpoint": null,
+    "advertise_endpoint": "https://192.168.109.14:24800",
+    "tls_ca_certificate": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem",
+    "tls_identity_certificate": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem",
+    "tls_identity_private_key": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3-key.pem",
+    "tls_server_name": "afs-meta",
+    "trusted_node_certs": {
+      "dfs-c-r3": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem",
+      "dfs-b-r3": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-b-r3.pem",
+      "dfs-a-r3": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-a-r3.pem"
+    },
+    "ownerfs": false,
+    "dfs": true,
+    "data_mode": "grpc",
+    "rdma_device": null,
+    "data_dir": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/state/node",
+    "uds_path": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run/node.sock",
+    "ownerfs_mount": null,
+    "experimental_native_workspace": false,
+    "native_workspace": null,
+    "experimental_ownerfs_workspace_bind": false,
+    "ownerfs_workspace_bind": null,
+    "dfs_mount": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount/dfs",
+    "dfs_desired_copies": 3,
+    "dfs_sync_required_copies": 3,
+    "dfs_min_distinct_nodes": 3,
+    "dfs_min_distinct_failure_domains": 3,
+    "dfs_local_copy": "required",
+    "dfs_read_max_ops_per_batch": 128,
+    "dfs_read_max_inflight_bytes": 8388608,
+    "dfs_read_source_cache_ttl_ms": 500,
+    "timeout_ms": 5000,
+    "log_level": "info",
+    "trace_enabled": false,
+    "trace_endpoint": "http://127.0.0.1:4317",
+    "trace_sample_ratio": 0.01
+  },
+  "tls_sha256": {
+    "ca.pem": "e212c51b04737bc5b962ebe01a02e2f1dd1d74c5c50a4f8537f9f32b8246a6fe",
+    "meta.pem": "09ce76858814aad30d82e5de92aa08092f39aa299a5f574ebd1240278d6f6dc6",
+    "dfs-a-r3.pem": "d94d446daf11721b2f245a81f4d1f0d5bbd8a27846c11f6e1d2be2b532edc122",
+    "dfs-b-r3.pem": "17e2a101805e4586b410079953b27dc8ce609e6ab3982ad45df87cf2c4f0d96a",
+    "dfs-c-r3.pem": "f61b4eda525c2e3cdf3d50da9421e21c44d4ec562819ea3c48e6ca30d88fc034"
+  },
+  "dependencies": {
+    "python3": "/usr/bin/python3",
+    "bash": "/usr/bin/bash",
+    "ldd": "/usr/bin/ldd",
+    "openssl": "/usr/bin/openssl",
+    "findmnt": "/usr/bin/findmnt",
+    "ip": "/usr/sbin/ip",
+    "ss": "/usr/bin/ss",
+    "curl": "/usr/bin/curl",
+    "timeout": "/usr/bin/timeout",
+    "flock": "/usr/bin/flock",
+    "setsid": "/usr/bin/setsid",
+    "readlink": "/usr/bin/readlink",
+    "sed": "/usr/bin/sed",
+    "awk": "/usr/bin/awk",
+    "grep": "/usr/bin/grep",
+    "stat": "/usr/bin/stat",
+    "mktemp": "/usr/bin/mktemp",
+    "nohup": "/usr/bin/nohup",
+    "head": "/usr/bin/head",
+    "tr": "/usr/bin/tr"
+  },
+  "ram": {
+    "available_bytes": 5744660480,
+    "minimum_bytes": 536870912,
+    "limits": [
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-501.slice/session-4.scope",
+        "maximum": "max",
+        "current": 2552123392
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice/user-501.slice",
+        "maximum": "max",
+        "current": 2568265728
+      },
+      {
+        "path": "/sys/fs/cgroup/user.slice",
+        "maximum": "max",
+        "current": 2568273920
+      }
+    ],
+    "meminfo": "MemTotal:        6053716 kB\nMemFree:         2910520 kB\nMemAvailable:    5610020 kB\nBuffers:          120488 kB\nCached:          2643728 kB\nSwapCached:            0 kB\nActive:           341280 kB\nInactive:        2493712 kB\nActive(anon):      79236 kB\nInactive(anon):        0 kB\nActive(file):     262044 kB\nInactive(file):  2493712 kB\nUnevictable:       26228 kB\nMlocked:           26228 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:               380 kB\nWriteback:             0 kB\nAnonPages:         97060 kB\nMapped:            70360 kB\nShmem:              1016 kB\nKReclaimable:     138604 kB\nSlab:             210468 kB\nSReclaimable:     138604 kB\nSUnreclaim:        71864 kB\nKernelStack:        2356 kB\nShadowCallStack:     600 kB\nPageTables:         2516 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     3026856 kB\nCommitted_AS:     385312 kB\nVmallocTotal:   133141626880 kB\nVmallocUsed:       16752 kB\nVmallocChunk:          0 kB\nPercpu:             2584 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:          32768 kB\nCmaFree:           29696 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\n"
+  },
+  "budget": {
+    "allocated_bytes": 96964608,
+    "free_bytes": 29882044416,
+    "volume": {
+      "target": "/mnt/lima-afscdata",
+      "source": "/dev/vdb1",
+      "fstype": "ext4",
+      "options": "rw,relatime"
+    },
+    "ceiling_bytes": 1073741824,
+    "floor_bytes": 1073741824,
+    "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount",
+    "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "members": {
+    "ctl": {
+      "sha256": "ec5631fcdfb96d2bdbc38b04f34dd1f3cb9f37b9b25a2cb2b95fcf6fcc7f7a87",
+      "bytes": 591,
+      "relative": "logs/ctl/meta.log"
+    },
+    "a": {
+      "sha256": "d798edba8a9fa0f0fc3357d165fd6e4a13fb4985c93947395f5ee5f59e44700c",
+      "bytes": 2398,
+      "relative": "logs/a/node.log"
+    },
+    "b": {
+      "sha256": "884e9525c637ca9705dce072e3410798727d8ead7db94e1e9419d3fc14ba0304",
+      "bytes": 2259,
+      "relative": "logs/b/node.log"
+    },
+    "c": {
+      "sha256": "af54295aa5b4183b7ecb80730d428cb5aa52be590eec94b6239256e036b02484",
+      "bytes": 2260,
+      "relative": "logs/c/node.log"
+    }
+  },
+  "level_counts": {
+    "INFO": 14,
+    "ERRO": 5,
+    "WARN": 19
+  },
+  "error_warning_categories": {
+    "DFS dentry not found": 4,
+    "DFS currently supports only user.* xattrs": 1,
+    "[Not Implemented] ioctl(ino: 0x3, fh: 4, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)": 3,
+    "[Not Implemented] ioctl(ino: 0x3, fh: 5, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)": 3,
+    "dfs.replication_task_retry": 1,
+    "[Not Implemented] ioctl(ino: 0x3, fh: 1, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)": 2,
+    "[Not Implemented] ioctl(ino: 0x3, fh: 2, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)": 2,
+    "[Not Implemented] ioctl(ino: 0x3, fh: 6, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)": 2,
+    "[Not Implemented] ioctl(ino: 0x3, fh: 7, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)": 2,
+    "[Not Implemented] ioctl(ino: 0x3, fh: 9, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)": 2,
+    "[Not Implemented] ioctl(ino: 0x3, fh: 10, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)": 2
+  },
+  "scope": "Full logs retained. Negative dentry/xattr/ioctl and one Meta-downtime retry are not a zero-error-log claim; this slice does not test xattr/ioctl completeness."
+}

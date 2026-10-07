@@ -1,0 +1,53 @@
+--- historical931/closure-check.py
++++ current7e6/closure-check.py
+@@ -3,10 +3,10 @@
+ import argparse, hashlib, importlib.util, json, os, platform, stat, sys, traceback
+ from pathlib import Path
+ 
+-FIXTURE='dfs-r3-current-20261007-r1'
++FIXTURE='dfs-r3-current-7e6-recovery-20261007-r1'
+ V={'ctl':'/mnt/lima-afsctlstate','a':'/mnt/lima-afsadata','b':'/mnt/lima-afsbdata','c':'/mnt/lima-afscdata'}
+-HELPER_SHA='50bb972a683983552fb724253661b3d20cb963eaa86ea9e5624c9b2ff3bb211e'
+-SOURCE='93169c8530beedff9e8e510dc9b9210d704f244f'
++HELPER_SHA='f31c4f74ca1d89b99fe4527714be42b8b631713c4e2317049d3029e68478d5ea'
++SOURCE='7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d'
+ def require(ok,why):
+  if not ok:raise ValueError(why)
+ def sha(p):
+@@ -30,23 +30,31 @@
+  require(records['pid']==child['pid']+'\n','retained pid not captured child')
+  require(records['launch']==child['lifecycle']+'\n','retained launch not captured lifecycle')
+  require(records['identity']==dict(child,cmdline=' '.join(live['argv']).strip()),'retained identity not captured incarnation/argv')
++def select_lifecycle(root, name, incarnation):
++ run=root/'run';lifecycles=list(run.glob(name+'.lifecycle.*'));life=Path((run/(name+'.launch')).read_text().strip())
++ require(life in lifecycles and life.parent==run and len(lifecycles)==(incarnation if name=='meta' else 1),'unexpected service lifecycle count')
++ for old_life in lifecycles:
++  if old_life != life:
++   old_child=fields(old_life/'child');require(fields(old_life/'exit')==dict(old_child,exit_code='0') and all(not (Path('/proc')/old_child[k]).exists() for k in ('pid','supervisor_pid')),'previous incarnation not normally closed')
++ return life
++
+ def tool(root):
+  p=root/'tools/dfs_r3_fixture.py';require(sha(p)==HELPER_SHA,'wrong frozen fixture helper')
+  spec=importlib.util.spec_from_file_location('fixture',p);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
+ 
+-a=argparse.ArgumentParser();a.add_argument('--role',choices=V,required=True);a.add_argument('--initial-json',type=Path,required=True);a.add_argument('--ready-json',type=Path);a.add_argument('mode',choices=['protected','capture','closed']);args=a.parse_args()
++a=argparse.ArgumentParser();a.add_argument('--role',choices=V,required=True);a.add_argument('--initial-json',type=Path,required=True);a.add_argument('--ready-json',type=Path);a.add_argument('--incarnation',choices=['1','2'],default='1');a.add_argument('mode',choices=['protected','capture','closed']);args=a.parse_args()
+ result={'status':'FAIL','mode':args.mode,'role':args.role,'source_commit':SOURCE,'observer_sha256':sha(__file__)}
+ try:
+  require(platform.system()=='Linux' and platform.machine()=='aarch64' and os.geteuid()==0,'Linux ARM64 root required')
+  require(platform.node()=='lima-afs-accept-'+args.role,'wrong guest')
+  initial=read(args.initial_json);result['initial_sha256']=sha(args.initial_json);result['protected']=protected(initial,args.mode=='closed')
+- root=Path(V[args.role])/'afs-delivery'/FIXTURE;name='meta' if args.role=='ctl' else 'node';exe=root/'prefix/bin'/('afs-'+name);cfg=root/'etc'/(name+'.toml');m=tool(root);f=m.Fixture(args.role)
+- m.safe(cfg,root);m.safe(exe,root);m.validate_elf(exe,m.SHA[name]);require(m.tomllib.loads(cfg.read_text())==f.expected(),'config not frozen exact R3')
++ root=Path(V[args.role])/'afs-delivery'/FIXTURE;name='meta' if args.role=='ctl' else 'node';exe=root/'prefix/bin'/('afs-'+name);cfg=root/'etc'/(name+'.toml');m=tool(root);f=m.Fixture(args.role, FIXTURE, {'meta': '76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2', 'node': 'c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7'})
++ m.safe(cfg,root);m.safe(exe,root);m.validate_elf(exe,f.sha[name]);require(m.tomllib.loads(cfg.read_text())==f.expected(),'config not frozen exact R3')
+  es=exe.stat();result['frozen']={'root':str(root),'config':str(cfg),'config_sha256':sha(cfg),'executable':str(exe),'executable_sha256':sha(exe),'executable_dev':es.st_dev,'executable_ino':es.st_ino,'fixture_sha256':HELPER_SHA}
+  if args.mode=='capture':
+-  lifecycles=list((root/'run').glob(name+'.lifecycle.*'));require(len(lifecycles)==1,'not one fresh lifecycle');life=lifecycles[0];child=fields(life/'child');ready=fields(life/'ready')
++  life=select_lifecycle(root,name,int(args.incarnation));child=fields(life/'child');ready=fields(life/'ready')
+   require(child.get('lifecycle')==str(life) and child.get('exe')==str(exe) and child.get('config')==str(cfg) and child.get('boot_id')==initial['boot_id'],'wrong lifecycle binding')
+-  live=process(int(child['pid']));sup=process(int(child['supervisor_pid']));require(live['starttick']==child['start_ticks'] and live['exe']==str(exe) and live['sha256']==m.SHA[name] and live['argv']==[str(exe),'--config',str(cfg),''] and live['ppid']==sup['pid'],'actual child mismatch')
++  live=process(int(child['pid']));sup=process(int(child['supervisor_pid']));require(live['starttick']==child['start_ticks'] and live['exe']==str(exe) and live['sha256']==f.sha[name] and live['argv']==[str(exe),'--config',str(cfg),''] and live['ppid']==sup['pid'],'actual child mismatch')
+   require(ready=={'supervisor_pid':str(sup['pid'])} and '__supervise' in sup['argv'] and str(life) in sup['argv'] and str(exe) in sup['argv'] and str(cfg) in sup['argv'],'actual supervisor mismatch')
+   require(not (life/'exit').exists(),'service already exited')
+   owned=[row for row in result['protected']['mountinfo'] if row.split()[4]==str(root/'mount/dfs')]

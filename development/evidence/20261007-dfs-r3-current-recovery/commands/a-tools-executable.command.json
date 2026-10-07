@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-accept-a",
+    "sudo",
+    "chmod",
+    "755",
+    "/mnt/lima-afsadata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/tools/dfs_unique_io"
+  ],
+  "timeout": 90
+}

@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-accept-c",
+    "sudo",
+    "python3",
+    "-B",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/stage/closure-check-r2.py",
+    "--role",
+    "c",
+    "--initial-json",
+    "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/stage/initial.json",
+    "capture"
+  ],
+  "timeout": 90
+}

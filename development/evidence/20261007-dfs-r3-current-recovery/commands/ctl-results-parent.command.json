@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-accept-ctl",
+    "sudo",
+    "mkdir",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/results"
+  ],
+  "timeout": 90
+}

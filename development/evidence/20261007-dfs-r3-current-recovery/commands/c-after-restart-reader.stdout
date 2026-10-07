@@ -1,0 +1,62 @@
+{
+  "role": "check",
+  "status": "DATA_RECORDED",
+  "pre_content": {
+    "bytes": 67108864,
+    "sha256": "4c47e859a6831026ba9367262afb1e1803d11abc30f6f3d996ceea829af89324",
+    "eof": {
+      "status": "PASS",
+      "offset": 67108864,
+      "extra_bytes": 0
+    },
+    "status": "PASS"
+  },
+  "sample": {
+    "argv": [
+      "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/tools/dfs_unique_io",
+      "read",
+      "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount/dfs/r3-current-counter/payload64m.bin"
+    ],
+    "round": 0,
+    "measured": false,
+    "status": "PASS",
+    "rc": 0,
+    "stdout": "{\"dataset\":\"counter-1m-v1\",\"operation\":\"seq-read\",\"file_bytes\":67108864,\"io_bytes\":67108864,\"block_bytes\":1048576,\"concurrency\":1,\"pattern_byte\":97,\"operations\":64,\"barrier\":\"close\",\"cache_requested\":\"unobserved\",\"residency_observed\":false,\"content_ok\":true,\"wall_ns\":1226303767,\"client_cpu_ns\":14664753,\"barrier_ns\":39124}\n",
+    "stderr": "",
+    "result": {
+      "dataset": "counter-1m-v1",
+      "operation": "seq-read",
+      "file_bytes": 67108864,
+      "io_bytes": 67108864,
+      "block_bytes": 1048576,
+      "concurrency": 1,
+      "pattern_byte": 97,
+      "operations": 64,
+      "barrier": "close",
+      "cache_requested": "unobserved",
+      "residency_observed": false,
+      "content_ok": true,
+      "wall_ns": 1226303767,
+      "client_cpu_ns": 14664753,
+      "barrier_ns": 39124
+    }
+  },
+  "final_content": {
+    "bytes": 67108864,
+    "sha256": "4c47e859a6831026ba9367262afb1e1803d11abc30f6f3d996ceea829af89324",
+    "eof": {
+      "status": "PASS",
+      "offset": 67108864,
+      "extra_bytes": 0
+    },
+    "status": "PASS"
+  },
+  "identity": {
+    "product_source_commit": "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d",
+    "compiler_input_map": "151a2c6d0de361c1aa3ed2bc9d197102f59563a1ad2a98f56930c981f902c8f2",
+    "afs_meta_sha256": "76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2",
+    "afs_node_sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7",
+    "io_sha256": "c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804"
+  },
+  "performance_claim": false
+}

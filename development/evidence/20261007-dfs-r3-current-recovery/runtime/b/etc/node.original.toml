@@ -1,0 +1,25 @@
+id = "dfs-b-r3"
+fs = "all"
+meta_endpoint = "https://192.168.109.11:24700"
+grpc_listen = "0.0.0.0:24800"
+rest_listen = "0.0.0.0:24801"
+advertise_endpoint = "https://192.168.109.13:24800"
+data_dir = "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/state/node"
+uds_path = "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run/node.sock"
+dfs_mount = "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount/dfs"
+ownerfs_mount = "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount/ownerfs"
+data_mode = "grpc"
+allow_volatile_meta = false
+dfs_desired_copies = 2
+dfs_sync_required_copies = 2
+dfs_min_distinct_nodes = 2
+dfs_min_distinct_failure_domains = 2
+dfs_local_copy = "required"
+log_level = "info"
+trace_enabled = false
+
+tls_ca_certificate = "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/ca.pem"
+tls_identity_certificate = "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-b-r3.pem"
+tls_identity_private_key = "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-b-r3-key.pem"
+tls_server_name = "afs-meta"
+trusted_node_certs = { dfs-a-r3 = "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-a-r3.pem", dfs-b-r3 = "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-b-r3.pem", dfs-c-r3 = "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/tls/dfs-c-r3.pem" }

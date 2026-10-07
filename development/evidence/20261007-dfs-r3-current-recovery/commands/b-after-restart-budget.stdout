@@ -1,0 +1,30 @@
+{
+  "fixture": "dfs-r3-current-7e6-recovery-20261007-r1",
+  "role": "b",
+  "root": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1",
+  "commands": [
+    {
+      "argv": [
+        "findmnt",
+        "-J",
+        "--mountpoint",
+        "/mnt/lima-afsbdata"
+      ],
+      "rc": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/mnt/lima-afsbdata\",\n         \"source\": \"/dev/vdb1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    }
+  ],
+  "allocated_bytes": 164327424,
+  "free_bytes": 16736698368,
+  "volume": {
+    "target": "/mnt/lima-afsbdata",
+    "source": "/dev/vdb1",
+    "fstype": "ext4",
+    "options": "rw,relatime"
+  },
+  "ceiling_bytes": 1073741824,
+  "floor_bytes": 1073741824,
+  "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/mount",
+  "scope": "one role only; parent must sum all four allocated_bytes <=1GiB"
+}

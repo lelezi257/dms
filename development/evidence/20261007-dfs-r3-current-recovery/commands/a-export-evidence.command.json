@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-accept-a",
+    "sudo",
+    "python3",
+    "-B",
+    "-c",
+    "import os,sys,json,hashlib,tarfile,stat\nfrom pathlib import Path\nroot=Path(sys.argv[1]);manifest={};paths=[]\nfor directory in ('run','results'):\n for p in (root/directory).rglob('*'):\n  if not p.is_file() or p.is_symlink():continue\n  assert not p.name.endswith('.lock') or p.stat().st_size==0\n  paths.append(p)\nfor p in (root/'etc').glob('*.toml'):\n if p.is_file() and not p.is_symlink():paths.append(p)\ntext=root/'stage/runtime-text.tar'\nwith tarfile.open(text,'w') as t:\n for p in paths:\n  data=p.read_bytes();rel=str(p.relative_to(root));manifest[rel]={'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)};t.add(p,arcname=rel,recursive=False)\nlogs=root/'stage/full-logs.tar'\nwith tarfile.open(logs,'w') as t:\n t.add(root/'logs',arcname='logs')\nstate=root/'stage/durable-metadata.tar'\nwith tarfile.open(state,'w') as t:\n if (root/'state/meta/meta-store').is_dir():t.add(root/'state/meta/meta-store',arcname='meta-store')\n for p in (root/'state/node/dfs').glob('*catalog*'):\n  if p.is_file():t.add(p,arcname='dfs/'+p.name)\nartifacts={}\nfor p in (text,logs,state):\n data=p.read_bytes();artifacts[p.name]={'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data),'guest_path':str(p)};os.chown(p,int(os.environ['SUDO_UID']),int(os.environ['SUDO_GID']));p.chmod(0o600)\nprint(json.dumps({'status':'EXPORTED_NO_CHUNK_DATA','text_members':manifest,'artifacts':artifacts},indent=2))\n",
+    "/mnt/lima-afsadata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1"
+  ],
+  "timeout": 90
+}

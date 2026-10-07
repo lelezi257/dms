@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-accept-b",
+    "sudo",
+    "python3",
+    "-B",
+    "-c",
+    "import sys,json,hashlib,subprocess;from pathlib import Path\nroot=Path(sys.argv[1]);expected=json.loads(sys.argv[2]);result={}\nfor name,want in expected.items():\n p=root/'tools'/name;assert p.is_file() and not p.is_symlink();actual=hashlib.sha256(p.read_bytes()).hexdigest();assert actual==want,name;result[name]=actual\np=root/'tools/dfs_unique_io';d=subprocess.run(['ldd',str(p)],capture_output=True,text=True,timeout=20);assert d.returncode==0 and 'not found' not in d.stdout+d.stderr\nassert json.loads((root/'tools/identity.json').read_text())==json.loads(sys.argv[3]);assert json.loads((root/'tools/expected-candidate.json').read_text())==json.loads(sys.argv[3])\nprint(json.dumps({'status':'PASS_TOOL_ADMISSION_ONLY','hashes':result,'ldd':{'argv':d.args,'rc':d.returncode,'stdout':d.stdout,'stderr':d.stderr}}))\n",
+    "/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1",
+    "{\"dfs_r3_small.py\": \"9fff17c56e1749fd133299eda2c5ef8d511bd11f552d8cff4592fef3d6804a81\", \"dfs_manyread_small.py\": \"e0875b743eea419ee27bc9df5677f0af421d70f590076d44e13b79b6d38248c8\", \"dfs_r3_fixture.py\": \"f31c4f74ca1d89b99fe4527714be42b8b631713c4e2317049d3029e68478d5ea\", \"orderly-runtime-checks.py\": \"538122ed608735cfe11cfc89667a4ab28b2855cefeb62394596725289df4d957\", \"dfs_unique_io\": \"c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804\"}",
+    "{\"product_source_commit\": \"7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d\", \"compiler_input_map\": \"151a2c6d0de361c1aa3ed2bc9d197102f59563a1ad2a98f56930c981f902c8f2\", \"afs_meta_sha256\": \"76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2\", \"afs_node_sha256\": \"c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7\", \"io_sha256\": \"c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804\"}"
+  ],
+  "timeout": 90
+}

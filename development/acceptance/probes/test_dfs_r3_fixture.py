@@ -11,6 +11,9 @@ from unittest.mock import patch
 
 from dfs_r3_fixture import Fixture, NODES, POLICY, SHA, allocated, digest, render, safe, validate_elf, validate_policy
 
+CURRENT_PUBLIC_SHA = {'meta': '76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2',
+                      'node': 'c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7'}
+
 
 def original(fixture):
     cfg = fixture.expected()
@@ -37,6 +40,16 @@ class FixtureGuards(unittest.TestCase):
             self.assertFalse(cfg['experimental_native_workspace'])
             self.assertFalse(cfg['experimental_ownerfs_workspace_bind'])
             self.assertEqual(fixture.ports(), (24700, 24701) if role == 'ctl' else (24800, 24801))
+
+    def test_current_fresh_name_and_sha_override_keep_default_generated_r2(self):
+        name = 'dfs-r3-current-7e6-recovery-20261007-r1'
+        fixture = Fixture('a', name, CURRENT_PUBLIC_SHA)
+        cfg = tomllib.loads(fixture.patch_text(render(original(fixture))))
+        self.assertEqual(fixture.fixture_name, name)
+        self.assertEqual(fixture.root, Path('/mnt/lima-afsadata/afs-delivery') / name)
+        self.assertEqual(fixture.sha, CURRENT_PUBLIC_SHA)
+        self.assertEqual(cfg, fixture.expected())
+        validate_policy(cfg)
 
     def test_desired_three_sync_one_and_other_weakened_policies_rejected(self):
         for key in POLICY:
@@ -113,6 +126,11 @@ class FixtureGuards(unittest.TestCase):
                 self.assertEqual(tomllib.loads(fixture.config.read_text()), fixture.expected())
                 with self.assertRaisesRegex(RuntimeError, 'backup exists'):
                     fixture.patch()
+
+    def test_fixture_name_cannot_escape_volume(self):
+        for name in ('../escape', '/tmp/escape', '', 'child/name'):
+            with self.subTest(name=name), self.assertRaisesRegex(RuntimeError, 'invalid fixture name'):
+                Fixture('a', name)
 
     def test_current_sha_and_arch_required_for_elf(self):
         with tempfile.TemporaryDirectory() as directory:

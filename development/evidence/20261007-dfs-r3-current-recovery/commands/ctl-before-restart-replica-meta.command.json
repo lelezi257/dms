@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-accept-ctl",
+    "sudo",
+    "python3",
+    "-B",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/stage/replica-check.py",
+    "meta",
+    "--meta-store",
+    "/mnt/lima-afsctlstate/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/state/meta/meta-store"
+  ],
+  "timeout": 90
+}

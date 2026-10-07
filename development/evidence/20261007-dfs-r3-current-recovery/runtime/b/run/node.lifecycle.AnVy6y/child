@@ -1,0 +1,7 @@
+pid=244488
+exe=/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/prefix/bin/afs-node
+config=/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/etc/node.toml
+start_ticks=61072047
+boot_id=3adebcd0-cb31-4df0-b18a-e970786ab7fb
+lifecycle=/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/run/node.lifecycle.AnVy6y
+supervisor_pid=244472

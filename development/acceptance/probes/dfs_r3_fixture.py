@@ -116,12 +116,16 @@ def ram():
 
 
 class Fixture:
-    def __init__(self, role):
+    def __init__(self, role, fixture_name=FIXTURE, expected_sha=None):
+        require(fixture_name and Path(fixture_name).name == fixture_name and '..' not in Path(fixture_name).parts,
+                'invalid fixture name')
         self.role, self.volume = role, Path(VOLUMES[role])
-        self.root = self.volume / 'afs-delivery' / FIXTURE
+        self.fixture_name = fixture_name
+        self.root = self.volume / 'afs-delivery' / fixture_name
         self.name = 'meta' if role == 'ctl' else 'node'
         self.config = self.root / 'etc' / (self.name + '.toml')
         self.binary = self.root / 'prefix/bin' / ('afs-' + self.name)
+        self.sha = {**SHA, **(expected_sha or {})}
         self.commands = []
 
     def command(self, argv):
@@ -234,7 +238,7 @@ class Fixture:
         addresses = json.loads(self.command(['ip', '-j', '-4', 'addr']))
         require(any(a.get('local') == IPS[self.role] for row in addresses for a in row.get('addr_info', [])), 'wrong role IP')
         safe(self.binary, self.root)
-        validate_elf(self.binary, SHA[self.name])
+        validate_elf(self.binary, self.sha[self.name])
         helper_sha = {}
         for name in ('afs-processctl', *(('afs-trial-config',) if self.role == 'ctl' else ())):
             path = safe(self.root / 'prefix/bin' / name, self.root)
@@ -263,24 +267,32 @@ class Fixture:
                 == self.command(['openssl', 'pkey', '-in', cfg['tls_identity_private_key'], '-pubout']), 'TLS keypair mismatch')
         return {'status': 'PASS_CONFIG_ADMISSION_ONLY', 'config_sha256': digest(self.config),
                 'original_sha256': digest(backup), 'helper_sha256': helper_sha,
-                'elf_sha256': SHA[self.name], 'print_config': output, 'tls_sha256': hashes,
+                'elf_sha256': self.sha[self.name], 'print_config': output, 'tls_sha256': hashes,
                 'dependencies': deps, 'ram': ram(), 'budget': self.budget()}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--role', required=True, choices=VOLUMES)
+    parser.add_argument('--fixture-name', default=FIXTURE,
+                        help='fresh fixture directory name under each role volume; historical default is unchanged')
+    parser.add_argument('--meta-sha256', default=SHA['meta'],
+                        help='expected afs-meta SHA256 for this fresh fixture')
+    parser.add_argument('--node-sha256', default=SHA['node'],
+                        help='expected afs-node SHA256 for this fresh fixture')
     parser.add_argument('action', choices=('patch', 'preflight', 'budget'))
     args = parser.parse_args()
-    fixture = Fixture(args.role)
+    fixture = None
     try:
+        fixture = Fixture(args.role, args.fixture_name, {'meta': args.meta_sha256, 'node': args.node_sha256})
         fixture.guest()
         result = getattr(fixture, args.action)()
         code = 0
     except (RuntimeError, OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
         result, code = {'status': 'BLOCKED', 'error': str(exc)}, 1
-    print(json.dumps({'fixture': FIXTURE, 'role': args.role, 'root': str(fixture.root),
-                      'commands': fixture.commands, **result}, indent=2))
+    print(json.dumps({'fixture': args.fixture_name, 'role': args.role,
+                      'root': str(fixture.root) if fixture else None,
+                      'commands': fixture.commands if fixture else [], **result}, indent=2))
     return code
 
 

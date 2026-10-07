@@ -1,0 +1,8 @@
+pid=67202
+exe=/opt/afs-main-bind-accepted-20261007-r1/prefix/bin/afs-meta
+config=/opt/afs-main-bind-accepted-20261007-r1/etc/meta.toml
+start_ticks=8133889
+boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
+lifecycle=/opt/afs-main-bind-accepted-20261007-r1/run/meta.lifecycle.tZX5am
+supervisor_pid=67186
+exit_code=0

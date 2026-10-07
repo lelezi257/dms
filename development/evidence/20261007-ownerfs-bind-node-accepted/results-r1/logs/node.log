@@ -1,0 +1,17 @@
+{"msg":"Mounting /opt/afs-main-bind-accepted-20261007-r1/mount/ownerfs","level":"INFO","ts":"2026-10-07T05:25:21.619281365Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-07T05:25:21.621378905Z","instance":"node-a","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/opt/afs-main-bind-accepted-20261007-r1/run/node.sock","rest":"127.0.0.1:24501","grpc":"127.0.0.1:24500"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T05:25:21.986413424Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs root is not registered in Meta","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T05:25:22.000893298Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-07T05:25:22.000931755Z","instance":"node-a","service_name":"afs-node","name":"seed","parent":2}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 1, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-07T05:25:22.001442776Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE operation parse failed for request RequestId(46): Unknown FUSE opcode (52)","level":"WARN","ts":"2026-10-07T05:25:22.055741504Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T05:25:22.561522993Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-07T05:25:22.561550367Z","instance":"node-a","service_name":"afs-node","name":".afs-native-mixed-67647-1791350722561053095-root-owned-0600.txt","parent":2}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T05:25:22.562734069Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs currently supports only user.* xattrs","kind":"FailedPrecondition","code":67305489}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 4, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-07T05:25:22.616635355Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 5, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-07T05:25:22.616946092Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T05:25:22.617440531Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T05:25:22.617924219Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-07T05:25:22.617942844Z","instance":"node-a","service_name":"afs-node","name":".afs-native-mixed-67647-1791350722561053095-exclusive.txt","parent":2}
+{"msg":"[Not Implemented] ioctl(ino: 0x4, fh: 7, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-07T05:25:22.618412908Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T05:25:22.974889915Z","instance":"node-a","service_name":"afs-node"}

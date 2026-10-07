@@ -1,3 +1,5 @@
+**新增当前限定通过（2026-10-07，事实）：** main产品1451f60/map196a，复用已通过Linux构建，两个现有ELF包逐字节一致；当前Node受管workspace成功启动/权限errno双视图/正常停止通过，50驱动检查及30独立postcheck通过，Node/Meta实际wait0、四服务/监督PID及容器消失、保护身份不变。标准/性能/重启未重跑；G1历史8/8、G2计数和defaultOFF不变。宿主独立开关/通用排空及混合语义缺口仍未完成；下一既定workspace限定性能小项。 [版本与证据](evidence/20261007-ownerfs-bind-node-accepted/README.md)。
+
 # Runc adapter for OwnerFs workspace bind mount
 
 2026-10-07; baseline main `0891cbfe558cdda7c8d780b7fa9e8f97329e2554`, mechanism reference [Issue42](https://github.com/lelezi257/dms/issues/42) / [PR43](https://github.com/lelezi257/dms/pull/43) head `80b0bca3d9d86a1357aa745bb65abfb567f5623f`.

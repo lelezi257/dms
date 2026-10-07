@@ -1,0 +1,177 @@
+{
+  "cleanup": {
+    "owned_paths": [
+      {
+        "path": "/proc/67552/root/workspace/.afs-native-mixed-67600-1791350722397689971-root-owned-0600.txt",
+        "status": "removed"
+      },
+      {
+        "path": "/proc/67552/root/workspace/.afs-native-mixed-67600-1791350722397689971-exclusive.txt",
+        "status": "removed"
+      }
+    ]
+  },
+  "created_at": "2026-10-07T05:25:22Z",
+  "failures": [],
+  "path_identity": {
+    "primary": {
+      "dev": 64769,
+      "gid": 501,
+      "ino": 826020,
+      "mode": "0o700",
+      "mtime_ns": 1791350722000627350,
+      "path": "/proc/67552/root/workspace",
+      "size": 4096,
+      "uid": 501
+    },
+    "secondary": {
+      "dev": 64769,
+      "gid": 501,
+      "ino": 826020,
+      "mode": "0o700",
+      "mtime_ns": 1791350722000627350,
+      "path": "/proc/67552/root/workspace",
+      "size": 4096,
+      "uid": 501
+    }
+  },
+  "paths": {
+    "primary": "/proc/67552/root/workspace",
+    "secondary": "/proc/67552/root/workspace"
+  },
+  "platform": {
+    "gid": 0,
+    "machine": "aarch64",
+    "python": "3.12.3",
+    "release": "6.8.0-106-generic",
+    "system": "Linux",
+    "uid": 0
+  },
+  "run_id": "native-mixed-67600-1791350722397689263",
+  "schema": "afs.native_mixed.v1",
+  "scope": "short managed OwnerFs mixed FUSE/native probe; not full POSIX or production ON qualification",
+  "selected_groups": [
+    "permissions_errno"
+  ],
+  "status": "PASS",
+  "steps": [
+    {
+      "details": {
+        "container_response": {
+          "production_ready": false,
+          "status": "Executed",
+          "stdout_bytes": 29
+        },
+        "control_artifacts": [
+          {
+            "command_json": {
+              "bytes": 194,
+              "path": "/opt/afs-main-bind-accepted-20261007-r1/control/command-0005.command.json",
+              "sha256": "dc98307cc564e63d9dddc21aa363b052e0dad22c91e31601dbaf2b0e8406b6bf",
+              "text": "{\"argv\":[\"--root\",\"/opt/afs-main-bind-accepted-20261007-r1/control/runtime-state\",\"exec\",\"afs-native-first\",\"/afs-workspace-probe\",\"identity\"],\"program\":\"/usr/local/sbin/runc\",\"timeout_ms\":5000}"
+            },
+            "exit_json": {
+              "bytes": 39,
+              "path": "/opt/afs-main-bind-accepted-20261007-r1/control/command-0005.exit.json",
+              "sha256": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+              "text": "{\"code\":0,\"reason\":null,\"success\":true}"
+            },
+            "stderr": {
+              "bytes": 0,
+              "path": "/opt/afs-main-bind-accepted-20261007-r1/control/command-0005.stderr",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "text": ""
+            },
+            "stdout": {
+              "bytes": 234,
+              "path": "/opt/afs-main-bind-accepted-20261007-r1/control/command-0005.stdout",
+              "sha256": "67e1d44b2dd9a2b10cd81d9c61bf90583919efa28d27eb5c22daeee81c0a14e0",
+              "text": "{\"flags\":[\"rw\",\"nosuid\",\"nodev\",\"relatime\"],\"mount_id\":420,\"namespace\":{\"dev\":4,\"ino\":4026532355},\"scope\":\"final-view identity; not production READY or revocation ACK\",\"source\":{\"dev\":64769,\"ino\":826020},\"unique_mount_id\":4294979183}\n"
+            },
+            "stem": "/opt/afs-main-bind-accepted-20261007-r1/control/command-0005"
+          },
+          {
+            "command_json": {
+              "bytes": 633,
+              "path": "/opt/afs-main-bind-accepted-20261007-r1/control/command-0006.command.json",
+              "sha256": "bf274ddad3c7704a194a01705989e69e23c6af8386ec4f0453e7da710f1ea742",
+              "text": "{\"argv\":[\"--root\",\"/opt/afs-main-bind-accepted-20261007-r1/control/runtime-state\",\"exec\",\"afs-native-first\",\"/bin/sh\",\"-ec\",\"set +e\\nuid=$(/bin/busybox id -u)\\n/bin/busybox echo uid=$uid\\ntest \\\"$uid\\\" = 501 || exit 7\\n/bin/busybox cat /workspace/.afs-native-mixed-67600-1791350722397689971-root-owned-0600.txt\\nread_rc=$?\\n/bin/busybox sh -c 'printf blocked >> /workspace/.afs-native-mixed-67600-1791350722397689971-root-owned-0600.txt'\\nwrite_rc=$?\\n/bin/busybox echo read_rc=$read_rc\\n/bin/busybox echo write_rc=$write_rc\\ntest \\\"$read_rc\\\" != 0 && test \\\"$write_rc\\\" != 0\\n\"],\"program\":\"/usr/local/sbin/runc\",\"timeout_ms\":120000}"
+            },
+            "exit_json": {
+              "bytes": 39,
+              "path": "/opt/afs-main-bind-accepted-20261007-r1/control/command-0006.exit.json",
+              "sha256": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+              "text": "{\"code\":0,\"reason\":null,\"success\":true}"
+            },
+            "stderr": {
+              "bytes": 223,
+              "path": "/opt/afs-main-bind-accepted-20261007-r1/control/command-0006.stderr",
+              "sha256": "4393466fb2650a8637aa10de16e59f15413dbe49e76f0e79b4b9038c3e51bcae",
+              "text": "cat: can't open '/workspace/.afs-native-mixed-67600-1791350722397689971-root-owned-0600.txt': Permission denied\nsh: can't create /workspace/.afs-native-mixed-67600-1791350722397689971-root-owned-0600.txt: Permission denied\n"
+            },
+            "stdout": {
+              "bytes": 29,
+              "path": "/opt/afs-main-bind-accepted-20261007-r1/control/command-0006.stdout",
+              "sha256": "0836267552437c7c27f6381f77ffa59efe0977d2ee721294ac2a11eab6a382fd",
+              "text": "uid=501\nread_rc=1\nwrite_rc=1\n"
+            },
+            "stem": "/opt/afs-main-bind-accepted-20261007-r1/control/command-0006"
+          }
+        ],
+        "exclusive": {
+          "errno": 17,
+          "errno_name": "EEXIST",
+          "message": "[Errno 17] File exists: '/proc/67552/root/workspace/.afs-native-mixed-67600-1791350722397689971-exclusive.txt'"
+        },
+        "expected_sha256": "970c1502b114e2cbef4c078048e93f04408be0f2ae49eef62140f2266e8c9b3b",
+        "missing": {
+          "primary": {
+            "errno": 2,
+            "errno_name": "ENOENT",
+            "message": "[Errno 2] No such file or directory: '/proc/67552/root/workspace/.afs-native-mixed-67600-1791350722397689971-missing.txt'"
+          },
+          "secondary": {
+            "errno": 2,
+            "errno_name": "ENOENT",
+            "message": "[Errno 2] No such file or directory: '/proc/67552/root/workspace/.afs-native-mixed-67600-1791350722397689971-missing.txt'"
+          }
+        },
+        "parent": {
+          "dev": 64769,
+          "gid": 501,
+          "ino": 826020,
+          "mode": "0o700",
+          "mtime_ns": 1791350722482607924,
+          "path": "/proc/67552/root/workspace",
+          "size": 4096,
+          "uid": 501
+        },
+        "root_file": {
+          "dev": 64769,
+          "gid": 0,
+          "ino": 826084,
+          "mode": "0o600",
+          "mtime_ns": 1791350722397611349,
+          "path": "/proc/67552/root/workspace/.afs-native-mixed-67600-1791350722397689971-root-owned-0600.txt",
+          "size": 25,
+          "uid": 0
+        },
+        "root_file_sha256": "970c1502b114e2cbef4c078048e93f04408be0f2ae49eef62140f2266e8c9b3b"
+      },
+      "duration_ms": 85.192,
+      "name": "permissions_errno",
+      "out": "/var/tmp/afs-main-bind-accepted-20261007-r1/results-r1/semantics-reference/permissions_errno",
+      "started_at": "2026-10-07T05:25:22Z",
+      "status": "PASS"
+    }
+  ],
+  "summary": {
+    "failed": 0,
+    "passed": 1,
+    "total": 1
+  },
+  "tool": {
+    "path": "/var/tmp/afs-main-bind-accepted-20261007-r1/tools/development/acceptance/probes/native_mixed.py",
+    "sha256": "c8837db0afeff1e8acb3b1ee8563257767c67343d46873390431b250ec86d6d4"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "request_id": "first",
+  "response": {
+    "access_generation": 1,
+    "container": "afs-native-first",
+    "epoch": 1,
+    "home_node": "node-a",
+    "home_session": "d7bdec90-da1c-4748-aef8-b2741e24a823",
+    "production_ready": false,
+    "root": "root-776f726b7370616365",
+    "scope": "single managed experimental container; not READY or revocation ACK",
+    "state": "FinalVerified"
+  }
+}

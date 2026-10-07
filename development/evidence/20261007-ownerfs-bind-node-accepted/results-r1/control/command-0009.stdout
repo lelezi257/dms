@@ -1,0 +1,10 @@
+{
+  "ociVersion": "1.3.0",
+  "id": "afs-native-first",
+  "pid": 67552,
+  "status": "running",
+  "bundle": "/opt/afs-main-bind-accepted-20261007-r1/control/bundle-afs-native-first",
+  "rootfs": "/opt/afs-main-bind-accepted-20261007-r1/control/bundle-afs-native-first/rootfs",
+  "created": "2026-10-07T05:25:22.094734849Z",
+  "owner": ""
+}

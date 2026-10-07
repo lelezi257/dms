@@ -1,0 +1,74 @@
+{
+  "classification": "HISTORICAL_PASS_LIMITED_REUSE_NOT_6D_SUITE_EXECUTION",
+  "references": [
+    {
+      "path": "development/evidence/20261006-e2e-current/release-r1/inputs.json",
+      "bytes": 16285,
+      "sha256": "2e0017b76df2ece401676faa83805418c4505391175dc727a3eb3ff2f8ee7cf9"
+    },
+    {
+      "path": "development/evidence/20261006-e2e-current/release-r1/runtime/results/owner-pjdfstest-release-r1/artifacts/std-01-pjdfstest/proof.json",
+      "bytes": 69457,
+      "sha256": "2580f1bd7181a4222af34ef297f50b678f62c5cb43125df866711b1e3f64b6e0"
+    },
+    {
+      "path": "development/evidence/20261006-e2e-current/r3/owner-ltp-r1/artifacts/std-02-ltp/proof.json",
+      "bytes": 7575,
+      "sha256": "699e821ab9333d97cefa58c13fd7330fb39da880f1ffdd0a5e775d6230bec903"
+    },
+    {
+      "path": "development/evidence/20261006-e2e-current/r2/owner-fsx-r1/artifacts/std-03-fsx/proof.json",
+      "bytes": 8066,
+      "sha256": "313eaf2a1cfb15add547ab1ba8bb3278dc0d1de33a7dabc8c18f4d21afa6adec"
+    },
+    {
+      "path": "development/evidence/20261007-standard-reuse/admission-correction/raw/afs-g1-clean-ltp-install.stdout",
+      "bytes": 3888,
+      "sha256": "07b1a4fe956ccb49f3b31e2768ca324a063277bd32068f6ab5ca77c01287cd09"
+    }
+  ],
+  "matched_current_ltp": [
+    {
+      "sha256": "f9d2c516de03b985729948ac69b49fdccf1b01d552dbe89c33c13e96b055a4cd",
+      "path": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/kirk",
+      "previous_match": true
+    },
+    {
+      "sha256": "93d60fb5b90e134a46129e5a773c7013b022adae5f8d68af422e37af03cc8ff4",
+      "path": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-filesystem-expanded.tsv",
+      "previous_match": true
+    },
+    {
+      "sha256": "be765b2849d2e31e274eacc6e7b8e4f180a3934fe001743c79c68790532ccbd1",
+      "path": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/open01",
+      "previous_match": true
+    },
+    {
+      "sha256": "c52e9776a4e121a61f3f518977146e51a1425aeaa472260c3bec0c3cd8fcf390",
+      "path": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/read01",
+      "previous_match": true
+    },
+    {
+      "sha256": "9e11b6d314a64022f34b33d5ff1c7eb1c29b7fcbf130be8f04a89d73a72da770",
+      "path": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/write01",
+      "previous_match": true
+    },
+    {
+      "sha256": "1e77e026b066c53af78b0ed7434a9aaae5dd6badc675286bb1247bea81445c7c",
+      "path": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/stat01",
+      "previous_match": true
+    },
+    {
+      "sha256": "18515f2a1e984276ff92243d8cb9cb3f817aa10042734f098f3c49bc3f5ed3d3",
+      "path": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/chmod01",
+      "previous_match": true
+    },
+    {
+      "sha256": "44ec3816a0ad3f7593b00bb05e2aff55160cfbe9b4e67464a8434aa994567959",
+      "path": "/var/tmp/afs-e2e-20261006-r1/suites/ltp-small-install/testcases/bin/fcntl14",
+      "previous_match": true
+    }
+  ],
+  "initial_path_check_error": "Source-tree LTP testcases/bin was queried instead of original install_root. Raw exit1 preserved; targeted read-only original install_root passes. No missing dependency or environment repair.",
+  "blocked_build_lane": "afs-build ENOSPC unchanged; pending user environment decision; no compile/runtime rerun"
+}

@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/tmp",
+    "afs-g1-clean",
+    "--",
+    "sh",
+    "-lc",
+    "set -eu\nuname -srm\nsha256sum /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-meta /var/tmp/afs-off-6d-20261007-r1/prefix/bin/afs-node\nfor suite in pjdfstest ltp secfs.test; do git -C /var/tmp/afs-e2e-20261006-r1/suites/$suite rev-parse HEAD; git -C /var/tmp/afs-e2e-20261006-r1/suites/$suite diff --exit-code; done\nsha256sum /var/tmp/afs-e2e-20261006-r1/suites/pjdfstest/pjdfstest /var/tmp/afs-e2e-20261006-r1/suites/secfs.test/tools/bin/fsx\nsha256sum /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/open01 /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/read01 /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/write01 /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/stat01 /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/chmod01 /var/tmp/afs-e2e-20261006-r1/suites/ltp/testcases/bin/fcntl14\n"
+  ],
+  "exit": 1,
+  "scope": "read-only metadata; wrong LTP source-tree binary paths retained, actual historical install_root will be checked separately"
+}

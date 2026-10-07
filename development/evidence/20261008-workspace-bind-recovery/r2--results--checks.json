@@ -1,0 +1,564 @@
+{
+  "Linux-ARM64-root": {
+    "status": "PASS",
+    "value": {
+      "system": "Linux",
+      "node": "lima-afs-g2-micro",
+      "release": "6.8.0-106-generic",
+      "version": "#106-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 07:44:40 UTC 2026",
+      "machine": "aarch64",
+      "processor": "aarch64"
+    }
+  },
+  "dependencies": {
+    "status": "PASS",
+    "value": {
+      "bash": "/usr/bin/bash",
+      "python3": "/usr/bin/python3",
+      "openssl": "/usr/bin/openssl",
+      "findmnt": "/usr/bin/findmnt",
+      "fusermount3": "/usr/bin/fusermount3",
+      "ldd": "/usr/bin/ldd",
+      "sha256sum": "/usr/bin/sha256sum",
+      "ss": "/usr/bin/ss",
+      "curl": "/usr/bin/curl",
+      "flock": "/usr/bin/flock",
+      "sed": "/usr/bin/sed",
+      "awk": "/usr/bin/awk",
+      "grep": "/usr/bin/grep",
+      "mountpoint": "/usr/bin/mountpoint",
+      "readlink": "/usr/bin/readlink",
+      "setsid": "/usr/bin/setsid",
+      "timeout": "/usr/bin/timeout"
+    }
+  },
+  "owned-existing-root": {
+    "status": "PASS",
+    "value": "/opt/afs-workspace-bind-epoch-20261008-r2"
+  },
+  "exact-tool-inputs": {
+    "status": "PASS",
+    "value": {
+      "workspace-bind-epoch-linux.py": "00bcc33b2494ace4b80bbca3d5db60355c28ffd611e69ed62e2e371a0fda0d80",
+      "workspace-host-linux.py": "5f17fe4a7c692febeda2b6d26f7355426d70432a5eac5ece7a4b3ba50d642e89",
+      "installed-smoke-linux.py": "d19937cac0146045eacd750c8a4465095ed76bc095e7d451b3e37fe329fa8153",
+      "orderly-runtime-checks.py": "538122ed608735cfe11cfc89667a4ab28b2855cefeb62394596725289df4d957",
+      "probes/native_orderly_recovery.py": "3dc731423f47ee08bb35d7b020402466f74bcbdffdbf7d7ec72207ae710b4064",
+      "probes/fuse_callback_counts.py": "9690d6a885d6e27307f6a8782dd50103a36a34230cc213d70dc2ba6923894feb",
+      "probes/workspace_host.py": "6e87f46c0563565afe5c6994c2403930ca6828a1f46953cd2fd6369641e35b82",
+      "workspace-bind-recovery-linux.py": "9d2ea612bea4a4360d3ee952ccae5944d112a197e62318da64f78520a59f6ae4",
+      "test_workspace_bind_recovery.py": "d162cd8ef9c4ffb68adcc801f61be79ffe483e44c2f849493ea693312df57f04"
+    }
+  },
+  "tool-map-sha": {
+    "status": "PASS",
+    "value": "61837e9f0492683f631c2946cfeb0f40668782838e0243415441b82647efa088"
+  },
+  "previous-index-sha": {
+    "status": "PASS",
+    "value": "94c646d62652708de4b423fc89f59f4ca3230785673768eabb201cc43129bdfd"
+  },
+  "previous-result.json": {
+    "status": "PASS",
+    "value": "69cf3148db4f34e274320f44bc7b3ae1023ad464d7e89e6a76b88a95a8d14a54"
+  },
+  "previous-original-health.json": {
+    "status": "PASS",
+    "value": "fbe6b668e342a3c4d2d2e7785ba97823c28134ab754e11f058830d89829db032"
+  },
+  "previous-replacement-health.json": {
+    "status": "PASS",
+    "value": "3a0916787d4a203a8f2f49e3ea8b2e781fae9d9238fd5c393b9d4b0479a5a310"
+  },
+  "previous-original-identity.json": {
+    "status": "PASS",
+    "value": "ab763308be8d785230eabd0eeaaa13a2ec1aa17bc6b062213b963e103d890ace"
+  },
+  "previous-binding-before.json": {
+    "status": "PASS",
+    "value": "b5da0cd3e284cec1ab1221f21e9ca7b09be7a859883594b7cd28ec9be0f0ea51"
+  },
+  "previous-original-authority-exit.json": {
+    "status": "PASS",
+    "value": "84823fac2c4a654aff84c884934b29fe6f9f8311fea1c548f00f502fd8503d4a"
+  },
+  "same-runtime-source": {
+    "status": "PASS",
+    "value": {
+      "status": "FAIL",
+      "source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+      "scope": "one real heartbeat-driven authority-error bind closure; 4096B",
+      "error": "authority-error-preserved",
+      "cleanup_error": "command 031 exit 1"
+    }
+  },
+  "existing-physical-Home": {
+    "status": "PASS",
+    "value": {
+      "source": "/opt/afs-workspace-bind-epoch-20261008-r2/state/node/ownerfs/root-776f726b7370616365-e1",
+      "target": "/opt/afs-workspace-bind-epoch-20261008-r2/mount/ownerfs/workspace",
+      "cover": {
+        "target": "/opt/afs-workspace-bind-epoch-20261008-r2/mount/ownerfs/workspace",
+        "source": "/dev/vda1[/opt/afs-workspace-bind-epoch-20261008-r2/state/node/ownerfs/root-776f726b7370616365-e1]",
+        "fstype": "ext4",
+        "options": "rw,nosuid,nodev,relatime,discard,errors=remount-ro,commit=30",
+        "id": 88
+      },
+      "underlying": {
+        "target": "/",
+        "source": "/dev/vda1",
+        "fstype": "ext4",
+        "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+      },
+      "namespace": {
+        "dev": 4,
+        "ino": 4026531841
+      },
+      "source_identity": [
+        64769,
+        829730
+      ],
+      "target_identity": [
+        64769,
+        829730
+      ]
+    }
+  },
+  "same-archived-physical-directory": {
+    "status": "PASS",
+    "value": [
+      64769,
+      829730
+    ]
+  },
+  "exact-archived-state-before-launch": {
+    "status": "PASS",
+    "value": {
+      "meta/meta-store/LOCK": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "meta/meta-store/wal": "e1a54b6eccff12d6b7192b8250f96ed5c8323f14d028dae531d25572f73d091e",
+      "node/ownerfs/.ownerfs-root-catalog.lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "node/ownerfs/.ownerfs-roots/root-776f726b7370616365.json": "0444a120548e2b2e551482462373fd117a589860de15d2a90b224513e910db05",
+      "node/ownerfs/root-776f726b7370616365-e1/epoch-proof": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193"
+    }
+  },
+  "meta-actual-ELF": {
+    "status": "PASS",
+    "value": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd"
+  },
+  "meta-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000f4dbac3ce000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f4dbab880000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f4dbab7d0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f4dbab610000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f4dbac380000)\n"
+  },
+  "meta-state-isolated": {
+    "status": "PASS",
+    "value": "/opt/afs-workspace-bind-epoch-20261008-r2/state/meta"
+  },
+  "same-local-file-Meta": {
+    "status": "PASS",
+    "value": "local-file"
+  },
+  "node-actual-ELF": {
+    "status": "PASS",
+    "value": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36"
+  },
+  "node-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000f3986c1ea000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f3986b090000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f3986afe0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f3986ae20000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f3986c1a0000)\n"
+  },
+  "node-state-isolated": {
+    "status": "PASS",
+    "value": "/opt/afs-workspace-bind-epoch-20261008-r2/state/node"
+  },
+  "same-host-ON-container-OFF": {
+    "status": "PASS",
+    "value": {
+      "id": "node-a",
+      "fs": "ownerfs",
+      "meta_endpoint": "https://127.0.0.1:22400",
+      "grpc_listen": "127.0.0.1:22500",
+      "rest_listen": "127.0.0.1:22501",
+      "advertise_endpoint": "https://127.0.0.1:22500",
+      "data_dir": "/opt/afs-workspace-bind-epoch-20261008-r2/state/node",
+      "uds_path": "/opt/afs-workspace-bind-epoch-20261008-r2/run/node.sock",
+      "ownerfs_mount": "/opt/afs-workspace-bind-epoch-20261008-r2/mount/ownerfs",
+      "data_mode": "grpc",
+      "allow_volatile_meta": false,
+      "dfs_desired_copies": 1,
+      "dfs_sync_required_copies": 1,
+      "dfs_min_distinct_nodes": 1,
+      "dfs_min_distinct_failure_domains": 1,
+      "dfs_local_copy": "required",
+      "log_level": "info",
+      "trace_enabled": false,
+      "tls_ca_certificate": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/tls/ca.pem",
+      "tls_identity_certificate": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/tls/node-a.pem",
+      "tls_identity_private_key": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/tls/node-a-key.pem",
+      "tls_server_name": "afs-meta",
+      "trusted_node_certs": {
+        "node-a": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/tls/node-a.pem"
+      },
+      "experimental_ownerfs_workspace_bind": true,
+      "ownerfs_workspace_bind": {
+        "workspace": "workspace"
+      }
+    }
+  },
+  "same-processctl": {
+    "status": "PASS",
+    "value": "1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896"
+  },
+  "no-owned-product-process": {
+    "status": "PASS",
+    "value": {
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "processes": [],
+      "mountinfo": [
+        "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+        "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+        "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4020012k,nr_inodes=1005003,mode=755,inode64",
+        "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+        "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811364k,mode=755,inode64",
+        "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+        "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+        "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+        "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+        "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+        "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+        "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+        "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+        "40 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3230",
+        "41 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:15 - mqueue mqueue rw",
+        "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:16 - debugfs debugfs rw",
+        "43 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:17 - hugetlbfs hugetlbfs rw,pagesize=2M",
+        "44 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:18 - tracefs tracefs rw",
+        "45 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+        "46 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+        "48 32 259:0 / /boot rw,relatime shared:30 - ext4 /dev/vda16 rw",
+        "50 48 253:15 / /boot/efi rw,relatime shared:47 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+        "52 40 0:37 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:49 - binfmt_misc binfmt_misc rw",
+        "56 32 0:44 / /workspace/dms ro,relatime shared:147 - virtiofs lima-a7a710dc212e898d ro",
+        "98 32 253:16 / /mnt/lima-cidata ro,relatime shared:350 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+        "58 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:99 - tmpfs tmpfs rw,size=811360k,nr_inodes=202840,mode=700,uid=501,gid=1000,inode64"
+      ]
+    }
+  },
+  "same-guest-ext4": {
+    "status": "PASS",
+    "value": {
+      "filesystems": [
+        {
+          "target": "/",
+          "source": "/dev/vda1",
+          "fstype": "ext4",
+          "options": "rw,relatime,discard,errors=remount-ro,commit=30",
+          "uuid": "870a8026-08a8-47e1-9135-0221379c44d6"
+        }
+      ]
+    }
+  },
+  "FUSE-device": {
+    "status": "PASS",
+    "value": "/dev/fuse"
+  },
+  "ports-free": {
+    "status": "PASS",
+    "value": [
+      22400,
+      22401,
+      22500,
+      22501
+    ]
+  },
+  "budget-admission": {
+    "status": "PASS",
+    "value": {
+      "allocated_bytes": 82522112,
+      "apparent_bytes": 82273639,
+      "distinct_inodes": 149,
+      "free_bytes": 6999650304
+    }
+  },
+  "actual-OwnerFs-FUSE": {
+    "status": "PASS",
+    "value": {
+      "filesystems": [
+        {
+          "target": "/opt/afs-workspace-bind-epoch-20261008-r2/mount/ownerfs",
+          "source": "afs-ownerfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "id": 80
+        }
+      ]
+    }
+  },
+  "fresh-recovered-session": {
+    "status": "PASS",
+    "value": {
+      "fresh_for_ms": 30000,
+      "last_error": null,
+      "last_success_age_ms": 123,
+      "lease_epoch": 5,
+      "ready": true,
+      "required": true,
+      "session_id": "9f2efeb4-66b3-41d6-b2ae-847422a845a8"
+    }
+  },
+  "meta-new-incarnation": {
+    "status": "PASS",
+    "value": {
+      "pid": 105256,
+      "starttick": 13436800,
+      "sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+      "installed": {
+        "path": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-meta",
+        "device": 64769,
+        "inode": 829713
+      },
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "namespace": {
+        "dev": 4,
+        "ino": 4026531841
+      }
+    }
+  },
+  "node-new-incarnation": {
+    "status": "PASS",
+    "value": {
+      "pid": 105501,
+      "starttick": 13436817,
+      "sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+      "installed": {
+        "path": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-node",
+        "device": 64769,
+        "inode": 829714
+      },
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "namespace": {
+        "dev": 4,
+        "ino": 4026531841
+      }
+    }
+  },
+  "unique-physical-Home-epoch": {
+    "status": "PASS",
+    "value": [
+      "/opt/afs-workspace-bind-epoch-20261008-r2/state/node/ownerfs/root-776f726b7370616365-e1"
+    ]
+  },
+  "real-host-bind": {
+    "status": "PASS",
+    "value": {
+      "source": "/opt/afs-workspace-bind-epoch-20261008-r2/state/node/ownerfs/root-776f726b7370616365-e1",
+      "target": "/opt/afs-workspace-bind-epoch-20261008-r2/mount/ownerfs/workspace",
+      "cover": {
+        "target": "/opt/afs-workspace-bind-epoch-20261008-r2/mount/ownerfs/workspace",
+        "source": "/dev/vda1[/opt/afs-workspace-bind-epoch-20261008-r2/state/node/ownerfs/root-776f726b7370616365-e1]",
+        "fstype": "ext4",
+        "options": "rw,nosuid,nodev,relatime,discard,errors=remount-ro,commit=30",
+        "id": 91
+      },
+      "underlying": {
+        "target": "/",
+        "source": "/dev/vda1",
+        "fstype": "ext4",
+        "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+      },
+      "namespace": {
+        "dev": 4,
+        "ino": 4026531841
+      },
+      "source_identity": [
+        64769,
+        829730
+      ],
+      "target_identity": [
+        64769,
+        829730
+      ]
+    }
+  },
+  "same-physical-Home": {
+    "status": "PASS",
+    "value": {
+      "source": "/opt/afs-workspace-bind-epoch-20261008-r2/state/node/ownerfs/root-776f726b7370616365-e1",
+      "target": "/opt/afs-workspace-bind-epoch-20261008-r2/mount/ownerfs/workspace",
+      "cover": {
+        "target": "/opt/afs-workspace-bind-epoch-20261008-r2/mount/ownerfs/workspace",
+        "source": "/dev/vda1[/opt/afs-workspace-bind-epoch-20261008-r2/state/node/ownerfs/root-776f726b7370616365-e1]",
+        "fstype": "ext4",
+        "options": "rw,nosuid,nodev,relatime,discard,errors=remount-ro,commit=30",
+        "id": 91
+      },
+      "underlying": {
+        "target": "/",
+        "source": "/dev/vda1",
+        "fstype": "ext4",
+        "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+      },
+      "namespace": {
+        "dev": 4,
+        "ino": 4026531841
+      },
+      "source_identity": [
+        64769,
+        829730
+      ],
+      "target_identity": [
+        64769,
+        829730
+      ]
+    }
+  },
+  "confirmed-proof-recovered": {
+    "status": "PASS",
+    "value": {
+      "size": 4096,
+      "sha256": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
+      "content_matches": true,
+      "eof": true,
+      "mode": 420,
+      "uid": 0,
+      "gid": 0,
+      "device": 64769,
+      "inode": 829768
+    }
+  },
+  "recovered-meta-unique-receipt": {
+    "status": "PASS",
+    "value": [
+      "/opt/afs-workspace-bind-epoch-20261008-r2/run/meta.lifecycle.1bCQ8E"
+    ]
+  },
+  "recovered-node-unique-receipt": {
+    "status": "PASS",
+    "value": [
+      "/opt/afs-workspace-bind-epoch-20261008-r2/run/node.lifecycle.7d5TvW"
+    ]
+  },
+  "recovered-normal-closure": {
+    "status": "PASS",
+    "value": {
+      "meta": {
+        "child": {
+          "pid": "105256",
+          "exe": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-meta",
+          "config": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/meta.toml",
+          "start_ticks": "13436800",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-bind-epoch-20261008-r2/run/meta.lifecycle.1bCQ8E",
+          "supervisor_pid": "105240"
+        },
+        "ready": {
+          "supervisor_pid": "105240"
+        },
+        "exit": {
+          "pid": "105256",
+          "exe": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-meta",
+          "config": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/meta.toml",
+          "start_ticks": "13436800",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-bind-epoch-20261008-r2/run/meta.lifecycle.1bCQ8E",
+          "supervisor_pid": "105240",
+          "exit_code": "0"
+        },
+        "both_gone": true
+      },
+      "node": {
+        "child": {
+          "pid": "105501",
+          "exe": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-node",
+          "config": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/node.toml",
+          "start_ticks": "13436817",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-bind-epoch-20261008-r2/run/node.lifecycle.7d5TvW",
+          "supervisor_pid": "105485"
+        },
+        "ready": {
+          "supervisor_pid": "105485"
+        },
+        "exit": {
+          "pid": "105501",
+          "exe": "/opt/afs-workspace-bind-epoch-20261008-r2/prefix/bin/afs-node",
+          "config": "/opt/afs-workspace-bind-epoch-20261008-r2/etc/node.toml",
+          "start_ticks": "13436817",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/opt/afs-workspace-bind-epoch-20261008-r2/run/node.lifecycle.7d5TvW",
+          "supervisor_pid": "105485",
+          "exit_code": "0"
+        },
+        "both_gone": true
+      }
+    }
+  },
+  "config-prefix-unchanged": {
+    "status": "PASS",
+    "value": {
+      "etc/env": "e2b27197df04b1069896469288dc313033fce92a63a294136cc1d3ecd5f8a738",
+      "etc/meta.toml": "f40bce3e0dfcf596c22f8feeeab8505cfbcbcdb026073a917ea476c6a9a52f0f",
+      "etc/node-dfs.toml": "6951316804eb44c7d38f2bc67ebcbe4d75e000973bce274a301483a0a148eff7",
+      "etc/node-ownerfs.toml": "6951316804eb44c7d38f2bc67ebcbe4d75e000973bce274a301483a0a148eff7",
+      "etc/node.toml": "6951316804eb44c7d38f2bc67ebcbe4d75e000973bce274a301483a0a148eff7",
+      "etc/tls/ca-key.pem": "b6257bbda83990a2ff2914b6eff48683dc7a2ba9bcd431f76e62862249af07fd",
+      "etc/tls/ca.pem": "33b4b8fc4bd0efb3089544d5f0db22a044deb037972f55931b1898df3331389c",
+      "etc/tls/ca.srl": "df8a0886510c3a7cc01cff984acdd87fb1af5c14a3fdaa58ce6e7b29105d0e9c",
+      "etc/tls/meta-key.pem": "c6fad3ab8636ee3d02df2144df611d347027a38b3ac12de65a5d09f780e14122",
+      "etc/tls/meta.pem": "7119de7665545537cac5fabdeb8b9f0e93c78a5b1d0460ecf0220a1c2e5fefb4",
+      "etc/tls/node-a-key.pem": "9eb179f0dd5eb576fd546c30027063339ebbf9e3d7736c90be06c51ae6bb8ef6",
+      "etc/tls/node-a.pem": "0f5e857b8886a4a75c9544e079aaec401bd5fb63e27a4cfea2511b0847d6722c",
+      "prefix/DEPENDENCIES.md": "23252af9e85749e0ba1bc780165a4aecb0bb040a37885654a388173864f6a8ad",
+      "prefix/bin/afs-meta": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+      "prefix/bin/afs-node": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+      "prefix/bin/afs-processctl": "1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896",
+      "prefix/bin/afs-selfcheck": "573d174c6cae3581e080532ae59e207d92e27b730f08190b1ee99d457bedfb4a",
+      "prefix/bin/afs-trial-config": "c47783f9525826d4a0e137499bb1a779f94b3474c7355dd53aec0e615b98889b",
+      "prefix/bin/dep02-smoke.sh": "0a5d929c9a6da73235c3fe8e2e4623ea9813b5e6a59027d95a1cc9d2d886f0c2",
+      "prefix/docs/guides/trial.md": "3c79ec5cb87af968da9c02d4b34c23f22610649fb78834127fc9e15378f45eaf",
+      "prefix/manifest.json": "9dabcad013c44893d3cc4ef50fe4ac108b70c79ee9d58743ad4ac7ba6d988605"
+    }
+  },
+  "budget-final": {
+    "status": "PASS",
+    "value": {
+      "allocated_bytes": 82616320,
+      "apparent_bytes": 82320937,
+      "distinct_inodes": 172,
+      "free_bytes": 6999556096
+    }
+  },
+  "no-owned-product-process-final": {
+    "status": "PASS",
+    "value": {
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "processes": [],
+      "mountinfo": [
+        "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+        "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+        "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4020012k,nr_inodes=1005003,mode=755,inode64",
+        "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+        "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811364k,mode=755,inode64",
+        "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+        "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+        "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+        "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+        "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+        "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+        "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+        "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+        "40 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3230",
+        "41 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:15 - mqueue mqueue rw",
+        "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:16 - debugfs debugfs rw",
+        "43 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:17 - hugetlbfs hugetlbfs rw,pagesize=2M",
+        "44 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:18 - tracefs tracefs rw",
+        "45 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+        "46 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+        "48 32 259:0 / /boot rw,relatime shared:30 - ext4 /dev/vda16 rw",
+        "50 48 253:15 / /boot/efi rw,relatime shared:47 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+        "52 40 0:37 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:49 - binfmt_misc binfmt_misc rw",
+        "56 32 0:44 / /workspace/dms ro,relatime shared:147 - virtiofs lima-a7a710dc212e898d ro",
+        "98 32 253:16 / /mnt/lima-cidata ro,relatime shared:350 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+        "58 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:99 - tmpfs tmpfs rw,size=811360k,nr_inodes=202840,mode=700,uid=501,gid=1000,inode64"
+      ]
+    }
+  }
+}

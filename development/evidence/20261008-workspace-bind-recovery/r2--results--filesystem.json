@@ -1,0 +1,11 @@
+{
+  "filesystems": [
+    {
+      "target": "/",
+      "source": "/dev/vda1",
+      "fstype": "ext4",
+      "options": "rw,relatime,discard,errors=remount-ro,commit=30",
+      "uuid": "870a8026-08a8-47e1-9135-0221379c44d6"
+    }
+  ]
+}

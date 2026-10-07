@@ -1,0 +1,7 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+started meta pid=72084 ready=true
+started ownerfs pid=72277 ready=true
+bash: line 1: /mount/ownerfs/workspace/off-seed: No such file or directory
+sync: error opening '/mount/ownerfs/workspace/off-seed': No such file or directory
+cat: /mount/ownerfs/workspace/off-seed: No such file or directory

@@ -1,0 +1,128 @@
+{
+  "Linux-ARM64-root": {
+    "status": "PASS",
+    "value": [
+      "Linux",
+      "aarch64",
+      0
+    ]
+  },
+  "dependencies": {
+    "status": "PASS",
+    "value": {
+      "bash": "/usr/bin/bash",
+      "python3": "/usr/bin/python3",
+      "openssl": "/usr/bin/openssl",
+      "findmnt": "/usr/bin/findmnt",
+      "fusermount3": "/usr/bin/fusermount3",
+      "ldd": "/usr/bin/ldd",
+      "sha256sum": "/usr/bin/sha256sum",
+      "tar": "/usr/bin/tar",
+      "ss": "/usr/bin/ss",
+      "curl": "/usr/bin/curl",
+      "flock": "/usr/bin/flock",
+      "sed": "/usr/bin/sed",
+      "awk": "/usr/bin/awk",
+      "grep": "/usr/bin/grep",
+      "mountpoint": "/usr/bin/mountpoint",
+      "install": "/usr/bin/install",
+      "readlink": "/usr/bin/readlink",
+      "setsid": "/usr/bin/setsid",
+      "timeout": "/usr/bin/timeout"
+    }
+  },
+  "owned-fresh-root": {
+    "status": "PASS",
+    "value": "/opt/afs-workspace-host-runtime-20261007-r1"
+  },
+  "exact-tool-inputs": {
+    "status": "PASS",
+    "value": {
+      "workspace-host-linux.py": "d27b25df65610bd3c428b8f9668454e0d84e695348c9cdd99319904e41cafe30",
+      "installed-smoke-linux.py": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+      "orderly-runtime-checks.py": "538122ed608735cfe11cfc89667a4ab28b2855cefeb62394596725289df4d957",
+      "probes/native_orderly_recovery.py": "3dc731423f47ee08bb35d7b020402466f74bcbdffdbf7d7ec72207ae710b4064",
+      "probes/fuse_callback_counts.py": "9690d6a885d6e27307f6a8782dd50103a36a34230cc213d70dc2ba6923894feb",
+      "probes/workspace_host.py": "19d4a466372b625d6b59de3358f1f7e15fd9fa4d37ec92675d11d37dfae65631"
+    }
+  },
+  "tool-map-sha": {
+    "status": "PASS",
+    "value": "b4e8d65566545fd557f14db2662a1177910027e0dc69af1c4e907fa68c4ec222"
+  },
+  "meta-admitted-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000fc8de183a000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000fc8de0d00000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000fc8de0cc0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000fc8de0c10000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000fc8de0a50000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000fc8de17f0000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000fc8de09a0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000fc8de0950000)\n"
+  },
+  "node-admitted-libraries": {
+    "status": "PASS",
+    "value": "\tlinux-vdso.so.1 (0x0000fd2d8abca000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000fd2d899b0000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000fd2d89970000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000fd2d898c0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000fd2d89700000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000fd2d8ab80000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000fd2d89650000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000fd2d89600000)\n"
+  },
+  "package-source-ELFs": {
+    "status": "PASS",
+    "value": {
+      "schema": "afs.release-package.v1",
+      "name": "afs",
+      "version": "0.1.0-g2-main-93169c8",
+      "target": "linux-aarch64",
+      "source_commit": "93169c8530beedff9e8e510dc9b9210d704f244f",
+      "source_date_epoch": 0,
+      "features": "ownerfs,dfs,rdma",
+      "rust_toolchain": "1.95.0",
+      "binaries": {
+        "afs-meta": {
+          "sha256": "4150942fd873b879ab6dc9034904116cf1670904a259d6a081f3b0c1fd1e7343"
+        },
+        "afs-node": {
+          "sha256": "9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d"
+        }
+      },
+      "contains": [
+        "afs-meta",
+        "afs-node",
+        "afs-processctl",
+        "afs-trial-config",
+        "afs-selfcheck",
+        "dep02-smoke.sh",
+        "docs/guides/trial.md"
+      ],
+      "installer": "install.sh",
+      "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+    }
+  },
+  "FUSE-device": {
+    "status": "PASS",
+    "value": "/dev/fuse"
+  },
+  "ext4": {
+    "status": "PASS",
+    "value": {
+      "filesystems": [
+        {
+          "target": "/",
+          "source": "/dev/vda1",
+          "fstype": "ext4",
+          "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+        }
+      ]
+    }
+  },
+  "ports-free": {
+    "status": "PASS",
+    "value": [
+      22400,
+      22401,
+      22500,
+      22501
+    ]
+  },
+  "budget-admission": {
+    "status": "PASS",
+    "value": {
+      "allocated_bytes": 57192448,
+      "apparent_bytes": 57134106,
+      "distinct_inodes": 35,
+      "free_bytes": 8498946048
+    }
+  }
+}

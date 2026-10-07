@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir",
+    "/workspace/dms/source",
+    "afs-build",
+    "--",
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "development.acceptance.probes.test_workspace_host",
+    "development.acceptance.probes.test_fuse_callback_counts"
+  ],
+  "exit": 0
+}

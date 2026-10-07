@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir",
+    "/workspace/dms/source",
+    "afs-build",
+    "--",
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "development.acceptance.probes.test_workspace_host.WorkspaceHostGuards.test_permission_denial_does_not_stat_an_inaccessible_parent"
+  ],
+  "exit": 1
+}

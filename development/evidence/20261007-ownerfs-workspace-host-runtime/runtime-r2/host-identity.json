@@ -1,0 +1,43 @@
+{
+  "meta": {
+    "pid": 81886,
+    "starttick": 9003010,
+    "sha256": "4150942fd873b879ab6dc9034904116cf1670904a259d6a081f3b0c1fd1e7343",
+    "installed": {
+      "path": "/opt/afs-workspace-host-runtime-20261007-r2/prefix/bin/afs-meta",
+      "device": 64769,
+      "inode": 827830
+    },
+    "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+    "namespace": {
+      "dev": 4,
+      "ino": 4026531841
+    }
+  },
+  "node": {
+    "pid": 82131,
+    "starttick": 9003028,
+    "sha256": "9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d",
+    "installed": {
+      "path": "/opt/afs-workspace-host-runtime-20261007-r2/prefix/bin/afs-node",
+      "device": 64769,
+      "inode": 827831
+    },
+    "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+    "namespace": {
+      "dev": 4,
+      "ino": 4026531841
+    }
+  },
+  "fuse": {
+    "filesystems": [
+      {
+        "target": "/opt/afs-workspace-host-runtime-20261007-r2/mount/ownerfs",
+        "source": "afs-ownerfs",
+        "fstype": "fuse",
+        "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+        "id": 80
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir",
+    "/workspace/dms/source",
+    "afs-build",
+    "--",
+    "python3",
+    "-m",
+    "py_compile",
+    "development/acceptance/workspace-host-linux.py"
+  ],
+  "exit": 1,
+  "observation": "tool output: [Errno 30] Read-only file system writing development/acceptance/__pycache__/workspace-host-linux.cpython-312.pyc; source VM mount is intentionally read-only. No environment modification; next check uses compile() without cache writes."
+}

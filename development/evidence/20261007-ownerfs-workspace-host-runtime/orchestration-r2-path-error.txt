@@ -1,0 +1,1 @@
+Before runtime launch: prepare script incorrectly changed host RAW path to nonexistent r2 directory; file mapping write failed. Corrected only host RAW reference; no VM mutation or runtime attempt occurred. Original prepare-r1.py retained.

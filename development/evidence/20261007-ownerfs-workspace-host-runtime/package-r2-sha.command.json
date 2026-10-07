@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir",
+    "/tmp",
+    "afs-build",
+    "--",
+    "sha256sum",
+    "/var/tmp/afs-host-entry-package-20261007-r2/afs-0.1.0-g2-main-93169c8-linux-aarch64.tar.gz"
+  ],
+  "exit": 0
+}

@@ -1,0 +1,16 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+Linux lima-afs-g2-micro 6.8.0-106-generic #106-Ubuntu SMP PREEMPT_DYNAMIC Fri Mar  6 07:44:40 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+uid=501(lzc) gid=1000(lzc) groups=1000(lzc)
+086b6bdf31a6349a1fc956b107d2b85459e9dbea0c6eb9019489f9031fc44997  /var/tmp/afs-hostbind-93169c8-package.tar.gz
+3f132c4bd21ff613ca391ef06116372895796d444b30c47743759f1c099bfc64  /var/tmp/workspace_host.py
+9690d6a885d6e27307f6a8782dd50103a36a34230cc213d70dc2ba6923894feb  /var/tmp/fuse_callback_counts.py
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda1        15G  6.4G  8.1G  44% /
+/dev/vda1        15G  6.4G  8.1G  44% /
+/usr/bin/python3
+/usr/bin/sudo
+/usr/bin/curl
+/usr/bin/timeout
+/usr/bin/tar
+/usr/bin/findmnt

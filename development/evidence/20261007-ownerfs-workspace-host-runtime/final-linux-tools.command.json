@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir",
+    "/workspace/dms/source",
+    "afs-build",
+    "--",
+    "python3",
+    "-B",
+    "-c",
+    "from pathlib import Path; import subprocess,sys; files=['development/acceptance/workspace-host-linux.py','development/acceptance/probes/workspace_host.py','development/acceptance/probes/test_workspace_host.py']; [compile(Path(p).read_text(),p,'exec') for p in files]; subprocess.run([sys.executable,'-B','development/acceptance/workspace-host-linux.py','--help'],check=True); print('Linux syntax and actual CLI PASS')"
+  ],
+  "exit": 0
+}

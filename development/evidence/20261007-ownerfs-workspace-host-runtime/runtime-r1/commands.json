@@ -1,0 +1,483 @@
+[
+  {
+    "argv": [
+      "ldd",
+      "/var/tmp/afs-workspace-host-runtime-20261007-r1/admission-bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.004138124000746757,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/var/tmp/afs-workspace-host-runtime-20261007-r1/admission-bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0042151649977313355,
+    "stdout": "001.stdout",
+    "stderr": "001.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015414430090459064,
+    "stdout": "002.stdout",
+    "stderr": "002.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-xzf",
+      "/var/tmp/afs-workspace-host-runtime-20261007-r1/package.tar.gz",
+      "-C",
+      "/opt/afs-workspace-host-runtime-20261007-r1/package"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.22854296100558713,
+    "stdout": "003.stdout",
+    "stderr": "003.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-host-runtime-20261007-r1/package/afs-0.1.0-g2-main-93169c8-linux-aarch64/install.sh",
+      "--prefix",
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/logs",
+      "--mount-root",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.32588659500470385,
+    "stdout": "004.stdout",
+    "stderr": "004.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix/bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003455672995187342,
+    "stdout": "005.stdout",
+    "stderr": "005.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix/bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00386200200591702,
+    "stdout": "006.stdout",
+    "stderr": "006.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix/bin/afs-trial-config",
+      "single",
+      "--backend",
+      "local-file",
+      "--config-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/run",
+      "--mount-root",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount",
+      "--meta-grpc-port",
+      "22400",
+      "--meta-rest-port",
+      "22401",
+      "--node-grpc-port",
+      "22500",
+      "--node-rest-port",
+      "22501",
+      "--force"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.41132068300794344,
+    "stdout": "007.stdout",
+    "stderr": "007.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "verify",
+      "-CAfile",
+      "/opt/afs-workspace-host-runtime-20261007-r1/etc/tls/ca.pem",
+      "/opt/afs-workspace-host-runtime-20261007-r1/etc/tls/meta.pem"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.00766367198957596,
+    "stdout": "008.stdout",
+    "stderr": "008.stderr"
+  },
+  {
+    "argv": [
+      "openssl",
+      "verify",
+      "-CAfile",
+      "/opt/afs-workspace-host-runtime-20261007-r1/etc/tls/ca.pem",
+      "/opt/afs-workspace-host-runtime-20261007-r1/etc/tls/node-a.pem"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003395923995412886,
+    "stdout": "009.stdout",
+    "stderr": "009.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3172281420120271,
+    "stdout": "010.stdout",
+    "stderr": "010.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015239009953802451,
+    "stdout": "011.stdout",
+    "stderr": "011.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.1754664220061386,
+    "stdout": "012.stdout",
+    "stderr": "012.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs/workspace"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0015339429955929518,
+    "stdout": "013.stdout",
+    "stderr": "013.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.001563024998176843,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.38179161300649866,
+    "stdout": "015.stdout",
+    "stderr": "015.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0017556070088176057,
+    "stdout": "016.stdout",
+    "stderr": "016.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs/workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.001850105996709317,
+    "stdout": "017.stdout",
+    "stderr": "017.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt/afs-workspace-host-runtime-20261007-r1/state/node/ownerfs/root-776f726b7370616365-e1"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015509850054513663,
+    "stdout": "018.stdout",
+    "stderr": "018.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035924219992011786,
+    "stdout": "019.stdout",
+    "stderr": "019.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-host-runtime-20261007-r1/tools/probes/workspace_host.py",
+      "write",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs/control/_host_case",
+      "501",
+      "501"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.03265287600515876,
+    "stdout": "020.stdout",
+    "stderr": "020.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-host-runtime-20261007-r1/tools/probes/workspace_host.py",
+      "read",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs/control/_host_case",
+      "501",
+      "501"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.015682882003602572,
+    "stdout": "021.stdout",
+    "stderr": "021.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-host-runtime-20261007-r1/tools/probes/workspace_host.py",
+      "delete",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs/control/_host_case",
+      "501",
+      "501"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.016117169012431987,
+    "stdout": "022.stdout",
+    "stderr": "022.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003541298006894067,
+    "stdout": "023.stdout",
+    "stderr": "023.stderr"
+  },
+  {
+    "argv": [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "10",
+      "http://127.0.0.1:22501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003450506992521696,
+    "stdout": "024.stdout",
+    "stderr": "024.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-host-runtime-20261007-r1/tools/probes/workspace_host.py",
+      "write",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs/workspace/_host_case",
+      "501",
+      "501"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.016367749994969927,
+    "stdout": "025.stdout",
+    "stderr": "025.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-host-runtime-20261007-r1/tools/probes/workspace_host.py",
+      "read",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs/workspace/_host_case",
+      "501",
+      "501",
+      "--expected-sha256",
+      "2c4de308c38eb503c5ca2b558e16cb6be4eb504ac667569c052be79d366f3f16"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.01597787899663672,
+    "stdout": "026.stdout",
+    "stderr": "026.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-workspace-host-runtime-20261007-r1/tools/probes/workspace_host.py",
+      "deny",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs/workspace/denied-sentinel",
+      "502",
+      "502"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.016043669995269738,
+    "stdout": "027.stdout",
+    "stderr": "027.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-workspace-host-runtime-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-workspace-host-runtime-20261007-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.236748590003117,
+    "stdout": "028.stdout",
+    "stderr": "028.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs/workspace"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0016478160105179995,
+    "stdout": "029.stdout",
+    "stderr": "029.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0046432859962806106,
+    "stdout": "030.stdout",
+    "stderr": "030.stderr"
+  }
+]

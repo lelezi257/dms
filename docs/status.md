@@ -1,3 +1,7 @@
+**新增当前宿主运行小项通过（2026-10-07，事实）：** main产品93169c8/157编译输入未变，两次包字节一致；隔离Linux/ext4中无runc的真实Node宿主bind通过55驱动/50独立检查，12工具测试PASS。物理Home目录覆盖FUSE一级workspace，普通UID501双向64KiB内容、UID502 EACCES13、六类native数据/目录回调增量0、Meta/Node实际wait0及正常mount闭合通过；native背景getattr12保留，不冒称全部回调0。探针二次stat及外层旧回执路径错误FAIL保留，仅改工具后限定回归/复核；源码/ELF/环境不变。G1历史8/8、G2计数/defaultOFF不变；当前限定功能不继承标准/性能/full ON。下一继续既定workspace性能，旧6d摸底原身份复用，广义撤权/排空/mixed语义和复杂可靠性后置。 [版本、原始结果与失败](../development/evidence/20261007-ownerfs-workspace-host-runtime/README.md)。
+
+以下保留原时点/原版本记录。
+
 **当前宿主入口源码切片通过（2026-10-07，事实）：** main0e1d059基底/157-map9661a313；新增与runc无关的默认OFF独立宿主开关，只覆盖一个已存在的本地Home workspace。核心仍在单文件ownerfs/bind_mount.rs，Node持有worker并在FUSE关闭前正常卸载/join；旧容器配置兼容且两模式互斥，第三方未改。Linux12受影响门禁及50选定测试PASS（含5实际root bind），严格Clippy/release构建通过；新Node ELF9478f3e8已标识，未打包/部署。原格式、编译、ENOSYS、准入与输入冻结FAIL/BLOCKED全部保留；当前运行/标准/性能不继承。G1历史8/8、G2计数不变。下一是一次真实Node无runc的宿主可见性/内容/正常关闭验收，自动接管、多workspace、通用撤权/排空/重启和mixed append/经典锁/watch仍待验。 [版本、原始结果与失败](../development/evidence/20261007-ownerfs-workspace-host-entry/README.md)。
 
 **当前源码小项（2026-10-07，事实）：** mainea73174基底/157-map58a71572，新增第一方FUSE callback指标，34实现回调入口计数、Node共享Registry接线；不改第三方、缓存/TTL/I/O/权限/生命周期。Linux5受影响门禁含新release构建、14FUSE dispatch测试及19Python工具测试PASS，新工具自互斥首FAIL保留。尚无新ELF运行计数/性能结论，下一仅实际短请求见证；原6d性能和d82关闭证据保留自身身份。G1历史8/8、G2计数/defaultOFF不变。 [源码版本与证据](../development/evidence/20261007-ownerfs-workspace-callback-source/README.md)。

@@ -1,0 +1,35 @@
+{
+  "status": "FAIL",
+  "error": "[Errno 2] No such file or directory: '/opt/afs-workspace-host-runtime-20261007-r2/run/meta.lifecycle.Eikxd1/child'",
+  "checks": {
+    "result-source": {
+      "status": "PASS",
+      "actual": {
+        "status": "PASS",
+        "scope": "installed fixed-Home host functional bind; 64KiB; no throughput",
+        "source_commit": "93169c8530beedff9e8e510dc9b9210d704f244f"
+      }
+    },
+    "frozen-tools": {
+      "status": "PASS",
+      "actual": {
+        "workspace-host-linux.py": "5f17fe4a7c692febeda2b6d26f7355426d70432a5eac5ece7a4b3ba50d642e89",
+        "installed-smoke-linux.py": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+        "orderly-runtime-checks.py": "538122ed608735cfe11cfc89667a4ab28b2855cefeb62394596725289df4d957",
+        "probes/native_orderly_recovery.py": "3dc731423f47ee08bb35d7b020402466f74bcbdffdbf7d7ec72207ae710b4064",
+        "probes/fuse_callback_counts.py": "9690d6a885d6e27307f6a8782dd50103a36a34230cc213d70dc2ba6923894feb",
+        "probes/workspace_host.py": "6e87f46c0563565afe5c6994c2403930ca6828a1f46953cd2fd6369641e35b82"
+      }
+    },
+    "package-actual-ELFs": {
+      "status": "PASS",
+      "actual": {
+        "source_commit": "93169c8530beedff9e8e510dc9b9210d704f244f",
+        "package_sha256": "c7ea49d7eb59a75275d613f44b17aaebc7b745f6488bcebd9372bc9158f2e386",
+        "afs_meta_sha256": "4150942fd873b879ab6dc9034904116cf1670904a259d6a081f3b0c1fd1e7343",
+        "afs_node_sha256": "9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d",
+        "inputs_sha256": "a0e4c0c67439df38f52d3c8cfb41851900f05e3f03423e85e4b339ed3b296eb9"
+      }
+    }
+  }
+}

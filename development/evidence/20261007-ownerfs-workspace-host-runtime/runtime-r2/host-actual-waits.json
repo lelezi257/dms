@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "child": {
+      "pid": "81886",
+      "exe": "/opt/afs-workspace-host-runtime-20261007-r2/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-host-runtime-20261007-r2/etc/meta.toml",
+      "start_ticks": "9003010",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-host-runtime-20261007-r2/run/meta.lifecycle.X8UTOA",
+      "supervisor_pid": "81870"
+    },
+    "ready": {
+      "supervisor_pid": "81870"
+    },
+    "exit": {
+      "pid": "81886",
+      "exe": "/opt/afs-workspace-host-runtime-20261007-r2/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-host-runtime-20261007-r2/etc/meta.toml",
+      "start_ticks": "9003010",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-host-runtime-20261007-r2/run/meta.lifecycle.X8UTOA",
+      "supervisor_pid": "81870",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  },
+  "node": {
+    "child": {
+      "pid": "82131",
+      "exe": "/opt/afs-workspace-host-runtime-20261007-r2/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-host-runtime-20261007-r2/etc/node.toml",
+      "start_ticks": "9003028",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-host-runtime-20261007-r2/run/node.lifecycle.0jmcm4",
+      "supervisor_pid": "82115"
+    },
+    "ready": {
+      "supervisor_pid": "82115"
+    },
+    "exit": {
+      "pid": "82131",
+      "exe": "/opt/afs-workspace-host-runtime-20261007-r2/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-host-runtime-20261007-r2/etc/node.toml",
+      "start_ticks": "9003028",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-host-runtime-20261007-r2/run/node.lifecycle.0jmcm4",
+      "supervisor_pid": "82115",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  }
+}

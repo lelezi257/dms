@@ -1,0 +1,23 @@
+{
+  "meminfo": "MemTotal:        8113632 kB\nMemFree:         1102068 kB\nMemAvailable:    7594848 kB\nBuffers:           64696 kB\nCached:          6333416 kB\nSwapCached:            0 kB\nActive:           210060 kB\nInactive:        6289668 kB\nActive(anon):     110084 kB\nInactive(anon):        0 kB\nActive(file):      99976 kB\nInactive(file):  6289668 kB\nUnevictable:       26104 kB\nMlocked:           26104 kB\nSwapTotal:             0 kB\nSwapFree:              0 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:             55924 kB\nWriteback:             0 kB\nAnonPages:        127764 kB\nMapped:            81180 kB\nShmem:              1016 kB\nKReclaimable:     306160 kB\nSlab:             397112 kB\nSReclaimable:     306160 kB\nSUnreclaim:        90952 kB\nKernelStack:        2400 kB\nShadowCallStack:     616 kB\nPageTables:         2596 kB\nSecPageTables:         0 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:     4056816 kB\nCommitted_AS:     459456 kB\nVmallocTotal:   133141626880 kB\nVmallocUsed:       11692 kB\nVmallocChunk:          0 kB\nPercpu:             2864 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:        0 kB\nShmemPmdMapped:        0 kB\nFileHugePages:         0 kB\nFilePmdMapped:         0 kB\nCmaTotal:          32768 kB\nCmaFree:           29696 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\n",
+  "cgroup": "0::/user.slice/user-501.slice/session-6.scope\n",
+  "available_bytes": 7777124352,
+  "ancestor_limits": [
+    {
+      "path": "/sys/fs/cgroup/user.slice/user-501.slice/session-6.scope",
+      "maximum": "max",
+      "current": 3566710784
+    },
+    {
+      "path": "/sys/fs/cgroup/user.slice/user-501.slice",
+      "maximum": "max",
+      "current": 5164326912
+    },
+    {
+      "path": "/sys/fs/cgroup/user.slice",
+      "maximum": "max",
+      "current": 5181464576
+    }
+  ],
+  "minimum_margin_bytes": 536870912
+}

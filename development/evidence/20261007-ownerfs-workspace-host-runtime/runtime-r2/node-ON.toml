@@ -1,0 +1,29 @@
+id = "node-a"
+fs = "ownerfs"
+meta_endpoint = "https://127.0.0.1:22400"
+grpc_listen = "127.0.0.1:22500"
+rest_listen = "127.0.0.1:22501"
+advertise_endpoint = "https://127.0.0.1:22500"
+data_dir = "/opt/afs-workspace-host-runtime-20261007-r2/state/node"
+uds_path = "/opt/afs-workspace-host-runtime-20261007-r2/run/node.sock"
+ownerfs_mount = "/opt/afs-workspace-host-runtime-20261007-r2/mount/ownerfs"
+data_mode = "grpc"
+allow_volatile_meta = false
+dfs_desired_copies = 1
+dfs_sync_required_copies = 1
+dfs_min_distinct_nodes = 1
+dfs_min_distinct_failure_domains = 1
+dfs_local_copy = "required"
+log_level = "info"
+trace_enabled = false
+
+tls_ca_certificate = "/opt/afs-workspace-host-runtime-20261007-r2/etc/tls/ca.pem"
+tls_identity_certificate = "/opt/afs-workspace-host-runtime-20261007-r2/etc/tls/node-a.pem"
+tls_identity_private_key = "/opt/afs-workspace-host-runtime-20261007-r2/etc/tls/node-a-key.pem"
+tls_server_name = "afs-meta"
+trusted_node_certs = { node-a = "/opt/afs-workspace-host-runtime-20261007-r2/etc/tls/node-a.pem" }
+experimental_ownerfs_workspace_bind = true
+
+[ownerfs_workspace_bind]
+workspace = "workspace"
+

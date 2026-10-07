@@ -1,0 +1,11 @@
+{
+   "filesystems": [
+      {
+         "target": "/opt/afs-workspace-host-runtime-20261007-r1/mount/ownerfs/workspace",
+         "source": "/dev/vda1[/opt/afs-workspace-host-runtime-20261007-r1/state/node/ownerfs/root-776f726b7370616365-e1]",
+         "fstype": "ext4",
+         "options": "rw,nosuid,nodev,relatime,discard,errors=remount-ro,commit=30",
+         "id": 88
+      }
+   ]
+}

@@ -1,0 +1,330 @@
+{
+  "attempts": {
+    "archive-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "sudo",
+        "python3",
+        "-B",
+        "-c",
+        "from pathlib import Path;import tarfile;root=Path('/opt/workspace-bind-source-replace-20261008-r1');t=Path('/var/tmp/workspace-bind-source-replace-20261008-r1');\nwith tarfile.open(t/'guest-evidence.tar.gz','w:gz') as archive:\n for path in [t/'inputs.json',t/'results']:\n  if path.exists():archive.add(path,arcname=path.name)\n if (root/'run').exists():\n  for path in sorted((root/'run').glob('*.lifecycle.*')):archive.add(path,arcname='receipts/'+path.name)"
+      ],
+      "exit": 0,
+      "seconds": 0.05790337501093745
+    },
+    "archive-readable-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "sudo",
+        "chmod",
+        "644",
+        "/var/tmp/workspace-bind-source-replace-20261008-r1/guest-evidence.tar.gz"
+      ],
+      "exit": 0,
+      "seconds": 0.03621516702696681
+    },
+    "audit-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-build",
+        "--",
+        "python3",
+        "-B",
+        "/workspace/dms/evidence/afs-delivery/workspace-bind-source-replace-20261008-r1/audit.py"
+      ],
+      "exit": 1,
+      "seconds": 0.1219060419825837
+    },
+    "audit-r3-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-build",
+        "--",
+        "python3",
+        "-B",
+        "/workspace/dms/evidence/afs-delivery/workspace-bind-source-replace-20261008-r1/audit.py"
+      ],
+      "exit": 1,
+      "seconds": 0.11629783292300999
+    },
+    "audit-r4-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-build",
+        "--",
+        "python3",
+        "-B",
+        "/workspace/dms/evidence/afs-delivery/workspace-bind-source-replace-20261008-r1/audit.py"
+      ],
+      "exit": 0,
+      "seconds": 0.07552570896223187
+    },
+    "collect-command.json": {
+      "argv": [
+        "limactl",
+        "copy",
+        "afs-g2-micro:/var/tmp/workspace-bind-source-replace-20261008-r1/guest-evidence.tar.gz",
+        "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-source-replace-20261008-r1/guest-evidence.tar.gz"
+      ],
+      "exit": 0,
+      "seconds": 0.04528500000014901
+    },
+    "guards-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-build",
+        "--",
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/workspace/dms/source/development/acceptance",
+        "-p",
+        "test_workspace_bind_source_replace.py",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 0.12576508393976837
+    },
+    "guards-corrected-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-build",
+        "--",
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "/workspace/dms/source/development/acceptance",
+        "-p",
+        "test_workspace_bind_source_replace.py",
+        "-v"
+      ],
+      "exit": 0,
+      "seconds": 0.120491832960397
+    },
+    "guest-tool-sha-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "sudo",
+        "python3",
+        "-B",
+        "-c",
+        "import json,hashlib;from pathlib import Path;p=Path('/var/tmp/workspace-bind-source-replace-20261008-r1');m=json.loads((p/'inputs.json').read_text());assert all(hashlib.sha256((p/n).read_bytes()).hexdigest()==x for n,x in m['tools'].items());print('PASS exact tools')"
+      ],
+      "exit": 0,
+      "seconds": 0.04933354095555842
+    },
+    "initial-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "python3",
+        "-B",
+        "-c",
+        "import json,hashlib,platform,shutil;from pathlib import Path;t=Path('/var/tmp/workspace-bind-source-replace-20261008-r1');r=Path('/opt/workspace-bind-source-replace-20261008-r1');p=Path('/var/tmp/afs-current-trial-f03-20261008-r1-package.tar.gz');assert not t.exists() and not r.exists();assert hashlib.sha256(p.read_bytes()).hexdigest()=='7bfc6b520e551d2281790862c2968e990e376c5c490b2135f583f4da0ccc1972';print(json.dumps({'platform':platform.uname()._asdict(),'free_bytes':shutil.disk_usage('/opt').free,'existing_package_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'fresh_fixture':True}))"
+      ],
+      "exit": 0,
+      "seconds": 0.1138528750743717
+    },
+    "mkdir-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "sudo",
+        "mkdir",
+        "/var/tmp/workspace-bind-source-replace-20261008-r1"
+      ],
+      "exit": 0,
+      "seconds": 0.037290000007487833
+    },
+    "owned-transport-owner-fix-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "sudo",
+        "chown",
+        "501:1000",
+        "/var/tmp/workspace-bind-source-replace-20261008-r1"
+      ],
+      "exit": 0,
+      "seconds": 0.03861420799512416
+    },
+    "post-collect-command.json": {
+      "argv": [
+        "limactl",
+        "copy",
+        "afs-g2-micro:/var/tmp/workspace-bind-source-replace-20261008-r1/post-result.json",
+        "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-source-replace-20261008-r1/post-result.json"
+      ],
+      "exit": 0,
+      "seconds": 0.04079525009728968
+    },
+    "post-restore-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "sudo",
+        "python3",
+        "-B",
+        "-c",
+        "import importlib.util,json,hashlib,os,shutil,time\nfrom pathlib import Path\nT=Path('/var/tmp/workspace-bind-source-replace-20261008-r1');ROOT=Path('/opt/workspace-bind-source-replace-20261008-r1');R=T/'results'\nspec=importlib.util.spec_from_file_location('case',T/'workspace-bind-source-replace-linux.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\noriginal=json.loads((R/'original-identity.json').read_text());before=json.loads((R/'source-before.json').read_text());observations=json.loads((R/'closure-observations.json').read_text());checks=[]\ndef check(label,ok):\n checks.append({'name':label,'status':'PASS' if ok else 'FAIL'})\n if not ok:raise ValueError(label)\nlast=observations[-1];check('natural-closure-before-cleanup',last['elapsed_seconds']<35 and not any(last[k] for k in ('node_alive','supervisor_alive','fuse','bind','node_listeners')) and last['lifecycle_exit']);check('no-observed-bind-without-fuse',not any(r['bind'] and not r['fuse'] for r in observations))\nrun=m.Run.__new__(m.Run);run.root=ROOT;run.replacement=ROOT/'unused-session-trigger'\nnode=run.receipt('node',ROOT/'run',original['node'],negative=True);meta=run.receipt('meta',ROOT/'run',original['meta']);check('actual-original-node1-meta0',node['exit']['exit_code']=='1' and meta['exit']['exit_code']=='0')\nexpected='0x020b0001 FailedPrecondition: native Home source was replaced';logs=(R/'service-logs/node.log').read_text();events=[json.loads(x) for x in logs.splitlines() if x.startswith('{')];check('original-structured-source-error',any(e.get('msg')=='node.shutdown_failed' and e.get('error')==expected for e in events))\nmounts=Path('/proc/self/mountinfo').read_text().splitlines();check('all-owned-mounts-gone-before-restore',not any(line.split()[4].startswith(str(ROOT)+'/') for line in mounts))\nsource,retained=Path(before['source']),Path(before['retained']);m.verify_fixture_source(ROOT,source,before['new']);m.verify_preserved(source,retained,before['old'],before['new'],before['proof']);check('original-data-preserved-before-restore',True)\nm.restore_source(source,retained,before['old'],before['new'],before['proof']);restored={'identity':m.directory_identity(source),'sha256':m.host.checks.sha(source/before['proof']),'replacement_absent':not retained.exists()};check('original-directory-data-permissions-restored',restored['identity']==before['old'] and restored['sha256']==before['sha256'] and restored['replacement_absent'])\nprotected=m.host.checks.inventory();prior=json.loads((R/'protected-before.json').read_text());m.host.checks.verify_protected(prior,protected);check('all-original-processes-and-mounts-preserved',True)\nold=json.loads((R/'protected-binaries-before.json').read_text());check('protected-binaries-unchanged',old=={p:m.host.checks.sha(p) for p in old})\nallocation=m.host.checks.allocations([ROOT,T]);free=shutil.disk_usage('/opt').free;m.host.checks.verify_budget(allocation['allocated_bytes'],free,False);check('final-capacity-within-frozen-budget',True)\ninputs=json.loads((T/'inputs.json').read_text());check('original-runtime-tools-unchanged',all(m.host.checks.sha(T/n)==v for n,v in inputs['tools'].items()))\nresult={'status':'PASS_LIMITED_SAVED_RUN','runtime_driver_status':'FAIL_ORACLE','actual_product_repeated':False,'source_commit':original.get('source_commit','f03dc2b3679c31daa51caee275fb2087413e949c'),'checks':checks,'natural_closure_seconds':last['elapsed_seconds'],'node':node,'meta':meta,'restored':restored,'protected_after':protected,'budget':dict(allocation,free_bytes=free),'expected_error':expected,'original_failure_preserved':json.loads((R/'result.json').read_text())};(T/'post-result.json').write_text(json.dumps(result,indent=2)+'\\n');print(json.dumps({'status':result['status'],'checks':len(checks),'natural_closure_seconds':last['elapsed_seconds']}))\n"
+      ],
+      "exit": 0,
+      "seconds": 0.07141866709571332
+    },
+    "runtime-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "sudo",
+        "python3",
+        "-B",
+        "/var/tmp/workspace-bind-source-replace-20261008-r1/workspace-bind-source-replace-linux.py",
+        "--root",
+        "/opt/workspace-bind-source-replace-20261008-r1",
+        "--out",
+        "/var/tmp/workspace-bind-source-replace-20261008-r1/results",
+        "--transport",
+        "/var/tmp/workspace-bind-source-replace-20261008-r1",
+        "--package",
+        "/var/tmp/afs-current-trial-f03-20261008-r1-package.tar.gz",
+        "--inputs",
+        "/var/tmp/workspace-bind-source-replace-20261008-r1/inputs.json",
+        "--package-sha256",
+        "7bfc6b520e551d2281790862c2968e990e376c5c490b2135f583f4da0ccc1972",
+        "--source-commit",
+        "f03dc2b3679c31daa51caee275fb2087413e949c",
+        "--afs-meta-sha256",
+        "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+        "--afs-node-sha256",
+        "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+        "--inputs-sha256",
+        "2c92bf408bbea2bbaf090c8a474e36a0f7e7c78ab0b1fed790a310f3a265bdab"
+      ],
+      "exit": 1,
+      "seconds": 2.907393291941844
+    },
+    "tools-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "sudo",
+        "tar",
+        "-xf",
+        "/var/tmp/workspace-bind-source-replace-20261008-r1/tools.tar",
+        "-C",
+        "/var/tmp/workspace-bind-source-replace-20261008-r1"
+      ],
+      "exit": 0,
+      "seconds": 0.03473299997858703
+    },
+    "transfer-command.json": {
+      "argv": [
+        "limactl",
+        "copy",
+        "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-source-replace-20261008-r1/tools.tar",
+        "afs-g2-micro:/var/tmp/workspace-bind-source-replace-20261008-r1/tools.tar"
+      ],
+      "exit": 23,
+      "seconds": 0.1719519579783082
+    },
+    "transfer-fixed-command.json": {
+      "argv": [
+        "limactl",
+        "copy",
+        "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-source-replace-20261008-r1/tools.tar",
+        "afs-g2-micro:/var/tmp/workspace-bind-source-replace-20261008-r1/tools.tar"
+      ],
+      "exit": 0,
+      "seconds": 0.06441975000780076
+    },
+    "transport-owner-gid-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "id",
+        "-g"
+      ],
+      "exit": 0,
+      "seconds": 0.03132437507156283
+    },
+    "transport-owner-uid-command.json": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/",
+        "afs-g2-micro",
+        "--",
+        "id",
+        "-u"
+      ],
+      "exit": 0,
+      "seconds": 0.04313545802142471
+    }
+  },
+  "runtime_launches": 1,
+  "first_audit_failure": {
+    "status": "FAIL_AUDIT_COUNT",
+    "failed_check": 3,
+    "expected_count": 12,
+    "actual_count": 11,
+    "source": "exec returned Linux check 3 assertion; full stderr not separately captured",
+    "product_repeated": false
+  },
+  "original_driver_result": {
+    "status": "FAIL",
+    "source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "scope": "physical Home identity polling and natural host-bind closure; 4096B",
+    "error": "exact structured source replacement error missing",
+    "node_cleanup_error": "command 025 exit 1"
+  },
+  "corrected_driver_not_rerun": true
+}

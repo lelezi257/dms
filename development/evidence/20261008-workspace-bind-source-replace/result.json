@@ -1,0 +1,42 @@
+{
+  "status": "PASS_LIMITED_SAVED_RUN",
+  "independent_checks": 36,
+  "runtime_driver": "FAIL_ORACLE_RETAINED",
+  "driver_checks_passed": 46,
+  "post_checks": 11,
+  "guards_before": 6,
+  "guards_corrected": 6,
+  "natural_closure_seconds": 0.05643770197639242,
+  "actual_waits": {
+    "node": 1,
+    "meta": 0
+  },
+  "restored": {
+    "identity": {
+      "device": 64769,
+      "inode": 829946,
+      "mode": 448,
+      "uid": 501,
+      "gid": 501
+    },
+    "sha256": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
+    "replacement_absent": true
+  },
+  "protected_processes": 1,
+  "budget": {
+    "allocated_bytes": 123736064,
+    "apparent_bytes": 123383711,
+    "distinct_inodes": 190,
+    "free_bytes": 6752813056
+  },
+  "logs": {
+    "bytes": 2449,
+    "events": {
+      "ERRO": 2,
+      "WARN": 1,
+      "TRACE": 0
+    }
+  },
+  "product_repeated": false,
+  "not_full_bind_or_watch_or_performance": true
+}

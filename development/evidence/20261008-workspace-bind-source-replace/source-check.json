@@ -1,0 +1,30 @@
+{
+  "baseline_main": "e332c932709402b49b5a5a45ef53600fb147af07",
+  "runtime_identity": {
+    "product_source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "compiler_input_map": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
+    "afs_meta_sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+    "afs_node_sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36"
+  },
+  "release_scope": {
+    "status": "PASS_FIXED_F03_RELEASE_REUSE",
+    "difference": {
+      "src/node/vfs/ownerfs/native_home_fuse_fixture.rs": "cc7a26222a307296dbdf6535e826b32c5bf03f093b4148ece843f27aa2c3ce43"
+    },
+    "reason": "native_home_fuse_fixture is included only by native_home_tests under cfg(test); current source-test map differs, product ELF remains frozen f03",
+    "module_path": "src/node/vfs/ownerfs.rs",
+    "module_sha256": "fb6529fd512ed6e4c4b5142c246ddade991c8af52672969b299a8019c138f7b6",
+    "excluded_test_module_sha256": "8aa73f14045e10faefd42eaf4c7b89e74e22c09eba619593e55909f07578f0c1"
+  },
+  "protected_files": {
+    "docs/handoff.md": "ad5e9ce000b662800511263b185e4fc1a2619a6539f06f335dc14c88c9f3d441",
+    "development/acceptance/acceptance.lock.json": "ef32cf92fa548a801f57d339a4473e8866c695556205cd5e544797bc8392d6d2"
+  },
+  "product_rust_cargo_vendor_unchanged_this_item": true,
+  "core_bind": "src/node/vfs/ownerfs/bind_mount.rs",
+  "container_adapter": "src/node/native_workspace.rs",
+  "probe": "tests/support/workspace_probe.rs",
+  "no_native_workspace_core_subdirectory": true,
+  "package_sha256": "7bfc6b520e551d2281790862c2968e990e376c5c490b2135f583f4da0ccc1972",
+  "item": "physical source replacement; new Python driver only; no Rust build"
+}

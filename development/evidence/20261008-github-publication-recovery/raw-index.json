@@ -1,0 +1,9 @@
+{
+  "path": "evidence/afs-delivery/github-publication-recovery-20261008-r1/raw-publication-records.tar.gz",
+  "sha256": "7fb39a6f47420aa165e1636137427d68a06253db4f93503999655739c636e47e",
+  "bytes": 1066569,
+  "members": 39,
+  "member_index_path": "evidence/afs-delivery/github-publication-recovery-20261008-r1/raw-member-index.json",
+  "member_index_sha256": "88824c315e67431a886e6e13e8fb2521c3c2e6735c556c849a47866e3bcb1420",
+  "decoded_all_members_verified": true
+}

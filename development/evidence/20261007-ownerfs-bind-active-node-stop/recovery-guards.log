@@ -1,0 +1,16 @@
+test_actual_container_stdout_binds_full_data_eof_stat_and_hash (test_native_orderly_recovery.OrderlyGuards.test_actual_container_stdout_binds_full_data_eof_stat_and_hash) ... ok
+test_archive_preserves_text_and_indexes_owned_runtime_special_files_without_copying_them (test_native_orderly_recovery.OrderlyGuards.test_archive_preserves_text_and_indexes_owned_runtime_special_files_without_copying_them) ... ok
+test_complete_content_eof_and_metadata_are_required (test_native_orderly_recovery.OrderlyGuards.test_complete_content_eof_and_metadata_are_required) ... ok
+test_config_and_meta_state_directory_identity_cannot_be_recreated (test_native_orderly_recovery.OrderlyGuards.test_config_and_meta_state_directory_identity_cannot_be_recreated) ... ok
+test_current_container_read_cannot_reuse_stale_phase1_command_or_cached_response (test_native_orderly_recovery.OrderlyGuards.test_current_container_read_cannot_reuse_stale_phase1_command_or_cached_response) ... ok
+test_exact_wait_receipt_rejects_stale_foreign_nonzero_or_live_supervisor (test_native_orderly_recovery.OrderlyGuards.test_exact_wait_receipt_rejects_stale_foreign_nonzero_or_live_supervisor) ... ok
+test_orderly_mode_is_mutually_exclusive_before_any_runtime (test_native_orderly_recovery.OrderlyGuards.test_orderly_mode_is_mutually_exclusive_before_any_runtime) ... ok
+test_private_oci_root_cannot_use_template_foreign_bundle_or_escape (test_native_orderly_recovery.OrderlyGuards.test_private_oci_root_cannot_use_template_foreign_bundle_or_escape) ... ok
+test_restart_requires_fresh_services_and_container_but_allows_namespace_reuse (test_native_orderly_recovery.OrderlyGuards.test_restart_requires_fresh_services_and_container_but_allows_namespace_reuse) ... ok
+test_shared_final_archiver_is_used_by_every_native_mode_and_rejects_unknown_links_devices (test_native_orderly_recovery.OrderlyGuards.test_shared_final_archiver_is_used_by_every_native_mode_and_rejects_unknown_links_devices) ... ok
+test_template_full_tree_rejects_symlink_and_metadata_content_mutation (test_native_orderly_recovery.OrderlyGuards.test_template_full_tree_rejects_symlink_and_metadata_content_mutation) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.032s
+
+OK

@@ -1,0 +1,8 @@
+{"msg":"Mounting /opt/afs-active-node-stop-20261007-r1/mount/ownerfs","level":"INFO","ts":"2026-10-07T06:19:11.02838944Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-07T06:19:11.032456141Z","instance":"node-a","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/opt/afs-active-node-stop-20261007-r1/run/node.sock","rest":"127.0.0.1:24501","grpc":"127.0.0.1:24500"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T06:19:11.221662585Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs root is not registered in Meta","kind":"NotFound","code":34078721}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T06:19:11.232349447Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"fuse.create","level":"INFO","ts":"2026-10-07T06:19:11.232389241Z","instance":"node-a","service_name":"afs-node","name":"seed","parent":2}
+{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 1, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-07T06:19:11.232545498Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE operation parse failed for request RequestId(46): Unknown FUSE opcode (52)","level":"WARN","ts":"2026-10-07T06:19:11.285770423Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T06:19:11.641689114Z","instance":"node-a","service_name":"afs-node"}

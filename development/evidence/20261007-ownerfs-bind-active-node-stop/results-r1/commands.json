@@ -1,0 +1,313 @@
+[
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0013519830099539831,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--version"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003975029001594521,
+    "stdout": "001.stdout",
+    "stderr": "001.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-xzf",
+      "/var/tmp/afs-active-node-stop-20261007-r1/package.tar.gz",
+      "-C",
+      "/opt/afs-active-node-stop-20261007-r1/package"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.21729038799821865,
+    "stdout": "002.stdout",
+    "stderr": "002.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-active-node-stop-20261007-r1/package/afs-0.1.0-g2-main-d82cc7d-linux-aarch64/install.sh",
+      "--prefix",
+      "/opt/afs-active-node-stop-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-active-node-stop-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-active-node-stop-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-active-node-stop-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-active-node-stop-20261007-r1/logs",
+      "--mount-root",
+      "/opt/afs-active-node-stop-20261007-r1/mount"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.4278119219961809,
+    "stdout": "003.stdout",
+    "stderr": "003.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-active-node-stop-20261007-r1/prefix/bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0039005670114420354,
+    "stdout": "004.stdout",
+    "stderr": "004.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-active-node-stop-20261007-r1/prefix/bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034857970022130758,
+    "stdout": "005.stdout",
+    "stderr": "005.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-active-node-stop-20261007-r1/prefix/bin/afs-trial-config",
+      "single",
+      "--backend",
+      "local-file",
+      "--config-dir",
+      "/opt/afs-active-node-stop-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-active-node-stop-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-active-node-stop-20261007-r1/run",
+      "--mount-root",
+      "/opt/afs-active-node-stop-20261007-r1/mount",
+      "--meta-grpc-port",
+      "24400",
+      "--meta-rest-port",
+      "24401",
+      "--node-grpc-port",
+      "24500",
+      "--node-rest-port",
+      "24501",
+      "--force"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.33060970800579526,
+    "stdout": "006.stdout",
+    "stderr": "006.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-active-node-stop-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-active-node-stop-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-active-node-stop-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-active-node-stop-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-active-node-stop-20261007-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3769469639955787,
+    "stdout": "007.stdout",
+    "stderr": "007.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-active-node-stop-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0013660670083481818,
+    "stdout": "008.stdout",
+    "stderr": "008.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-active-node-stop-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-active-node-stop-20261007-r1/control/control.sock",
+      "--id",
+      "initial",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.07262905199604575,
+    "stdout": "009.stdout",
+    "stderr": "009.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-active-node-stop-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-active-node-stop-20261007-r1/control/control.sock",
+      "--id",
+      "first",
+      "start",
+      "workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.1698106919939164,
+    "stdout": "010.stdout",
+    "stderr": "010.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-active-node-stop-20261007-r1/control/runtime-state",
+      "state",
+      "afs-native-first"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.005769077004515566,
+    "stdout": "011.stdout",
+    "stderr": "011.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-active-node-stop-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-active-node-stop-20261007-r1/control/control.sock",
+      "--id",
+      "active-read",
+      "exec",
+      "--",
+      "/bin/sh",
+      "-ec",
+      "test \"$(/bin/busybox sha256sum /workspace/seed | /bin/busybox cut -d \" \" -f 1)\" = a19938334431dfd5bb84df16cc24b8afb6f8753c24647b523190383b29c6cd02"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.11616616300307214,
+    "stdout": "012.stdout",
+    "stderr": "012.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-active-node-stop-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-active-node-stop-20261007-r1/control/control.sock",
+      "--id",
+      "active-before-node-stop",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06807161700271536,
+    "stdout": "013.stdout",
+    "stderr": "013.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-active-node-stop-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-active-node-stop-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-active-node-stop-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-active-node-stop-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-active-node-stop-20261007-r1/logs",
+      "stop",
+      "node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.16758195699367207,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-active-node-stop-20261007-r1/control/runtime-state",
+      "list",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0012125599896535277,
+    "stdout": "015.stdout",
+    "stderr": "015.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-active-node-stop-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-active-node-stop-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-active-node-stop-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-active-node-stop-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-active-node-stop-20261007-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.11950891300512012,
+    "stdout": "016.stdout",
+    "stderr": "016.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-active-node-stop-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0015319500089390203,
+    "stdout": "017.stdout",
+    "stderr": "017.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-active-node-stop-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0014830730069661513,
+    "stdout": "018.stdout",
+    "stderr": "018.stderr"
+  }
+]

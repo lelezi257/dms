@@ -1,0 +1,29 @@
+{
+  "schema": "afs.release-package.v1",
+  "name": "afs",
+  "version": "0.1.0-g2-main-d82cc7d",
+  "target": "linux-aarch64",
+  "source_commit": "d82cc7d15e07cb047548fadee279105aa334af90",
+  "source_date_epoch": 0,
+  "features": "ownerfs,dfs,rdma",
+  "rust_toolchain": "1.95.0",
+  "binaries": {
+    "afs-meta": {
+      "sha256": "78e7ad556b8767af4bcc34c81fb94075011152254e26ed24b26a8f528b97d3a8"
+    },
+    "afs-node": {
+      "sha256": "d264a470372593ab00bd6c691f1e389492decf8e4c750a6b29b608719407d58a"
+    }
+  },
+  "contains": [
+    "afs-meta",
+    "afs-node",
+    "afs-processctl",
+    "afs-trial-config",
+    "afs-selfcheck",
+    "dep02-smoke.sh",
+    "docs/guides/trial.md"
+  ],
+  "installer": "install.sh",
+  "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
+}

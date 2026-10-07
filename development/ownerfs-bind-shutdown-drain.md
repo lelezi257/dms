@@ -21,3 +21,7 @@ Original busy closure FAIL and initial test payload-type compile failure remain 
 ## Bounded closure
 
 Final r3 nine source gates and26 selected cases PASS, exact source/ELF/command identities and all failures retained in [the packet](evidence/20261007-ownerfs-bind-shutdown-drain/README.md). New release ELFs have not been packaged or deployed. Next is the current official-runc/Node active-workspace shutdown case, not a standards or performance rerun.
+
+## Subsequent runtime subcase
+
+The identified release ELFs were then packaged and the actual official-runc active-workspace Node stop passed [in this separate versioned packet](evidence/20261007-ownerfs-bind-active-node-stop/README.md). This does not extend the source regression scope above or close general drain/full ON.

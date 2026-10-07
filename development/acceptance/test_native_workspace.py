@@ -7,6 +7,7 @@ from pathlib import Path
 import platform
 import tempfile
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('native', Path(__file__).with_name('native-workspace-linux.py'))
 native = importlib.util.module_from_spec(spec)
@@ -19,6 +20,29 @@ class EvidenceGuards(unittest.TestCase):
         mixed = importlib.util.module_from_spec(probe_spec)
         probe_spec.loader.exec_module(mixed)
         return mixed
+
+    def test_active_node_stop_rejects_idle_before_signalling(self):
+        run = object.__new__(native.Run)
+        run.root = Path('/opt/guard-only')
+        calls = []
+        run.native = lambda *args: {'state': 'Idle'}
+        run.ctl = lambda *args: calls.append(args)
+        run.checks = {}
+        with self.assertRaises(ValueError):
+            run.stop_active_node(123)
+        self.assertEqual(calls, [])
+
+    def test_active_node_stop_signals_node_without_public_workspace_stop(self):
+        run = object.__new__(native.Run)
+        run.root = Path('/opt/guard-only')
+        calls = []
+        run.native = lambda *args: calls.append(args) or {'state': 'FinalVerified'}
+        run.ctl = lambda *args: calls.append(args)
+        run.checks = {}
+        with patch.object(Path, 'exists', side_effect=[True, False, False, False]):
+            run.stop_active_node(123)
+        self.assertEqual(calls, [('active-before-node-stop', 'status'), ('stop', 'node')])
+        self.assertTrue(all(row['status'] == 'PASS' for row in run.checks.values()))
 
     def test_control_artifacts_do_not_multiply_permission_denials(self):
         mixed = self.load_mixed()

@@ -1,0 +1,19 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir",
+    "/tmp",
+    "afs-g2-micro",
+    "--",
+    "sudo",
+    "tar",
+    "-xzf",
+    "-",
+    "-C",
+    "/var/tmp/afs-active-node-stop-20261007-r1"
+  ],
+  "exit": 0,
+  "stdin_sha256": "30e968f2ad9bee32b08de1054cd7cf3e19f4061ac2cbe314a4f6e747f93850d1",
+  "correction": "Use root-owned extraction via existing sudo; no environment permissions changed, no packaging rerun"
+}

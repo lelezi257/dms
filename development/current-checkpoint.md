@@ -1,3 +1,5 @@
+**2026-10-07 独立环境维护：** 用户决定 A/ctl 保持运行；B/C 数据盘各32→42GiB完成正常停机、字节相同离线备份/Linux只读恢复及扩容后全量身份检查（24,544/10,559条，无缺失/变更）。UUID/分区起点/挂载/内容权限不变，主机实空127.96GiB、本批全容量+备份+临时预留后91.04GiB；无运行测试被打断，不重跑历史通过项。大备份在源码树外，G1历史8/8和G2计数不变。[环境、分级预算与日志规则](vm-capacity.md)、[证据](evidence/20261007-vm-capacity-maintenance/README.md)。下一立即返回G2.24：create修复6+14 Linux回归及strict all-features clippy已有工作区证据，待独立提交/新候选运行，不继承旧7e6 PASS。以下保留原时点记录。
+
 **2026-10-07 新增工具小项：** DFS失败探针sample现保留完整rc/stdout/stderr/error；旧Linux回归KeyError FAIL保留，修后10 worker+6实际进程relay guards PASS。中继保留原失败、排空尾部、逐进程收尾；Lima代理退出不替代远端PID核验。原7e6多节点预热FAIL不变，未跑产品/性能；create竞争Rust修复独立待验收，G1历史8/8及G2计数不变。 [证据](evidence/20261007-dfs-cohort-failure-records/README.md)。以下保留原时点记录。
 
 **2026-10-07 当前事实：** 用户授权后，A已停止旧DFS目录完整归档并经Linux229条恢复核验，释放500,518,912B（477.332MiB）；四角色沿原判据重新准入。G2.24首个预热写FAIL：A/C create元数据条件冲突，B探针后检查ENOTCONN；中继BrokenPipe掩盖部分失败记录，缺口已明示。零有效测量/零读轮次，未重试；四actualwait0/八PID消失、11保护进程和完整mount库存不变。G1历史8/8关闭、G2计数不变。下一独立小项为确定触发create竞争的回归/有界恢复，以及中继失败留证/排空；不扩大矩阵。 [新增证据](evidence/20261007-dfs-r3-multinode-runtime/README.md)。以下保留原时点记录。

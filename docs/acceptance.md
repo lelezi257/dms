@@ -67,18 +67,20 @@ FUSE 支持的普通文件 POSIX 行为是必测。Linux 专有扩展（例如�
 
 ### 3.1 实验规格
 
+**2026-10-07当前环境变更：** B/C数据盘已原地32→42GiB，A/ctl按用户决定保持原容量/运行状态；afs-build未扩容。磁盘映射、恢复证明、50GiB宿主余量及64MiB/512MiB/8GiB预算见[容量管理](../development/vm-capacity.md)。旧证据保留原环境，不追溯修改。
+
 主环境使用本机原生 **ARM64** Linux VM，不用 x86 模拟成绩与原生 ARM 成绩混比。VM 资源是本验收规范选定的实验参数，不是产品最低硬件承诺。
 
 | VM | 规格 | 持久卷 | 用途 |
 | --- | --- | --- | --- |
 | `afs-accept-ctl` | 2 vCPU / 4 GiB RAM | 系统 24 GiB + 状态盘 8 GiB | Meta、etcd 或 Redis、结果收集；四节点功能 case 时临时运行第 4 个 Node |
 | `afs-accept-a` | 2 vCPU / 6 GiB RAM | 系统 24 GiB + 数据盘 32 GiB | Node A、OwnerFs Home、客户端、DFS 副本 |
-| `afs-accept-b` | 2 vCPU / 6 GiB RAM | 系统 24 GiB + 数据盘 32 GiB | Node B、远端客户端、DFS 副本 |
-| `afs-accept-c` | 2 vCPU / 6 GiB RAM | 系统 24 GiB + 数据盘 32 GiB | Node C、DFS 副本、换源/修复 |
+| `afs-accept-b` | 2 vCPU / 6 GiB RAM | 系统 24 GiB + 数据盘 42 GiB | Node B、远端客户端、DFS 副本 |
+| `afs-accept-c` | 2 vCPU / 6 GiB RAM | 系统 24 GiB + 数据盘 42 GiB | Node C、DFS 副本、换源/修复 |
 
 总运行配额 8 vCPU、22 GiB RAM。宿主为 ARM64、10 核、32 GiB RAM。系统使用 Ubuntu 24.04 LTS；环境准备时锁定同一基础镜像 SHA256、具体发行修订和 Linux 6.8 内核包。四台保持一致。单 VM case 只使用 A；测试四节点副本时为 ctl 附加独立 16 GiB 数据卷，结束后卸载清理，ctl 不参加性能数据节点排名。
 
-系统盘、Meta状态盘、数据盘使用guest ext4、virtio块设备；实际数据不能放macOS共享目录、virtiofs、tmpfs或宿主目录。薄置备必须记录实际占用。完整大规模矩阵准备要求宿主可用≥100GiB、运行保留≥40GiB、每台数据卷保留≥4GiB（专用ENOSPC除外）。独立小case按实际数据/副本/工件峰值及保留空间准入；不以完整矩阵容量阻塞可安全运行的小项。基线/候选顺序运行，校验关闭后复用自有空间；需要扩盘先保存活动服务状态，不按日志规模猜测容量。
+系统盘、Meta状态盘、数据盘使用guest ext4、virtio块设备；实际数据不能放macOS共享目录、virtiofs、tmpfs或宿主目录。薄置备必须记录实际占用。完整大规模矩阵准备要求宿主可用≥100GiB、运行保留≥50GiB、每台数据卷保留≥4GiB（专用ENOSPC除外）。独立小case按实际数据/副本/工件峰值及保留空间准入；不以完整矩阵容量阻塞可安全运行的小项。基线/候选顺序运行，校验关闭后复用自有空间；需要扩盘先保存活动服务状态，不按日志规模猜测容量。
 
 Guest 能使用 root、`/dev/fuse`、网络故障注入和 `rdma_rxe`。开启 swap 会污染性能判定，性能运行使用关闭 swap 的固定配置；构建在单独的 build VM 中完成，性能测量时不运行构建。`/dev/kvm` 不作为本次文件系统验收前提。
 

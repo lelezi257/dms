@@ -1,0 +1,11 @@
+{
+  "status": "PASS_FILE_RESTORABILITY_ONLY",
+  "archive": "raw-evidence-and-observers.tar.gz",
+  "sha256": "9ad8ee11f79319d8a54b2e7005e83b4e742cab4d18c6b70439b490b84d82a93c",
+  "bytes": 247445,
+  "mode": "0600",
+  "scope": "Exact raw transport, failures, selected metadata, full logs and source qualification records retained outside Git. No chunk payloads copied; deterministic input generation is indexed separately.",
+  "raw_root": "rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-multinode-7e6-20261007-r1",
+  "members": 497,
+  "member_index_sha256": "ec48c854a35f5e8e30ca71b36ae2c19839336af944c4b0dba431934c217e012c"
+}

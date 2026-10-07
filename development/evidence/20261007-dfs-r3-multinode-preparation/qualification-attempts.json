@@ -1,0 +1,500 @@
+{
+  "current": "r8",
+  "scope": "9 Linux guards pass for exact r8 sources; earlier passing guard versions are superseded, not runtime acceptance",
+  "raw_index": [
+    {
+      "path": "driver-qualification/commands/001-py-compile.cmd",
+      "sha256": "f1f89f7f6f2da2a18cc42ad519fdddfb172837b7f72828287c1a684edb7d35ca",
+      "bytes": 142
+    },
+    {
+      "path": "driver-qualification/commands/001-py-compile.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands/001-py-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands/001-py-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands/002-unittest.cmd",
+      "sha256": "7aaadd6ad495afcdd5e7d093e64f1e664de93e4c3efca2e93cd0682512c38a19",
+      "bytes": 130
+    },
+    {
+      "path": "driver-qualification/commands/002-unittest.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands/002-unittest.stderr",
+      "sha256": "19b82af8ca7bf86ecd035d3d0d28daeed0cf2e98aae82cdb92e02e3995b0a2ce",
+      "bytes": 1164
+    },
+    {
+      "path": "driver-qualification/commands/002-unittest.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands/003-help.cmd",
+      "sha256": "891d90268b1ec598a8631ff9b8309385b2ac2a2ea5d2342c9a8d9af5a3dbfc61",
+      "bytes": 107
+    },
+    {
+      "path": "driver-qualification/commands/003-help.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands/003-help.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands/003-help.stdout",
+      "sha256": "372b1aaa572c0ca90b036a380538420fcbd36bbda48b41ef8ecc35bc2458d1a3",
+      "bytes": 479
+    },
+    {
+      "path": "driver-qualification/commands/r1-guest-dir.txt",
+      "sha256": "b3fe55e26242845e64b0c2baaf07be4bfcfb6b8830072ce7ce02bdc16c379761",
+      "bytes": 63
+    },
+    {
+      "path": "driver-qualification/commands/r1-source-check.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands/r1-source-check.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands/r1-source-check.stdout",
+      "sha256": "28e37d8bd401d3d218255643df05c5008adbf84bad2f11fa74d72d1686237bb0",
+      "bytes": 193
+    },
+    {
+      "path": "driver-qualification/commands-r2/001-py-compile.cmd",
+      "sha256": "45e5ac39b29cb621cbe3f0bb7944bf632a92ee3ee18e3d9c8e17a62a2592af3b",
+      "bytes": 145
+    },
+    {
+      "path": "driver-qualification/commands-r2/001-py-compile.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r2/001-py-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r2/001-py-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r2/002-unittest.cmd",
+      "sha256": "8d1fc881378af3794163f67b21d9bf945b42c0416cdffedff67b9cc1d8300f3b",
+      "bytes": 133
+    },
+    {
+      "path": "driver-qualification/commands-r2/002-unittest.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r2/002-unittest.stderr",
+      "sha256": "a9c5dfd0cc617284827399e74a49be1871e109034eb6624a3a452e44d246eadf",
+      "bytes": 2686
+    },
+    {
+      "path": "driver-qualification/commands-r2/002-unittest.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r3/001-py-compile.cmd",
+      "sha256": "9f241539fc85d4a4826a90206d92678005aa3d8b62be26f0334c3d59c4ca8053",
+      "bytes": 145
+    },
+    {
+      "path": "driver-qualification/commands-r3/001-py-compile.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r3/001-py-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r3/001-py-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r3/002-unittest.cmd",
+      "sha256": "528888cb516f9efd769109978beae0f2e5ccc2fc5c4f1fd6023a617cc6faa9c8",
+      "bytes": 133
+    },
+    {
+      "path": "driver-qualification/commands-r3/002-unittest.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r3/002-unittest.stderr",
+      "sha256": "8387660585746d402d9416dbf70bb6e2ebe5b793770b8ac4d8dc32b80b3e70bf",
+      "bytes": 1323
+    },
+    {
+      "path": "driver-qualification/commands-r3/002-unittest.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r3/003-help.cmd",
+      "sha256": "5c6a909edfe8aac768ed21b88e532991e925b31fef1a02e18d1f297609fe65ad",
+      "bytes": 110
+    },
+    {
+      "path": "driver-qualification/commands-r3/003-help.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r3/003-help.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r3/003-help.stdout",
+      "sha256": "372b1aaa572c0ca90b036a380538420fcbd36bbda48b41ef8ecc35bc2458d1a3",
+      "bytes": 479
+    },
+    {
+      "path": "driver-qualification/commands-r4/001-py-compile.cmd",
+      "sha256": "e6aca3dcdd9b282321a2aff43bb99e1f26013d4250b88c2b12ba40e338aa294f",
+      "bytes": 145
+    },
+    {
+      "path": "driver-qualification/commands-r4/001-py-compile.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r4/001-py-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r4/001-py-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r4/002-unittest.cmd",
+      "sha256": "a6512d1d755713007a479c149ba03f53a85eb420119c5fc48f76691022c72c92",
+      "bytes": 133
+    },
+    {
+      "path": "driver-qualification/commands-r4/002-unittest.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r4/002-unittest.stderr",
+      "sha256": "5cf7fa814edb27fcbd1dbc8ab0662a0d7e3e11b88b8ae7a084ea9b307c93f2fc",
+      "bytes": 2156
+    },
+    {
+      "path": "driver-qualification/commands-r4/002-unittest.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r5/001-py-compile.cmd",
+      "sha256": "eb1e6443451c3eb3b8289904bd4ae69bc4d3e0436cf10ef006bf7b431a8beea2",
+      "bytes": 145
+    },
+    {
+      "path": "driver-qualification/commands-r5/001-py-compile.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r5/001-py-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r5/001-py-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r5/002-unittest.cmd",
+      "sha256": "755ddb6776d0404567c15d6b728d06698f7d9381341353ad164f66c5ad80edab",
+      "bytes": 133
+    },
+    {
+      "path": "driver-qualification/commands-r5/002-unittest.rc",
+      "sha256": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r5/002-unittest.stderr",
+      "sha256": "f616d51c27d6a48b4705f65cd500761c4efd2e1181e6f50dbd7b8605b34d565c",
+      "bytes": 2179
+    },
+    {
+      "path": "driver-qualification/commands-r5/002-unittest.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r6/001-py-compile.cmd",
+      "sha256": "6c5caeea5985fb36547659181c07c1e29e125a06bb91f2882b674bba20fcfa1b",
+      "bytes": 145
+    },
+    {
+      "path": "driver-qualification/commands-r6/001-py-compile.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r6/001-py-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r6/001-py-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r6/002-unittest.cmd",
+      "sha256": "a9200b8f649ef8f21f510d5d190b29ab216490859caddeab4febe6ba7f731872",
+      "bytes": 133
+    },
+    {
+      "path": "driver-qualification/commands-r6/002-unittest.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r6/002-unittest.stderr",
+      "sha256": "46026f4234a33cc68ee7c8647d628ed1d8216266d81bffd9a747bff0303b1272",
+      "bytes": 1498
+    },
+    {
+      "path": "driver-qualification/commands-r6/002-unittest.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r6/003-help.cmd",
+      "sha256": "deb41d797b82f23fbe81c36edff5aa203456d5f3a164ef32b49cba6dc88e98ba",
+      "bytes": 110
+    },
+    {
+      "path": "driver-qualification/commands-r6/003-help.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r6/003-help.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r6/003-help.stdout",
+      "sha256": "372b1aaa572c0ca90b036a380538420fcbd36bbda48b41ef8ecc35bc2458d1a3",
+      "bytes": 479
+    },
+    {
+      "path": "driver-qualification/commands-r7/001-py-compile.cmd",
+      "sha256": "7da431540e3a3f43307ad38b0610eeed41ef5c52a4094d49328d75f346b09db1",
+      "bytes": 147
+    },
+    {
+      "path": "driver-qualification/commands-r7/001-py-compile.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r7/001-py-compile.stderr",
+      "sha256": "5addd28151ad15a75067bb430e854b14a8d758ce95f18ffe0aa87f3d8245c9df",
+      "bytes": 170
+    },
+    {
+      "path": "driver-qualification/commands-r7/001-py-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r7/002-unittest.cmd",
+      "sha256": "62a65f2df0ec220fdf3db2b2f93d027c1b68c527946e625b173b306c23ac04c1",
+      "bytes": 125
+    },
+    {
+      "path": "driver-qualification/commands-r7/002-unittest.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r7/002-unittest.stderr",
+      "sha256": "03c4dc5dc8821f821b0f963c6ee3bb080b2435bdacb01edf61e9db7dd50b97a0",
+      "bytes": 1859
+    },
+    {
+      "path": "driver-qualification/commands-r7/002-unittest.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r7/003-help.cmd",
+      "sha256": "cefb3b2b0aae2d59ecb7b69f83a84453b0c405cce44186b4c9dea23b0bb2c720",
+      "bytes": 112
+    },
+    {
+      "path": "driver-qualification/commands-r7/003-help.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r7/003-help.stderr",
+      "sha256": "5addd28151ad15a75067bb430e854b14a8d758ce95f18ffe0aa87f3d8245c9df",
+      "bytes": 170
+    },
+    {
+      "path": "driver-qualification/commands-r7/003-help.stdout",
+      "sha256": "372b1aaa572c0ca90b036a380538420fcbd36bbda48b41ef8ecc35bc2458d1a3",
+      "bytes": 479
+    },
+    {
+      "path": "driver-qualification/commands-r7/004-source-sha.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r7/004-source-sha.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r7/004-source-sha.stdout",
+      "sha256": "66849aef91da83461b445bb83a98f13bb634d1fa4a2b013ff411ba2cd48b8872",
+      "bytes": 204
+    },
+    {
+      "path": "driver-qualification/commands-r7/guest-dir.txt",
+      "sha256": "d299baecc6cf48355c261b54148f02324e4e10dcdaad3befa302a533ef297731",
+      "bytes": 66
+    },
+    {
+      "path": "driver-qualification/commands-r8/001-py-compile.cmd",
+      "sha256": "168cbd93c64257faecd5fd6f61335b8369f7f35e14eef584b66eb8d201ad2611",
+      "bytes": 147
+    },
+    {
+      "path": "driver-qualification/commands-r8/001-py-compile.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r8/001-py-compile.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r8/001-py-compile.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r8/002-unittest.cmd",
+      "sha256": "fe3c6d84de4cc80ef822610ec7a8253f98c6da3d4cc113e87b1c6f3468912432",
+      "bytes": 125
+    },
+    {
+      "path": "driver-qualification/commands-r8/002-unittest.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r8/002-unittest.stderr",
+      "sha256": "8455759d05724a5758d39e450289d81e27b88354b1fad2bd417581b789e9144c",
+      "bytes": 1689
+    },
+    {
+      "path": "driver-qualification/commands-r8/002-unittest.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r8/003-help.cmd",
+      "sha256": "f66f7df8a6cdee8005c3a6daa96446fce1f49013e44fda20b26c2ab7e89ff71f",
+      "bytes": 112
+    },
+    {
+      "path": "driver-qualification/commands-r8/003-help.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r8/003-help.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r8/003-help.stdout",
+      "sha256": "372b1aaa572c0ca90b036a380538420fcbd36bbda48b41ef8ecc35bc2458d1a3",
+      "bytes": 479
+    },
+    {
+      "path": "driver-qualification/commands-r8/004-source-sha.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "bytes": 2
+    },
+    {
+      "path": "driver-qualification/commands-r8/004-source-sha.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "driver-qualification/commands-r8/004-source-sha.stdout",
+      "sha256": "12053c4e8fbf4897b5b15e5493892336bfe9338a4003da2b8d84a46c751cbc50",
+      "bytes": 193
+    },
+    {
+      "path": "driver-qualification/commands-r8/guest-dir.txt",
+      "sha256": "450c74f397dc456b72d79359224afcc2a0a7e530840e0c78c8fa1153ac204e87",
+      "bytes": 66
+    }
+  ],
+  "history_index_sha256": "1a9060023b353831813a723131fe7226ff2ec1570d0f4f3019a733686aaf9988",
+  "source_archive_index_sha256": "d29871a3be0f50bccdec181ad6cd6e8610b8274e5c9953266600ceca042dab35",
+  "failed_attempts": {
+    "r2": "old guard input/expectation defects",
+    "r4": "over-specific fsync error assertion",
+    "r5": "over-specific missing-precheck error assertion"
+  },
+  "superseded_tool_PASS": [
+    "r1",
+    "r3",
+    "r6",
+    "r7"
+  ],
+  "host_check_deviation": "Python compile/unit checks were accidentally executed on macOS; raw output unavailable and explicitly recorded. No host Rust/product/FUSE/benchmark ran. Linux r8 independently qualified final sources."
+}

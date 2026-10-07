@@ -1,0 +1,11 @@
+{
+  "status": "REJECTED_BEFORE_TOOL_INSTALL_OR_PRODUCT_START",
+  "kind": "qualification/current input identity mismatch",
+  "receipt": "driver-qualification/summary-r7.json",
+  "receipt_helper_sha256": "dbbb32a3adbd90611400005a36ae2dde291d83837c48cd9c4469957e7f720b25",
+  "observed_current_helper_sha256": "93dbe47c7cfafb8ba5ec107081c31d086ffa2628d898c3db5e5a925edeb4c682",
+  "receipt_test_sha256": "a63e1c8edca586a9ff35a55c1d4254f8ecca25b125a18f3cf57dd9d778992433",
+  "observed_current_test_sha256": "1787009bb318d678958f40474aaf5f07d911d3e10dc9749900ae9862df00f35a",
+  "raw_output_scope": "Original tool output remains in the chat tool transcript; this is a structured observation, not reconstructed stdout.",
+  "effect": "Normalizer asserted before qualified-driver.json creation; installer then refused missing receipt before any VM tool mutation. Await final frozen source qualification; no environment repair or service run."
+}

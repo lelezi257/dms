@@ -63,12 +63,14 @@ static uint64_t resident(int descriptor) {
     return count * 4096ULL;
 }
 int main(int argc, char **argv) {
-    if (argc != 10 && argc != 11) {
-        fprintf(stderr, "usage: io FILE seq-write|seq-read|random-write|random-read BYTES BLOCK THREADS close|fdatasync|fsync IO_BYTES BYTE existing|create [guest-cold|hot|repeat|unchecked]\n");
+    if (argc < 10 || argc > 12) {
+        fprintf(stderr, "usage: io FILE seq-write|seq-read|random-write|random-read BYTES BLOCK THREADS close|fdatasync|fsync IO_BYTES BYTE existing|create [guest-cold|hot|repeat|unchecked [samples]]\n");
         return 2;
     }
     const char *operation = argv[2], *barrier = argv[6];
-    const char *cache = argc == 11 ? argv[10] : "unchecked";
+    const char *cache = argc >= 11 ? argv[10] : "unchecked";
+    int samples = argc == 12;
+    require(!samples || !strcmp(argv[11], "samples"), "sample output mode");
     require(!strcmp(cache, "guest-cold") || !strcmp(cache, "hot") || !strcmp(cache, "repeat") || !strcmp(cache, "unchecked") || !strcmp(cache, "unobserved"), "cache mode");
     writing = !strcmp(operation, "seq-write") || !strcmp(operation, "random-write");
     random_io = !strcmp(operation, "random-write") || !strcmp(operation, "random-read");
@@ -137,7 +139,7 @@ int main(int argc, char **argv) {
     }
     uint64_t after_resident = !strcmp(cache, "unobserved") ? 0 : resident(fd); require(close(fd) == 0, "verify close");
     qsort(latencies, operations, sizeof(*latencies), compare);
-    printf("{\"operation\":\"%s\",\"file_bytes\":%llu,\"io_bytes\":%llu,\"block_bytes\":%llu,\"concurrency\":%d,\"barrier\":\"%s\",\"pattern_byte\":%d,\"seed\":257,\"operations\":%llu,\"wall_ns\":%llu,\"client_cpu_ns\":%llu,\"barrier_ns\":%llu,\"p50_ns\":%llu,\"p95_ns\":%llu,\"p99_ns\":%llu,\"residency_observed\":%s,\"resident_before_bytes\":%llu,\"resident_after_bytes\":%llu,\"content_ok\":true,\"cache_requested\":\"%s\",\"cache_prepare_attempts\":%u,\"file_object\":{\"device\":%llu,\"inode\":%llu}}\n",
+    printf("{\"operation\":\"%s\",\"file_bytes\":%llu,\"io_bytes\":%llu,\"block_bytes\":%llu,\"concurrency\":%d,\"barrier\":\"%s\",\"pattern_byte\":%d,\"seed\":257,\"operations\":%llu,\"wall_ns\":%llu,\"client_cpu_ns\":%llu,\"barrier_ns\":%llu,\"p50_ns\":%llu,\"p95_ns\":%llu,\"p99_ns\":%llu,\"residency_observed\":%s,\"resident_before_bytes\":%llu,\"resident_after_bytes\":%llu,\"content_ok\":true,\"cache_requested\":\"%s\",\"cache_prepare_attempts\":%u,\"file_object\":{\"device\":%llu,\"inode\":%llu}",
            operation, (unsigned long long)file_bytes, (unsigned long long)io_bytes, (unsigned long long)block_bytes,
            threads, barrier, byte_value, (unsigned long long)operations, (unsigned long long)elapsed,
            (unsigned long long)cpu, (unsigned long long)barrier_ns,
@@ -145,6 +147,16 @@ int main(int argc, char **argv) {
            (unsigned long long)latencies[operations*99/100], !strcmp(cache, "unobserved") ? "false" : "true", (unsigned long long)before_resident,
            (unsigned long long)after_resident, cache, prepare_attempts,
            (unsigned long long)stat.st_dev, (unsigned long long)stat.st_ino);
+    if (samples) {
+        /* Keep every observed interval for independent pooled percentiles.
+         * Sorting and serialization are outside the measured IO task. */
+        printf(",\"latency_interval\":\"%s\",\"latency_order\":\"sorted\",\"latency_samples_ns\":[",
+               writing ? "pwrite+count-check" : "pread+count+content-check");
+        for (uint64_t index = 0; index < operations; ++index)
+            printf("%s%llu", index ? "," : "", (unsigned long long)latencies[index]);
+        printf("]");
+    }
+    printf("}\n");
     /* Unobserved residency is not a zero/cold-cache claim. */
     free(latencies); return 0;
 }

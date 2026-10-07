@@ -1,0 +1,31 @@
+{
+  "host_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-local-read-latency-20261008-r1",
+  "archive": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-local-read-latency-20261008-r1/raw-records.tar.gz",
+    "sha256": "3a7f74b8afff2fd43fcade65385c60a9963a11f59693a54f76a9e64428ba214e",
+    "bytes": 92035,
+    "members": 347,
+    "every_decoded_member_verified": true
+  },
+  "member_index": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-local-read-latency-20261008-r1/raw-members.json",
+    "sha256": "022850f332aa8a715e1b072eace94ba5f8e4e8ee0bc19cb2f3e3a37473d6ca63"
+  },
+  "runtime_text": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-local-read-latency-20261008-r1/runtime-text.tar",
+    "sha256": "77ea13c267927cf273552176a7299022ed49d95c62e180e3580529b507a8e871",
+    "bytes": 645120,
+    "members": 242
+  },
+  "probe_elf": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-local-read-latency-20261008-r1/io",
+    "sha256": "0d4346c99ad5ed3a7af0306c7db965eb1d6ea57595a89d639216a2be15c9fa8e"
+  },
+  "maintained_sources": [
+    "development/acceptance/probes/ownerfs_native_closeout_io.c",
+    "development/acceptance/probes/test_owner_io_samples.py"
+  ],
+  "recipe_reconstruction": "local-tools/owner-local-read-run.py + runner-r2.patch + runner-diagnostic.patch; exact hashes in each pre-run contract",
+  "guest_data_roots_retained": true,
+  "not_full_user_data_backup": true
+}

@@ -1,0 +1,9 @@
+# Ordinary OwnerFs local small read, one independent case
+
+This records the pre-run freeze in external contracts, not a new project plan. Productf03/new7bfc remains frozen; no Rust/vendor change. Existing B is reused without installs, resets or touching old roots; all client/Home/chunk data stays on B ext4. Both workspace switches OFF; local-file Meta, one-copy stock Moose4.59.2 and explicit physical topology proof.
+
+64MiB,1MiB blocks,C1,byte97,1warmup/five alternating pairs. Prepare with fdatasync/close and directoryfsync outside timing, then full SHA before each read. Read task=open→thread setup→64pread+validation→join→close; per-operation interval=pread+count+contentcheck. CLOCK_MONOTONIC, complete64-value arrays per payload; warmup excluded,320values/target pooled; fixed sorted[floor(N*p/100)] p50/p95/p99, p95 judgment. Throughput median5 ratio>=1.2 and independent pooledp95 ratio<=.8 are both required.
+
+Formal hot condition requires all64MiB observed resident immediately before every timer. Failed formal condition is retained, never relabeled. A separate repeat-buffered diagnostic contract records actual residency and may preserve ratios/latencies but cannot PASS formal comparison. No cache-policy fallback in the same formal case.2GiB allocation ceiling,4GiB reserve,30sservice/60sprobe; owned normal closure and exact wait receipts required. Logs INFO and bounded workload; archive/index outside source, no copied binary or rootfs in Git.
+
+Add only the C probe's optional `samples` mode and five meaningful real Linux guards; use existing installed-package lifecycle/identity/wait helpers and fixed official Moose tools. Keep legacy probe behavior. [Result/qualification gaps](evidence/20261008-owner-local-read-latency/README.md). No scalar throughput-derived latency and no new full POSIX/performance claim.

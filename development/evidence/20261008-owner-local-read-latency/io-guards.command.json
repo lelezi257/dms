@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "python3",
+    "-B",
+    "/workspace/dms/source/development/acceptance/probes/test_owner_io_samples.py",
+    "-v"
+  ],
+  "rc": 0,
+  "source_sha256": "1050aaedfcbbcb975d737cc0e2acb96722e2ce42c4774349366a6b1dc3e72e71",
+  "tests_sha256": "d0998aced4b6e0f6d4432970ea037f37db7d29835e5096b7b76d0174e677e874",
+  "checks": 5
+}

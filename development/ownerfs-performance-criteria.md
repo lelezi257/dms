@@ -45,4 +45,7 @@ Every run records throughput plus p50, p95 and p99 for the measured operation-la
 | G2.14 remote read | 6d B-to-Home 64MiB/C1 data recorded AFS 427.371 MiB/s and MooseFS 14854.399 MiB/s, ratio 0.028803; cache state and MooseFS client cleanup were not fully qualified. [Evidence](evidence/20261007-owner-remote-small/README.md). | Pending under the new rule. Existing data remains diagnostic because comparator qualification and latency percentile evidence are incomplete. |
 | G2.15 remote write | 6d B-to-Home 64MiB/C1 data recorded AFS 234.630 MiB/s and MooseFS 430.767 MiB/s, ratio 0.528615; MooseFS strong durable-ACK baseline remains blocked. [Evidence](evidence/20261007-owner-remote-write-small/README.md). | Pending under the new rule. Existing data remains diagnostic because durable comparator qualification and latency percentile evidence are incomplete. |
 
+
+Current f03 local read now has independently measured raw latency arrays and a frozenp95, but its formal hot prerequisite failed before timing. The separately frozen repeat diagnostic has unequal client residency (Owner0/Moose64MiB); ratios andp50/p95/p99 are retained as diagnostic, not formal PASS. [Case evidence](evidence/20261008-owner-local-read-latency/README.md). The missing item is matched-cache qualification, not a blanket lack of any latency samples.
+
 Stage G1 remains closed at historical 8/8. Current-version regressions, ordinary OwnerFs performance under this rule, and missing latency evidence belong to G2.

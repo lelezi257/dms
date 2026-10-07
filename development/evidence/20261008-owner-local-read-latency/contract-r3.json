@@ -1,0 +1,51 @@
+{
+  "schema": "afs.owner_local_read.v1",
+  "root": "/mnt/lima-afsbdata/afs-delivery/owner-local-read-f03-20261008-r1",
+  "out": "/var/tmp/afs-owner-local-read-f03-20261008-r1-results-r2",
+  "tools": "/var/tmp/afs-owner-local-read-f03-20261008-r1-tools/local-tools",
+  "package": "/var/tmp/afs-owner-local-read-f03-20261008-r1-package.tar.gz",
+  "candidate": {
+    "source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "compiler_input_map": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
+    "package_sha256": "7bfc6b520e551d2281790862c2968e990e376c5c490b2135f583f4da0ccc1972",
+    "package_name": "afs-0.1.0-g2-main-f03dc2b-linux-aarch64.tar.gz",
+    "binaries": {
+      "afs-meta": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+      "afs-node": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36"
+    },
+    "driver_sha256": "d19937cac0146045eacd750c8a4465095ed76bc095e7d451b3e37fe329fa8153",
+    "observer_sha256": "b16c6d18670cc6055ffb6d77bd21c66bce99953405c3ac1ccb5affc66c6bb2c0"
+  },
+  "io": "/var/tmp/afs-owner-local-read-f03-20261008-r1-io",
+  "io_sha256": "0d4346c99ad5ed3a7af0306c7db965eb1d6ea57595a89d639216a2be15c9fa8e",
+  "io_source_sha256": "1050aaedfcbbcb975d737cc0e2acb96722e2ce42c4774349366a6b1dc3e72e71",
+  "tool_sha256": {
+    "installed-smoke-linux.py": "d19937cac0146045eacd750c8a4465095ed76bc095e7d451b3e37fe329fa8153",
+    "probes/owner_remote_fixture.py": "cd0c1616a788460f8b6e30c3fb94127adecbd06cb937575b7a8da0685269ad8c",
+    "owner-local-read-run.py": "ee6c1f90659fa29b16bc3a420b7131570e827ad03dc58fb6089b36592e07b9e2"
+  },
+  "freeze": {
+    "bytes": 67108864,
+    "block_bytes": 1048576,
+    "concurrency": 1,
+    "byte": 97,
+    "cache": "hot; before every sample full SHA preload, C mincore exactly64MiB before timer; if not observed stop affected case, no fallback",
+    "read_barrier": "close; initial fdatasync+dirfsync outside read timing; not power-loss proof",
+    "replicas": "Owner Home local single; Moose CREATE/KEEP* one VALID local physical copy",
+    "interface": "FUSE/POSIX; B client and both physical backing directories on B ext4",
+    "warmup_pairs": 1,
+    "measured_pairs": 5,
+    "order": "round0 Owner/Moose; alternate each pair",
+    "clock": "CLOCK_MONOTONIC",
+    "throughput_boundary": "open\u2192thread launch\u219264pread plus count/contentchecks\u2192join\u2192close",
+    "operation_boundary": "pread+count+content-check; excludes open/thread setup/barrier/close",
+    "latency_samples": "64/sample; sorted raw; pool320/target after excluding warmup",
+    "quantile": "sorted[floor(N*p/100)] p50/p95/p99; judge p95",
+    "throughput_judge": "median5 AFS rates / median5 Moose rates >=1.2",
+    "latency_judge": "pooledAFS p95 / pooledMoose p95 <=0.8; both mandatory",
+    "ceiling_bytes": 2147483648,
+    "free_floor_bytes": 4294967296,
+    "logs": "INFO, no full TRACE",
+    "timeouts": "30service/probe60/runner600; stop owned only, no environment repair"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "status": "PASS_LINUX_BASELINE_BEFORE_EDIT",
+  "source_sha256": "e32168dccaa0620698ff5aec77e47c403c9cd72e8166999eaf127cb84cabf364",
+  "command": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "python3",
+    "-B",
+    "-"
+  ],
+  "stdin_sha256": "a40c4e750a3ef1302d5580cd5469bd6bb6079769fb66e02b0e6abc27a22e44d3",
+  "observed_rc": 0,
+  "observed_stdout": "PASS baseline real C integration: legacy output and content-error propagation\n",
+  "checks": [
+    "legacy output shape and real C sequential-read validation",
+    "corrupt content produces nonzero/no-success-output"
+  ]
+}

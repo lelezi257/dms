@@ -1,0 +1,24 @@
+[
+  {
+    "elapsed_seconds": 12.037719722982729,
+    "node_alive": true,
+    "supervisor_alive": true,
+    "fuse": true,
+    "bind": true,
+    "fuse_id": 80,
+    "bind_id": 88,
+    "node_listeners": false,
+    "lifecycle_exit": false
+  },
+  {
+    "elapsed_seconds": 12.089672625996172,
+    "node_alive": false,
+    "supervisor_alive": false,
+    "fuse": false,
+    "bind": false,
+    "fuse_id": null,
+    "bind_id": null,
+    "node_listeners": false,
+    "lifecycle_exit": true
+  }
+]

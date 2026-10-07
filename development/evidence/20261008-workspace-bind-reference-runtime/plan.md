@@ -1,0 +1,10 @@
+# Independent real Node authority-error reference drain
+
+Source context main5f433c3a; runtime remains fixed f03/7bfc. G1 8/8 closed; G2.12 remains open. No Rust/vendor/kernel/VM change.
+
+1. Retain the closed mixed append FAIL. Linux6.8 WRITE cannot report actual native append position; TTL/notification/lseek are not a correct minimal fix. Host and private-container switches are intentionally mutually exclusive; do not change the configuration gate or rename native/native as mixed-FUSE PASS.
+2. Extend the maintained epoch driver with one optional reference-drain case (default behavior unchanged). Reuse its exact package/admission/DFS public trigger and normal receipt logic. Fresh independent root/results, small4096B proof. No standard/performance retest.
+3. Before trigger, open the proof through the actual bound path and map it read-only. Capture mount/incarnation/file identity. After genuine session replacement, wait for original REST/gRPC listeners to close while Node/supervisor/FUSE/bind remain. Observe this held-FD+mmap phase for1s, close FD, observe mmap-only for1s with unchanged mount IDs and exact data, then release mmap. No signal/force/lazy unmount before natural authority-error exit1.
+4. Original Node must naturally close with exact authority-error receipt inside35s; trigger and Meta normalwait0. All owned mounts/PIDs gone, original data/prefix/protected inventory unchanged,256MiB ceiling and1GiB free floor. A timeout retains FAIL; release only test-owned references and use normal independent cleanup.
+5. Add meaningful oracle/reference-holder guards, run affected checks only in existing Linux. Freeze all necessary dependencies, scripts/maps/package/binaries/ext4/ports/capacity before test. Actual environment blocker stops affected lane and asks, no repair loop.
+6. Archive immutable failures/raw results outside Git; compact records/commands/SHA/index/tool delta inside main. Actual Linux restoration. Update live ledger, then Lore normalpush/readback. No full bind/POSIX/crash/performance promotion.

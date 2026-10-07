@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "child": {
+      "pid": "106207",
+      "exe": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/etc/meta.toml",
+      "start_ticks": "13564700",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/run/meta.lifecycle.crWNcw",
+      "supervisor_pid": "106191"
+    },
+    "ready": {
+      "supervisor_pid": "106191"
+    },
+    "exit": {
+      "pid": "106207",
+      "exe": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/prefix/bin/afs-meta",
+      "config": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/etc/meta.toml",
+      "start_ticks": "13564700",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/run/meta.lifecycle.crWNcw",
+      "supervisor_pid": "106191",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  },
+  "node": {
+    "child": {
+      "pid": "106391",
+      "exe": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/etc/node.toml",
+      "start_ticks": "13564716",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/run/node.lifecycle.lpmb8A",
+      "supervisor_pid": "106375"
+    },
+    "ready": {
+      "supervisor_pid": "106375"
+    },
+    "exit": {
+      "pid": "106391",
+      "exe": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/prefix/bin/afs-node",
+      "config": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/etc/node.toml",
+      "start_ticks": "13564716",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/run/node.lifecycle.lpmb8A",
+      "supervisor_pid": "106375",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  }
+}

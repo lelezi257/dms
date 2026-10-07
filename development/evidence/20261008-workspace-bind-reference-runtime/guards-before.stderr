@@ -1,0 +1,35 @@
+test_reference_holder_keeps_mapping_after_descriptor_close_and_releases_normally (test_workspace_bind_epoch.EpochCaseGuards.test_reference_holder_keeps_mapping_after_descriptor_close_and_releases_normally) ... ERROR
+test_reference_holder_refuses_symlinks_and_incomplete_payload (test_workspace_bind_epoch.EpochCaseGuards.test_reference_holder_refuses_symlinks_and_incomplete_payload) ... ERROR
+test_busy_observer_requires_same_mounts_live_incarnations_and_shutdown_listeners (test_workspace_bind_epoch.EpochCaseGuards.test_busy_observer_requires_same_mounts_live_incarnations_and_shutdown_listeners) ... ERROR
+
+======================================================================
+ERROR: test_reference_holder_keeps_mapping_after_descriptor_close_and_releases_normally (test_workspace_bind_epoch.EpochCaseGuards.test_reference_holder_keeps_mapping_after_descriptor_close_and_releases_normally)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/dms/source/development/acceptance/test_workspace_bind_epoch.py", line 26, in test_reference_holder_keeps_mapping_after_descriptor_close_and_releases_normally
+    fd, mapping = module.pin_references(path)
+                  ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'bind_epoch' has no attribute 'pin_references'
+
+======================================================================
+ERROR: test_reference_holder_refuses_symlinks_and_incomplete_payload (test_workspace_bind_epoch.EpochCaseGuards.test_reference_holder_refuses_symlinks_and_incomplete_payload)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/dms/source/development/acceptance/test_workspace_bind_epoch.py", line 36, in test_reference_holder_refuses_symlinks_and_incomplete_payload
+    with self.assertRaises(ValueError):module.pin_references(path)
+                                       ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: module 'bind_epoch' has no attribute 'pin_references'
+
+======================================================================
+ERROR: test_busy_observer_requires_same_mounts_live_incarnations_and_shutdown_listeners (test_workspace_bind_epoch.EpochCaseGuards.test_busy_observer_requires_same_mounts_live_incarnations_and_shutdown_listeners)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/dms/source/development/acceptance/test_workspace_bind_epoch.py", line 43, in test_busy_observer_requires_same_mounts_live_incarnations_and_shutdown_listeners
+    module.verify_busy(row, 11, 12)
+    ^^^^^^^^^^^^^^^^^^
+AttributeError: module 'bind_epoch' has no attribute 'verify_busy'
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.001s
+
+FAILED (errors=3)

@@ -1,0 +1,16 @@
+test_authority_failure_requires_exact_nonzero_incarnation (test_workspace_bind_epoch.EpochCaseGuards.test_authority_failure_requires_exact_nonzero_incarnation) ... ok
+test_authority_log_accepts_real_structured_error_and_rejects_other_failures (test_workspace_bind_epoch.EpochCaseGuards.test_authority_log_accepts_real_structured_error_and_rejects_other_failures) ... ok
+test_busy_observer_requires_same_mounts_live_incarnations_and_shutdown_listeners (test_workspace_bind_epoch.EpochCaseGuards.test_busy_observer_requires_same_mounts_live_incarnations_and_shutdown_listeners) ... ok
+test_failed_node_receipt_does_not_leave_owned_meta_running_or_erase_failure (test_workspace_bind_epoch.EpochCaseGuards.test_failed_node_receipt_does_not_leave_owned_meta_running_or_erase_failure) ... ok
+test_public_transition_accepts_fresh_session_and_higher_epoch (test_workspace_bind_epoch.EpochCaseGuards.test_public_transition_accepts_fresh_session_and_higher_epoch) ... ok
+test_public_transition_rejects_renewal_other_node_and_degraded_state (test_workspace_bind_epoch.EpochCaseGuards.test_public_transition_rejects_renewal_other_node_and_degraded_state) ... ok
+test_reference_holder_keeps_mapping_after_descriptor_close_and_releases_normally (test_workspace_bind_epoch.EpochCaseGuards.test_reference_holder_keeps_mapping_after_descriptor_close_and_releases_normally) ... ok
+test_reference_holder_refuses_symlinks_and_incomplete_payload (test_workspace_bind_epoch.EpochCaseGuards.test_reference_holder_refuses_symlinks_and_incomplete_payload) ... ok
+test_replacement_closure_checks_its_separate_config_and_actual_wait (test_workspace_bind_epoch.EpochCaseGuards.test_replacement_closure_checks_its_separate_config_and_actual_wait) ... ok
+test_replacement_keeps_identity_but_isolates_resources_and_disables_bind (test_workspace_bind_epoch.EpochCaseGuards.test_replacement_keeps_identity_but_isolates_resources_and_disables_bind) ... ok
+test_replacement_rejects_missing_runtime_paths (test_workspace_bind_epoch.EpochCaseGuards.test_replacement_rejects_missing_runtime_paths) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.001s
+
+OK

@@ -1,6 +1,8 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
+import tempfile
 import tomllib
 import unittest
 from unittest import mock
@@ -16,6 +18,35 @@ def health(session, epoch):
 
 
 class EpochCaseGuards(unittest.TestCase):
+    def test_reference_holder_keeps_mapping_after_descriptor_close_and_releases_normally(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'proof'
+            path.write_bytes(bytes(range(256)) * 16)
+            fd, mapping = module.pin_references(path)
+            self.assertEqual(os.pread(fd, 4096, 0), mapping[:])
+            os.close(fd)
+            self.assertEqual(mapping[:], path.read_bytes())
+            mapping.close()
+            self.assertTrue(mapping.closed)
+
+    def test_reference_holder_refuses_symlinks_and_incomplete_payload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'proof';path.write_bytes(b'short')
+            with self.assertRaises(ValueError):module.pin_references(path)
+            alias = Path(directory) / 'alias';alias.symlink_to(path)
+            with self.assertRaises(OSError):module.pin_references(alias)
+
+    def test_busy_observer_requires_same_mounts_live_incarnations_and_shutdown_listeners(self):
+        row = dict(node_alive=True, supervisor_alive=True, fuse=True, bind=True,
+                   node_listeners=False, fuse_id=11, bind_id=12, lifecycle_exit=False)
+        module.verify_busy(row, 11, 12)
+        for key in ('node_alive', 'supervisor_alive', 'fuse', 'bind'):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                module.verify_busy(dict(row, **{key:False}),11,12)
+        for update in (dict(node_listeners=True),dict(fuse_id=13),dict(bind_id=14),dict(lifecycle_exit=True)):
+            with self.subTest(update=update), self.assertRaises(ValueError):
+                module.verify_busy(dict(row,**update),11,12)
+
     def test_failed_node_receipt_does_not_leave_owned_meta_running_or_erase_failure(self):
         run = module.Run.__new__(module.Run)
         run.ctl = mock.Mock(side_effect=[RuntimeError('node failed exit_code=1'), 'meta stopped exit_code=0'])

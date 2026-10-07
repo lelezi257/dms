@@ -209,6 +209,8 @@ def worker(args: argparse.Namespace) -> dict[str, object]:
         emit(ready)
         start_token = validate_start(read_control(args.round_timeout), args, cohort)
         sample = run_timed(tool, payload, args.operation, int(cohort["generation"]), args.round_timeout)
+        result.update(cohort, identity=identity, fs=fs_identity, start_token=start_token, sample=sample)
+        sync.write_json(output / "probe-sample.json", sample)
         c_done = {"event": "C_DONE", **cohort, "reader_id": args.member, "start_token": start_token, "status": sample.get("status"),
                   "identity": identity,
                   "rc": sample.get("rc"), "result": sample.get("result"),

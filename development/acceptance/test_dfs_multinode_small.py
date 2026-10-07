@@ -255,6 +255,31 @@ class MultiNodeSmallGuards(unittest.TestCase):
         self.assertEqual(result["status"], "BLOCKED")
         self.assertIn("bad sha", result["error"])
 
+    def test_failed_probe_sample_survives_error_summary(self) -> None:
+        args = SimpleNamespace(operation="write", member="A", batch=0, route=None, session_token="s",
+                               cohort_token="c", round_timeout=1, output="/unused", dfs_root="/mnt",
+                               io_tool="/tool", identity="/id", candidate=None, manifest=None)
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            out.mkdir()
+            root = Path(tmp) / "mnt"
+            root.mkdir()
+            sample = {"status": "FAIL", "rc": 2, "stdout": "partial diagnostic\n",
+                      "stderr": "create: Device or resource busy\n", "result": None,
+                      "error": "ValueError('probe exit 2')", "py_monotonic_elapsed_ns": 100,
+                      "py_monotonic_raw_elapsed_ns": 100, "clock_info": {}}
+            start = {"event": "START", "member": "A", "session_token": "s", "operation": "write",
+                     "batch": 0, "cohort_token": "c", "start_token": "t"}
+            with patch.object(probe, "prepare_common", return_value=(out, root, Path(tmp) / "tool", good_identity(), {})), \
+                 patch.object(probe, "read_control", return_value=start), \
+                 patch.object(probe, "run_timed", return_value=sample), \
+                 patch.object(probe, "emit"):
+                result = probe.worker(args)
+            self.assertEqual(result["status"], "BLOCKED")
+            self.assertEqual(result["sample"], sample)
+            self.assertEqual(json.loads((out / "summary.json").read_text())["sample"], sample)
+            self.assertEqual(json.loads((out / "probe-sample.json").read_text()), sample)
+
     def test_read_worker_prechecks_before_ready_and_postchecks_after_c_done(self) -> None:
         args = SimpleNamespace(operation="read", member="A", batch=0, route="r1", session_token="s",
                                cohort_token="c", round_timeout=1, output="/unused", dfs_root="/mnt",

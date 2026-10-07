@@ -1,3 +1,5 @@
+**2026-10-07 新增工具小项：** DFS失败探针sample现保留完整rc/stdout/stderr/error；旧Linux回归KeyError FAIL保留，修后10 worker+6实际进程relay guards PASS。中继保留原失败、排空尾部、逐进程收尾；Lima代理退出不替代远端PID核验。原7e6多节点预热FAIL不变，未跑产品/性能；create竞争Rust修复独立待验收，G1历史8/8及G2计数不变。 [证据](../development/evidence/20261007-dfs-cohort-failure-records/README.md)。以下保留原时点记录。
+
 **2026-10-07 当前事实：** 用户授权后，A已停止旧DFS目录完整归档并经Linux229条恢复核验，释放500,518,912B（477.332MiB）；四角色沿原判据重新准入。G2.24首个预热写FAIL：A/C create元数据条件冲突，B探针后检查ENOTCONN；中继BrokenPipe掩盖部分失败记录，缺口已明示。零有效测量/零读轮次，未重试；四actualwait0/八PID消失、11保护进程和完整mount库存不变。G1历史8/8关闭、G2计数不变。下一独立小项为确定触发create竞争的回归/有界恢复，以及中继失败留证/排空；不扩大矩阵。 [新增证据](../development/evidence/20261007-dfs-r3-multinode-runtime/README.md)。以下保留原时点记录。
 
 **2026-10-07 current G2.24 preparation:** 9 exact Linux driver guards PASS; product runtime BLOCKED before start by A's existing capacity prerequisite (short148.492MiB). Zero data rounds; no performance/3FS verdict. No VM repair/budget relaxation; all4 mount inventories/11 protected identities unchanged. [Evidence](../development/evidence/20261007-dfs-r3-multinode-preparation/README.md). G1历史8/8关闭，G2计数和普通Owner1.2/.8双判据不变；等待容量处理，独立文档收口继续。以下为原时点记录。

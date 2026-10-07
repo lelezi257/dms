@@ -1,0 +1,20 @@
+[
+  {
+    "raw_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-host-entry-20261007-r1/checks/r3/physical-build.log",
+    "bytes": 243387,
+    "sha256": "8247f67a5fbd7827e310034bf4821878add35ff509897331a2e86a229436f576",
+    "reason": "Cargo dependency/artifact transcript retained raw; selected actual test ELF identity is portable"
+  },
+  {
+    "raw_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-host-entry-20261007-r1/checks/r5/physical-build.log",
+    "bytes": 243387,
+    "sha256": "3f84a1e1c6efc6fee8b5772ef9fc2a706a14d1196814ec407c1528f8559b4a52",
+    "reason": "Cargo dependency/artifact transcript retained raw; selected actual test ELF identity is portable"
+  },
+  {
+    "raw_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-host-entry-20261007-r1/checks/r6/physical-build.log",
+    "bytes": 243387,
+    "sha256": "a04a83ec6913ef84517b4f33b756adfd57b9c702f1a8143a186b1bca3ba46dd5",
+    "reason": "Cargo dependency/artifact transcript retained raw; selected actual test ELF identity is portable"
+  }
+]

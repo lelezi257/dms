@@ -71,6 +71,32 @@ lock, mmap, revocation/drain and restart semantics. Performance then compares
 the same candidate's OFF, ON and ext4. Neither configuration acceptance nor a
 source build closes either exit.
 
+## OwnerFs workspace bind host entry
+
+The independent experimental host entry is default OFF. Enable it only for an
+administrator-controlled, fixed-Home workspace that already exists:
+
+```toml
+fs = "ownerfs"
+ownerfs_mount = "/ownerfs"
+experimental_ownerfs_workspace_bind = true
+[ownerfs_workspace_bind]
+workspace = "agent1"
+```
+
+The Node binds the authorized physical Home directory to `/ownerfs/agent1` in
+its startup mount namespace, without runc. One safe first-level component is
+required. Missing settings, another backend/role or both experimental modes
+refuse startup. `--experimental-ownerfs-workspace-bind false` overrides TOML.
+The old container switch/settings retain their parsing and private namespace.
+
+Stop managed users before shutdown or root/epoch changes. Native operations
+use Linux DAC; checking the current local grant cannot instantly revoke existing
+FDs/mmap or establish secondary-clone drain. Automatic workspace creation,
+multiple roots, abnormal restart reconciliation and full ON qualification are
+pending. [Scope and exact evidence](../../development/ownerfs-workspace-host-entry.md)
+separate the implementation, component tests and actual Node acceptance.
+
 ## Storage Policy
 
 DFS replication policy is a filesystem initialization setting. The accepted base design does not support per-inode dynamic policy revisions.

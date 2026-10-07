@@ -1,0 +1,68 @@
+[
+  {
+    "raw_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-host-entry-20261007-r1/source-inputs-final.json",
+    "sha256": "8f76f4f681e66c4dca4815691532e717aad0b52ebf6830f61a4e3d91b037a6a6",
+    "map_sha256": "9661a313fb8b433caa00d03df5be43f880ad97859fc0299cd6d397cdf55cda0f",
+    "differences_from_final": {}
+  },
+  {
+    "raw_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-host-entry-20261007-r1/source-inputs-r2.json",
+    "sha256": "c29f95e3d3fd749293201c86faf5b5672d7aed6de2b41fa9553b8535a525d5df",
+    "map_sha256": "6301d07871019f322cb229b6ef6b1aba63532f6fb61ddc95c633eb5c9555b948",
+    "differences_from_final": {
+      "examples/node.toml": {
+        "run": "8564aea9ce991f8ca8681bbedaf6b97197ff4c43f4cad0e3057a07848e2ee6ea",
+        "final": "5a1d0fbf71d73784646aedcf0dcd6f6f3e0677d0077292d74d99a4e2e378d5bc"
+      },
+      "src/node/vfs/ownerfs/bind_mount.rs": {
+        "run": "0db392da8fb23b771292b7b1de2d8d232c89247ef244e7a49a524336a9c5ddd5",
+        "final": "dd322edd01bc6a988d9e4a8c7ef915bd3c919d6587ab36f27e0e9e55649959e8"
+      }
+    }
+  },
+  {
+    "raw_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-host-entry-20261007-r1/source-inputs-r3.json",
+    "sha256": "e15cbfd602e4053fdb0036a636301f36546ce79487c9828b39417244364a6fe4",
+    "map_sha256": "6d1cc4e1f28dfa9f76c95704c28bfa15630ccee8e724bc976c277ef8efd91a1d",
+    "differences_from_final": {
+      "examples/node.toml": {
+        "run": "8564aea9ce991f8ca8681bbedaf6b97197ff4c43f4cad0e3057a07848e2ee6ea",
+        "final": "5a1d0fbf71d73784646aedcf0dcd6f6f3e0677d0077292d74d99a4e2e378d5bc"
+      },
+      "src/node/vfs/ownerfs/bind_mount.rs": {
+        "run": "7cb77664c59974de64d4eb60b465f82888ba258608df4c40fab4de7ed0eefbcf",
+        "final": "dd322edd01bc6a988d9e4a8c7ef915bd3c919d6587ab36f27e0e9e55649959e8"
+      }
+    }
+  },
+  {
+    "raw_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-host-entry-20261007-r1/source-inputs-r4.json",
+    "sha256": "fc177a0a40d439e802af77d83565d94c860b2ee95d30a3281a11a51837fb2d8c",
+    "map_sha256": "2dc1fb2ea00e88f62bdb71da8208c95c13f6ba504ea901bc9e728fed9f89c3a3",
+    "differences_from_final": {
+      "examples/node.toml": {
+        "run": "8564aea9ce991f8ca8681bbedaf6b97197ff4c43f4cad0e3057a07848e2ee6ea",
+        "final": "5a1d0fbf71d73784646aedcf0dcd6f6f3e0677d0077292d74d99a4e2e378d5bc"
+      }
+    }
+  },
+  {
+    "raw_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-workspace-host-entry-20261007-r1/source-inputs.json",
+    "sha256": "5ee75b841af2df9b3b2392828692d5719ef23a8a48310b47eed1dbdeb5b3930a",
+    "map_sha256": "1d547d7cce5baf757ea32e6cb375d7310802fd7ce8550edc51b1f1f9e005d2c5",
+    "differences_from_final": {
+      "examples/node.toml": {
+        "run": "8564aea9ce991f8ca8681bbedaf6b97197ff4c43f4cad0e3057a07848e2ee6ea",
+        "final": "5a1d0fbf71d73784646aedcf0dcd6f6f3e0677d0077292d74d99a4e2e378d5bc"
+      },
+      "src/node.rs": {
+        "run": "7e77ef333b4faeb56ccc83fe24527cafb6c987832e099e0c48cb4f7329a5cd19",
+        "final": "8912c290b27a3d773ece92a0101d48230f3e2a93ab64baff7680d59fa62f3b32"
+      },
+      "src/node/vfs/ownerfs/bind_mount.rs": {
+        "run": "0db392da8fb23b771292b7b1de2d8d232c89247ef244e7a49a524336a9c5ddd5",
+        "final": "dd322edd01bc6a988d9e4a8c7ef915bd3c919d6587ab36f27e0e9e55649959e8"
+      }
+    }
+  }
+]

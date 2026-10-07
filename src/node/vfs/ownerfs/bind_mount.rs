@@ -30,14 +30,20 @@ pub(in crate::node) struct MountIdentity {
 #[cfg(target_os = "linux")]
 mod linux {
     use super::{DirectoryIdentity, MountIdentity, NamespaceIdentity};
+    use crate::node::vfs::ownerfs::{HomeExportAuthority, OwnerFs};
     use std::{
         ffi::{CString, OsStr},
         fs::File,
         io,
         os::{
             fd::{AsRawFd, FromRawFd, RawFd},
-            unix::{ffi::OsStrExt, fs::MetadataExt},
+            unix::{
+                ffi::OsStrExt,
+                fs::{MetadataExt, OpenOptionsExt},
+            },
         },
+        path::Path,
+        sync::Arc,
     };
 
     const OPEN_TREE_CLONE: u32 = 1;
@@ -45,6 +51,99 @@ mod linux {
     const MOVE_MOUNT_T_EMPTY_PATH: u32 = 0x40;
     const MOUNT_ATTR_NOSUID: u64 = 0x2;
     const MOUNT_ATTR_NODEV: u64 = 0x4;
+
+    /// Authorized, fixed-Home export in the caller's current mount namespace.
+    /// Keep this owner alive on activation/closure errors: a syscall can attach
+    /// a tree before its postcondition fails. Grant revocation does not prevent
+    /// cleanup of the already-owned claim and does not revoke existing FDs.
+    pub(in crate::node) struct AuthorizedWorkspaceBind {
+        owner: Arc<OwnerFs>,
+        authority: HomeExportAuthority,
+        export: WorkspaceBindMount,
+    }
+
+    impl AuthorizedWorkspaceBind {
+        pub(in crate::node) fn prepare(
+            owner: Arc<OwnerFs>,
+            mount: &Path,
+            workspace: &OsStr,
+        ) -> io::Result<Self> {
+            validate_component(workspace)?;
+            let authority = owner
+                .native_home_export_for_current_namespace(workspace)
+                .map_err(|error| io::Error::other(error.to_string()))?;
+            authority
+                .verify_current(&owner)
+                .map_err(|error| io::Error::other(error.to_string()))?;
+            let source = authority
+                .source_descriptor()
+                .map_err(|error| io::Error::other(error.to_string()))?;
+            let parent = File::options()
+                .read(true)
+                .custom_flags(libc::O_PATH | libc::O_DIRECTORY | libc::O_NOFOLLOW)
+                .open(mount)?;
+            if !is_fuse_mount(&parent)? || is_fuse_mount(&source)? {
+                return Err(io::Error::other(
+                    "workspace bind requires a physical Home source and a FUSE parent",
+                ));
+            }
+            let export = WorkspaceBindMount::prepare(source, parent, workspace)?;
+            let expected = authority.source_identity();
+            if export.source_identity()
+                != (DirectoryIdentity {
+                    device: expected.dev,
+                    inode: expected.ino,
+                })
+            {
+                return Err(errno(libc::ESTALE));
+            }
+            Ok(Self {
+                owner,
+                authority,
+                export,
+            })
+        }
+
+        pub(in crate::node) fn activate(&mut self) -> io::Result<()> {
+            self.authority
+                .verify_current(&self.owner)
+                .map_err(|error| io::Error::other(error.to_string()))?;
+            self.export.activate()?;
+            self.verify_current()
+        }
+
+        pub(in crate::node) fn verify_current(&self) -> io::Result<()> {
+            self.authority
+                .verify_current(&self.owner)
+                .map_err(|error| io::Error::other(error.to_string()))?;
+            let claim = self.export.mount_identity()?;
+            if !self.export.activated || self.export.inspect()?.as_ref() != Some(&claim) {
+                return Err(errno(libc::ESTALE));
+            }
+            self.export.check_policy()
+        }
+
+        pub(in crate::node) fn detach(&mut self) -> io::Result<()> {
+            self.export.detach()
+        }
+    }
+
+    fn is_fuse_mount(file: &File) -> io::Result<bool> {
+        // FUSE root STATFS may intentionally be unsupported. Mountinfo binds
+        // the actual descriptor's mount ID without issuing a backend request.
+        let expected = mount_id(file)?.to_string();
+        let table = std::fs::read_to_string("/proc/thread-self/mountinfo")?;
+        let filesystem = table
+            .lines()
+            .find_map(|line| {
+                let (identity, detail) = line.split_once(" - ")?;
+                (identity.split_whitespace().next()? == expected)
+                    .then(|| detail.split_whitespace().next())
+                    .flatten()
+            })
+            .ok_or_else(|| errno(libc::ESTALE))?;
+        Ok(filesystem == "fuse" || filesystem.starts_with("fuse."))
+    }
 
     #[derive(Debug)]
     pub(in crate::node) struct WorkspaceBindMount {
@@ -499,6 +598,72 @@ mod linux {
         }
 
         #[test]
+        fn authorized_workspace_rejects_ordinary_owner_and_non_fuse_parent() {
+            use crate::node::vfs::ownerfs::native_home_tests::{fixture, mkdir_root};
+            for eligible in [false, true] {
+                let (temp, owner, ctx, _disk) = fixture(eligible);
+                mkdir_root(&owner, &ctx, "workspace");
+                let error = AuthorizedWorkspaceBind::prepare(
+                    Arc::new(owner),
+                    temp.path(),
+                    OsStr::new("workspace"),
+                )
+                .err()
+                .expect("an unmounted parent must fail");
+                if eligible {
+                    assert!(error.to_string().contains("FUSE parent"));
+                } else {
+                    assert!(error.to_string().contains("native"));
+                }
+            }
+        }
+
+        #[test]
+        #[ignore = "requires root Linux private mount namespace and /dev/fuse; run explicitly"]
+        fn authorized_workspace_binds_real_fuse_root_and_detaches_after_revocation() {
+            use crate::node::vfs::ownerfs::native_home_tests::{fixture, mkdir_root};
+            assert!(can_create_private_mount_namespace());
+            let (temp, owner, ctx, _disk) = fixture(true);
+            mkdir_root(&owner, &ctx, "workspace");
+            let owner = Arc::new(owner);
+            let retained = temp.keep();
+            let mount = retained.join("fuse");
+            fs::create_dir(&mount).unwrap();
+            let session = crate::node::fuse::mount_ownerfs(owner.clone(), &mount).unwrap();
+            let mut bind =
+                AuthorizedWorkspaceBind::prepare(owner.clone(), &mount, OsStr::new("workspace"))
+                    .unwrap();
+            bind.activate().unwrap();
+            bind.verify_current().unwrap();
+            let host_target = mount.join("workspace");
+            std::thread::spawn(move || {
+                fs::write(host_target.join("proof"), b"physical Home").unwrap();
+                File::open(host_target.join("proof"))
+                    .unwrap()
+                    .sync_all()
+                    .unwrap();
+            })
+            .join()
+            .unwrap();
+            assert_eq!(
+                fs::read(format!(
+                    "/proc/self/fd/{}/proof",
+                    bind.export.source.as_raw_fd()
+                ))
+                .unwrap(),
+                b"physical Home"
+            );
+            // A stale authority rejects continued admission, but cannot strand
+            // the owned mount by making normal detach depend on that authority.
+            owner.require_local().unwrap().roots.invalidate_all();
+            assert!(bind.verify_current().is_err());
+            bind.detach().unwrap();
+            drop(bind);
+            session.join().unwrap();
+            fs::remove_dir_all(retained).unwrap();
+        }
+
+        #[test]
         fn rejects_invalid_components_before_mount_work() {
             let temp = tempfile::tempdir().unwrap();
             let source = dir_fd(temp.path());
@@ -906,5 +1071,5 @@ mod linux {
 
 #[cfg(target_os = "linux")]
 pub(in crate::node) use linux::{
-    WorkspaceBindMount, detach_secondary_clone, inspect_secondary_clone,
+    AuthorizedWorkspaceBind, WorkspaceBindMount, detach_secondary_clone, inspect_secondary_clone,
 };

@@ -193,3 +193,127 @@ fn native_workspace_validates_admin_paths_and_explicit_off_override() {
     assert!(!cfg.experimental_native_workspace);
     assert!(cfg.native_workspace.is_some());
 }
+
+#[test]
+fn ownerfs_workspace_bind_is_default_off_and_refuses_incomplete_or_wrong_backend() {
+    let cfg = Config::resolve(Role::Node, Cli::parse_from(["afs-node"])).unwrap();
+    assert!(!cfg.experimental_ownerfs_workspace_bind);
+    assert!(cfg.ownerfs_workspace_bind.is_none());
+
+    for (role, argv) in [
+        (
+            Role::Node,
+            vec![
+                "afs-node",
+                "--fs",
+                "ownerfs",
+                "--ownerfs-mount",
+                "/tmp/owner",
+                "--experimental-ownerfs-workspace-bind",
+                "true",
+            ],
+        ),
+        (
+            Role::Meta,
+            vec![
+                "afs-meta",
+                "--fs",
+                "ownerfs",
+                "--ownerfs-mount",
+                "/tmp/owner",
+                "--experimental-ownerfs-workspace-bind",
+                "true",
+            ],
+        ),
+    ] {
+        assert!(Config::resolve(role, Cli::parse_from(argv)).is_err());
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("node.toml");
+    std::fs::write(
+        &path,
+        "fs='dfs'\nownerfs_mount='/tmp/owner'\nexperimental_ownerfs_workspace_bind=true\n[ownerfs_workspace_bind]\nworkspace='ws'\n",
+    )
+    .unwrap();
+    assert!(
+        Config::resolve(
+            Role::Node,
+            Cli::parse_from(["afs-node", "--config", path.to_str().unwrap()])
+        )
+        .is_err()
+    );
+}
+
+#[cfg(feature = "ownerfs")]
+#[test]
+fn ownerfs_workspace_bind_validates_workspace_name_and_explicit_off_override() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("node.toml");
+    let base = "fs='ownerfs'\nownerfs_mount='/tmp/owner'\nexperimental_ownerfs_workspace_bind=true\n[ownerfs_workspace_bind]\nworkspace='ws'\n";
+    std::fs::write(&path, base).unwrap();
+    let cfg = Config::resolve(
+        Role::Node,
+        Cli::parse_from(["afs-node", "--config", path.to_str().unwrap()]),
+    )
+    .unwrap();
+    assert!(cfg.experimental_ownerfs_workspace_bind);
+    assert_eq!(
+        cfg.ownerfs_workspace_bind
+            .as_ref()
+            .map(|bind| bind.workspace.as_str()),
+        Some("ws")
+    );
+
+    for invalid in ["", ".", "..", "nested/ws", "ws/leaf", "ws\u{0}leaf"] {
+        std::fs::write(
+            &path,
+            format!(
+                "fs='ownerfs'\nownerfs_mount='/tmp/owner'\nexperimental_ownerfs_workspace_bind=true\n[ownerfs_workspace_bind]\nworkspace={invalid:?}\n"
+            ),
+        )
+        .unwrap();
+        assert!(
+            Config::resolve(
+                Role::Node,
+                Cli::parse_from(["afs-node", "--config", path.to_str().unwrap()])
+            )
+            .is_err(),
+            "workspace {invalid:?} should be rejected"
+        );
+    }
+
+    std::fs::write(&path, base).unwrap();
+    let cfg = Config::resolve(
+        Role::Node,
+        Cli::parse_from([
+            "afs-node",
+            "--config",
+            path.to_str().unwrap(),
+            "--experimental-ownerfs-workspace-bind",
+            "false",
+        ]),
+    )
+    .unwrap();
+    assert!(!cfg.experimental_ownerfs_workspace_bind);
+    assert!(cfg.ownerfs_workspace_bind.is_some());
+}
+
+#[cfg(feature = "ownerfs")]
+#[test]
+fn ownerfs_workspace_bind_rejects_simultaneous_native_workspace_mode() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("node.toml");
+    std::fs::write(
+        &path,
+        "fs='ownerfs'\nownerfs_mount='/tmp/owner'\nexperimental_native_workspace=true\nexperimental_ownerfs_workspace_bind=true\n[native_workspace]\ncontrol_dir='/tmp/native-control'\nruntime='/usr/bin/runc'\nrootfs='/tmp/native-rootfs'\nworkload_uid=501\nworkload_gid=501\n[ownerfs_workspace_bind]\nworkspace='ws'\n",
+    )
+    .unwrap();
+    assert!(
+        Config::resolve(
+            Role::Node,
+            Cli::parse_from(["afs-node", "--config", path.to_str().unwrap()])
+        )
+        .is_err()
+    );
+}

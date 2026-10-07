@@ -75,6 +75,7 @@ commands = [
     ('fmt', ['cargo', 'fmt', '--all', '--', '--check'], 60),
     ('control-client', ['python3', '-m', 'unittest', 'discover', '-s', 'scripts/ownerfs', '-p', 'test_native_workspace_control.py', '-v'], 60),
     ('native-control', base + ['--lib', 'native_workspace', '--', '--nocapture'], 900),
+    ('workspace-bind-worker', base + ['--lib', 'workspace_bind_worker_tests', '--', '--nocapture'], 300),
     ('bind-core', base + ['--lib', 'ownerfs::bind_mount::', '--', '--nocapture'], 300),
     ('config-contracts', base + ['--test', 'config_contract', '--', '--nocapture'], 300),
     ('native-home', base + ['--lib', 'native_home', '--', '--nocapture'], 600),

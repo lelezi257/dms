@@ -1,0 +1,16 @@
+   Compiling afs v0.1.0 (/workspace/dms/source)
+error: usage of an `unsafe` block
+   --> src/node/vfs/ownerfs/bind_mount.rs:135:12
+    |
+135 |         if unsafe { libc::fstatfs(file.as_raw_fd(), value.as_mut_ptr()) } != 0 {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: requested on the command line with `-D unsafe-code`
+
+error: usage of an `unsafe` block
+   --> src/node/vfs/ownerfs/bind_mount.rs:138:12
+    |
+138 |         Ok(unsafe { value.assume_init() }.f_type)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: could not compile `afs` (lib test) due to 2 previous errors

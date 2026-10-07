@@ -1,0 +1,19 @@
+
+running 5 tests
+test node::vfs::ownerfs::bind_mount::linux::tests::attaches_and_detaches_in_private_mount_namespace ... ok
+test node::vfs::ownerfs::bind_mount::linux::tests::authorized_workspace_binds_real_fuse_root_and_detaches_after_revocation ... 
+thread 'node::vfs::ownerfs::bind_mount::linux::tests::authorized_workspace_binds_real_fuse_root_and_detaches_after_revocation' (123408) panicked at src/node/vfs/ownerfs/bind_mount.rs:629:22:
+called `Result::unwrap()` on an `Err` value: Os { code: 38, kind: Unsupported, message: "Function not implemented" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test node::vfs::ownerfs::bind_mount::linux::tests::detach_of_unactivated_prepare_rejects_foreign_mount ... ok
+test node::vfs::ownerfs::bind_mount::linux::tests::detach_rejects_identity_drift_and_retains_claim ... ok
+test node::vfs::ownerfs::bind_mount::linux::tests::secondary_clone_detach_rejects_wrong_identity_and_flags_with_proc_hidden ... ok
+
+failures:
+
+failures:
+    node::vfs::ownerfs::bind_mount::linux::tests::authorized_workspace_binds_real_fuse_root_and_detaches_after_revocation
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 595 filtered out; finished in 0.01s
+

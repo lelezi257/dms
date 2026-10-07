@@ -45,6 +45,14 @@ pub struct NativeWorkspaceConfig {
     pub workload_gid: u32,
 }
 
+/// Administrator-enabled OwnerFs workspace bind mount entry.
+/// The name is a single first-level OwnerFs workspace under the mount root.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceBindConfig {
+    pub workspace: String,
+}
+
 #[derive(Debug, Clone, Parser, Default)]
 #[command(version, about = "AFS process foundation")]
 /// 命令行输入层。None 表示用户未传入，因此应继续考虑 TOML 与最终默认值。
@@ -99,6 +107,9 @@ pub struct Cli {
     /// Experimental managed-container native path; default false, not production READY.
     #[arg(long)]
     pub experimental_native_workspace: Option<bool>,
+    /// Experimental OwnerFs workspace bind mount path; default false, not production READY.
+    #[arg(long)]
+    pub experimental_ownerfs_workspace_bind: Option<bool>,
     #[arg(long)]
     pub dfs_mount: Option<PathBuf>,
     /// Filesystem-wide immutable DFS replica target count. Applied by Meta at initialization.
@@ -161,6 +172,8 @@ struct FileConfig {
     ownerfs_mount: Option<PathBuf>,
     experimental_native_workspace: Option<bool>,
     native_workspace: Option<NativeWorkspaceConfig>,
+    experimental_ownerfs_workspace_bind: Option<bool>,
+    ownerfs_workspace_bind: Option<WorkspaceBindConfig>,
     dfs_mount: Option<PathBuf>,
     dfs_desired_copies: Option<u16>,
     dfs_sync_required_copies: Option<u16>,
@@ -203,6 +216,8 @@ pub struct Config {
     pub ownerfs_mount: Option<PathBuf>,
     pub experimental_native_workspace: bool,
     pub native_workspace: Option<NativeWorkspaceConfig>,
+    pub experimental_ownerfs_workspace_bind: bool,
+    pub ownerfs_workspace_bind: Option<WorkspaceBindConfig>,
     pub dfs_mount: Option<PathBuf>,
     pub dfs_desired_copies: u16,
     pub dfs_sync_required_copies: u16,
@@ -377,6 +392,11 @@ impl Config {
                 .or(file.experimental_native_workspace)
                 .unwrap_or(false),
             native_workspace: file.native_workspace,
+            experimental_ownerfs_workspace_bind: cli
+                .experimental_ownerfs_workspace_bind
+                .or(file.experimental_ownerfs_workspace_bind)
+                .unwrap_or(false),
+            ownerfs_workspace_bind: file.ownerfs_workspace_bind,
             dfs_mount: cli.dfs_mount.or(file.dfs_mount),
             dfs_desired_copies,
             dfs_sync_required_copies,
@@ -437,6 +457,24 @@ impl Config {
         }
         if cfg.ownerfs_mount.is_some() && !cfg.ownerfs {
             return Err(invalid("ownerfs_mount requires fs=ownerfs or fs=all"));
+        }
+        if cfg.experimental_ownerfs_workspace_bind {
+            if role != Role::Node || !cfg.ownerfs || cfg.ownerfs_mount.is_none() {
+                return Err(invalid(
+                    "experimental_ownerfs_workspace_bind requires Node OwnerFs with a mount",
+                ));
+            }
+            if cfg.experimental_native_workspace {
+                return Err(invalid(
+                    "experimental_ownerfs_workspace_bind cannot be enabled with experimental_native_workspace",
+                ));
+            }
+            let bind = cfg.ownerfs_workspace_bind.as_ref().ok_or_else(|| {
+                invalid(
+                    "experimental_ownerfs_workspace_bind requires administrator ownerfs_workspace_bind settings",
+                )
+            })?;
+            validate_ownerfs_workspace_name(&bind.workspace)?;
         }
         if cfg.experimental_native_workspace {
             if role != Role::Node || !cfg.ownerfs || cfg.ownerfs_mount.is_none() {
@@ -532,6 +570,20 @@ impl Config {
 }
 fn invalid(message: impl Into<String>) -> Error {
     afs_error::Error::coded(afs_error::CONFIG_INVALID, message)
+}
+
+fn validate_ownerfs_workspace_name(workspace: &str) -> Result<()> {
+    if workspace.is_empty()
+        || workspace == "."
+        || workspace == ".."
+        || workspace.contains('/')
+        || workspace.contains('\0')
+    {
+        return Err(invalid(
+            "ownerfs_workspace_bind.workspace must be one first-level workspace name",
+        ));
+    }
+    Ok(())
 }
 
 // Normalize configured certificate files to the leaf DER identity exposed by tonic.

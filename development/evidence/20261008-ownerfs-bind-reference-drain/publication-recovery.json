@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "local_main": "c87707d6dc28377094a2224a07e51e4344d8a5bb",
+  "remote_main": "c87707d6dc28377094a2224a07e51e4344d8a5bb",
+  "remote_tree": "fd7689e596d4249aed38aba13edbf1c61deb948a",
+  "complete_recursive_tree_bytes_equal": true,
+  "blob_entries": 19358,
+  "required_paths": {
+    "src/node/vfs/ownerfs/bind_mount.rs": "339a658d206bff1c739e9b6bab93cb08b413c2c4",
+    "src/node/native_workspace.rs": "036cc41bd6f22790bd2bfcc46dafcdc7ef765bb3",
+    "tests/support/workspace_probe.rs": "baf756bb92950b694580303511ce1c56c56797ac",
+    "src/node/vfs/ownerfs/native_home_fuse_fixture.rs": "d4bcf286b1079284ac158dac3f7f43fdaa407d32",
+    "development/evidence/20261008-ownerfs-bind-reference-drain/README.md": "ec8bb7733c5f030b9d00c7afc530462281c2f80a"
+  },
+  "absent_old_paths": {
+    "src/node/native_workspace": true,
+    "src/bin/afs-workspace-probe.rs": true
+  },
+  "published_prior_pending_commits": [
+    "648888346087e4874e8aab834658ef2933f6b2d4",
+    "9a3a272cfbcbafe1814b70f64e7660617a62aff4",
+    "18554a4792e9bc2257978ea3076719396c80a977",
+    "c87707d6dc28377094a2224a07e51e4344d8a5bb"
+  ],
+  "original_500_records_retained": true,
+  "normal_push": true,
+  "force_push": false
+}

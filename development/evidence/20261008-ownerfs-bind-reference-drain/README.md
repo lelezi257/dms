@@ -1,5 +1,7 @@
 # Workspace bind: regular-file and mmap reference drain
 
+**Publication update:** [mainc87707d6](https://github.com/lelezi257/dms/commit/c87707d6dc28377094a2224a07e51e4344d8a5bb) normally pushed after provider recovery; all four previously pending commits and the complete recursive file tree verified. [Receipt](publication-recovery.json). The waiting-for-publication text below preserves the earlier snapshot.
+
 2026-10-08. **PASS for one bounded component regression**, supplementing G2.12. [Plan](../../ownerfs-bind-reference-drain-slice.md). G1 historical8/8 stays closed; G2 counts, default OFF and full-function status do not change.
 
 - Source base main18554a4792e9bc2257978ea3076719396c80a977; only test fixture input changed. [157-input map](compiler-inputs.json), SHA f7119c8c827da3e7b7872039435a032e0c88d17c78d5e5d80665413ca56fc716. Existing tests' prefix/suffix, product code, protected handoff/lock and third-party source remain unchanged: [static review](static-review.json).

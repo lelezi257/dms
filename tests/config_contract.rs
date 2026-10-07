@@ -151,7 +151,7 @@ fn native_workspace_is_default_off_and_refuses_incomplete_or_wrong_backend() {
 fn native_workspace_validates_admin_paths_and_explicit_off_override() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("node.toml");
-    let base = "fs='ownerfs'\nownerfs_mount='/tmp/owner'\nexperimental_native_workspace=true\n[native_workspace]\ncontrol_dir='/tmp/native-control'\nruntime='/usr/bin/runc'\nrootfs='/tmp/native-rootfs'\nworkload_uid=501\nworkload_gid=501\n";
+    let base = "fs='ownerfs'\nownerfs_mount='/tmp/owner'\nexperimental_native_workspace=true\n[native_workspace]\ncontrol_dir='/tmp/native-control'\nruntime='/usr/bin/runc'\nrootfs='/tmp/native-rootfs'\nidle_command=['/bin/view-observer','idle']\nidentity_command=['/bin/view-observer','identity']\nworkload_uid=501\nworkload_gid=501\n";
     std::fs::write(&path, base).unwrap();
     let cfg = Config::resolve(
         Role::Node,
@@ -168,6 +168,28 @@ fn native_workspace_validates_admin_paths_and_explicit_off_override() {
         base.replace("'/tmp/native-rootfs'", "'/tmp/owner/rootfs'"),
         base.replace("workload_gid=501", "workload_gid=0"),
         base.replace("fs='ownerfs'", "fs='dfs'"),
+        base.replace("idle_command=['/bin/view-observer','idle']\n", ""),
+        base.replace("identity_command=['/bin/view-observer','identity']\n", ""),
+        base.replace(
+            "idle_command=['/bin/view-observer','idle']",
+            "idle_command=[]",
+        ),
+        base.replace(
+            "idle_command=['/bin/view-observer','idle']",
+            "idle_command=['relative','idle']",
+        ),
+        base.replace(
+            "idle_command=['/bin/view-observer','idle']",
+            "idle_command=['/bin/../observer','idle']",
+        ),
+        base.replace(
+            "idle_command=['/bin/view-observer','idle']",
+            "idle_command=['/bin/view\u{0}observer','idle']",
+        ),
+        base.replace(
+            "idle_command=['/bin/view-observer','idle']",
+            &format!("idle_command=['/bin/view-observer','{}']", "x".repeat(4097)),
+        ),
     ] {
         std::fs::write(&path, invalid).unwrap();
         assert!(
@@ -306,7 +328,7 @@ fn ownerfs_workspace_bind_rejects_simultaneous_native_workspace_mode() {
     let path = dir.path().join("node.toml");
     std::fs::write(
         &path,
-        "fs='ownerfs'\nownerfs_mount='/tmp/owner'\nexperimental_native_workspace=true\nexperimental_ownerfs_workspace_bind=true\n[native_workspace]\ncontrol_dir='/tmp/native-control'\nruntime='/usr/bin/runc'\nrootfs='/tmp/native-rootfs'\nworkload_uid=501\nworkload_gid=501\n[ownerfs_workspace_bind]\nworkspace='ws'\n",
+        "fs='ownerfs'\nownerfs_mount='/tmp/owner'\nexperimental_native_workspace=true\nexperimental_ownerfs_workspace_bind=true\n[native_workspace]\ncontrol_dir='/tmp/native-control'\nruntime='/usr/bin/runc'\nrootfs='/tmp/native-rootfs'\nidle_command=['/bin/view-observer','idle']\nidentity_command=['/bin/view-observer','identity']\nworkload_uid=501\nworkload_gid=501\n[ownerfs_workspace_bind]\nworkspace='ws'\n",
     )
     .unwrap();
     assert!(

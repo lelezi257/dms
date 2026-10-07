@@ -148,7 +148,8 @@ class Run(base.Run):
             if name == 'node':
                 text = 'experimental_native_workspace = true\n' + text + '\n[native_workspace]\n' + (
                     f'control_dir = "{self.root}/control"\nruntime = "/usr/local/sbin/runc"\n'
-                    f'rootfs = "{rootfs}"\nworkload_uid = 501\nworkload_gid = 501\n')
+                    f'rootfs = "{rootfs}"\nworkload_uid = 501\nworkload_gid = 501\n'
+                    f'idle_command = {json.dumps(self.args.idle_command)}\nidentity_command = {json.dumps(self.args.identity_command)}\n')
             path.write_text(text)
             (self.out / (name + '.toml')).write_text(text)
         self.save('tool-inputs.json', {str(p): base.sha(p) for p in
@@ -352,6 +353,10 @@ def main():
         parser.add_argument('--' + name, type=Path, required=True)
     for name in ('source-commit', 'package-sha256', 'runtime-sha256', 'afs-meta-sha256', 'afs-node-sha256'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--idle-command', nargs='+', default=['/afs-workspace-probe', 'idle'],
+                        help='test-provided OCI init argv; no product default')
+    parser.add_argument('--identity-command', nargs='+', default=['/afs-workspace-probe', 'identity'],
+                        help='test-provided final-view JSON observer argv')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument('--semantics-only', action='store_true',
                         help='run selected short semantics and necessary lifecycle identity only; omit unchanged 64MiB basic payload')

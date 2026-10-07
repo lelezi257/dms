@@ -26,6 +26,10 @@ ownerfs = []
 dfs = []
 rdma = ["afs-transport/rdma"]
 
+[[example]]
+name = "afs-workspace-probe"
+path = "tests/support/workspace_probe.rs"
+
 [dependencies]
 afs-error = { path = "common/error" }
 afs-logging = { path = "common/logging" }

@@ -90,7 +90,8 @@ commands = [
     ('dfs-only', ['cargo', 'check', '--release', '--locked', '--offline', '--no-default-features', '--features', 'dfs'], 600),
     ('clippy', ['cargo', 'clippy', '--release', '--locked', '--offline', '--workspace', '--all-targets', '--all-features', '--', '-D', 'warnings'], 900),
     ('build', ['cargo', 'build', '--release', '--locked', '--offline', '--all-features', '--bins'], 900),
-    ('helper-idle', ['python3', '-c', "import subprocess,sys,time,json; p=subprocess.Popen([sys.argv[1],'idle'],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE); time.sleep(0.2); assert p.poll() is None,'idle init exited prematurely'; p.terminate(); out,err=p.communicate(timeout=3); print(json.dumps({'returncode':p.returncode,'stdout':out.decode(),'stderr':err.decode()})); assert p.returncode==0,'TERM failed'", str(args.target / 'release' / 'afs-workspace-probe')], 10),
+    ('helper-build', ['cargo', 'build', '--release', '--locked', '--offline', '--all-features', '--example', 'afs-workspace-probe'], 900),
+    ('helper-idle', ['python3', '-c', "import subprocess,sys,time,json; p=subprocess.Popen([sys.argv[1],'idle'],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE); time.sleep(0.2); assert p.poll() is None,'idle init exited prematurely'; p.terminate(); out,err=p.communicate(timeout=3); print(json.dumps({'returncode':p.returncode,'stdout':out.decode(),'stderr':err.decode()})); assert p.returncode==0,'TERM failed'", str(args.target / 'release' / 'examples' / 'afs-workspace-probe')], 10),
 ]
 if args.labels:
     unknown = set(args.labels) - {label for label, _, _ in commands}
@@ -140,12 +141,17 @@ actual = {p: hashlib.sha256((args.source / p).read_bytes()).hexdigest() for p in
 summary['inputs_unchanged'] = actual == frozen['files']
 summary['status'] = 'PASS' if summary['inputs_unchanged'] else 'FAIL'
 summary['binaries'] = {}
-for name in ('afs-meta', 'afs-node', 'afs-workspace-probe'):
+for name in ('afs-meta', 'afs-node'):
     path = args.target / 'release' / name
     libraries = quick(['ldd', str(path)])
     (args.out / (name + '.ldd')).write_text(libraries)
     if 'not found' in libraries:
         raise RuntimeError(name + ': missing dynamic library')
     summary['binaries'][name] = {'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'bytes': path.stat().st_size}
+if 'helper-build' in summary['selected_gates'] or 'helper-idle' in summary['selected_gates']:
+    helper = args.target / 'release/examples/afs-workspace-probe'
+    libraries = quick(['ldd', str(helper)])
+    admit('test-helper-libraries', 'not found' not in libraries, libraries)
+    summary['test_helpers'] = {'afs-workspace-probe': {'path': str(helper), 'sha256': hashlib.sha256(helper.read_bytes()).hexdigest(), 'bytes': helper.stat().st_size, 'cargo_target_kind': 'example'}}
 dump('source-proof.json', summary)
 print(json.dumps(summary), flush=True)

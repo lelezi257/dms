@@ -105,7 +105,8 @@ def main():
             if name == 'node':
                 text = 'experimental_native_workspace = true\n' + text + '\n[native_workspace]\n' + (
                     f'control_dir = "{args.root}/control"\nruntime = "{args.root}/intentionally-absent-runc"\n'
-                    f'rootfs = "{args.root}/rootfs"\nworkload_uid = 501\nworkload_gid = 501\n')
+                    f'rootfs = "{args.root}/rootfs"\nworkload_uid = 501\nworkload_gid = 501\n'
+                    'idle_command = ["/afs-workspace-probe", "idle"]\nidentity_command = ["/afs-workspace-probe", "identity"]\n')
             config.write_text(text)
             (args.out / (name + '.toml')).write_text(text)
         resolved = json.loads(command([binaries['node'], '--config', args.root / 'etc/node.toml', '--print-config']))

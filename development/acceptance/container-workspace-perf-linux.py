@@ -409,6 +409,7 @@ class Driver(base.Run):
                         + f'control_dir = "{root}/control"\n'
                         + 'runtime = "/usr/local/sbin/runc"\n'
                         + f'rootfs = "{rootfs}"\n'
+                        + 'idle_command = ["/afs-workspace-probe", "idle"]\nidentity_command = ["/afs-workspace-probe", "identity"]\n'
                         + f"workload_uid = {UID}\nworkload_gid = {GID}\n"
                     )
                 else:

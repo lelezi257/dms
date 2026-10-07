@@ -9,7 +9,11 @@
 use afs_error::{Error, Result};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    path::{Component, Path, PathBuf},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
@@ -41,6 +45,8 @@ pub struct NativeWorkspaceConfig {
     pub control_dir: PathBuf,
     pub runtime: PathBuf,
     pub rootfs: PathBuf,
+    pub idle_command: Vec<String>,
+    pub identity_command: Vec<String>,
     pub workload_uid: u32,
     pub workload_gid: u32,
 }
@@ -518,6 +524,8 @@ impl Config {
                     "native workspace control directory and rootfs must be disjoint",
                 ));
             }
+            validate_native_workspace_command(&native.idle_command, "idle_command")?;
+            validate_native_workspace_command(&native.identity_command, "identity_command")?;
         }
         if cfg.dfs_mount.is_some() && !cfg.dfs {
             return Err(invalid("dfs_mount requires fs=dfs or fs=all"));
@@ -582,6 +590,42 @@ fn validate_ownerfs_workspace_name(workspace: &str) -> Result<()> {
         return Err(invalid(
             "ownerfs_workspace_bind.workspace must be one first-level workspace name",
         ));
+    }
+    Ok(())
+}
+
+fn validate_native_workspace_command(argv: &[String], field: &str) -> Result<()> {
+    const MAX_ARGS: usize = 32;
+    const MAX_ARG_BYTES: usize = 4096;
+    if argv.is_empty() || argv.len() > MAX_ARGS {
+        return Err(invalid(format!(
+            "native_workspace.{field} must contain 1..{MAX_ARGS} arguments"
+        )));
+    }
+    for arg in argv {
+        if arg.is_empty() || arg.len() > MAX_ARG_BYTES || arg.contains('\0') {
+            return Err(invalid(format!(
+                "native_workspace.{field} arguments must be nonempty, <= {MAX_ARG_BYTES} bytes, and contain no NUL"
+            )));
+        }
+    }
+    let program = Path::new(&argv[0]);
+    if !program.is_absolute()
+        || program.components().any(|component| {
+            matches!(
+                component,
+                Component::CurDir | Component::ParentDir | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(invalid(format!(
+            "native_workspace.{field} executable must be absolute and contain no traversal"
+        )));
+    }
+    if program.file_name().is_none() {
+        return Err(invalid(format!(
+            "native_workspace.{field} executable must name a file"
+        )));
     }
     Ok(())
 }

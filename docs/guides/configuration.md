@@ -53,15 +53,42 @@ runtime = "/usr/bin/runc"
 rootfs = "/var/lib/afs-native/rootfs"
 workload_uid = 501
 workload_gid = 501
+idle_command = ["/afs-workspace-probe", "idle"]
+identity_command = ["/afs-workspace-probe", "identity"]
 ```
 
 The control directory must be root-owned mode0700. Runtime/rootfs and their
 ancestors must be root-owned, without symlinks or group/other writes. Rootfs is
-a small read-only fixture with the exact built `/afs-workspace-probe`, its
+a small read-only fixture containing both configured executables and their
 resolved library dependencies, empty `proc`/`workspace` directories and any
 selected workload binaries. Control/rootfs/runtime must be outside OwnerFs
 mount and data directories; control and rootfs must be disjoint. Stale controller
 artifacts or nonempty runtime state refuse startup pending reconciliation.
+The two command arrays have no defaults: old experimental ON configs without
+them fail explicitly. The example above uses the test helper from
+`tests/support/workspace_probe.rs`, built only with
+`cargo build --release --locked --offline --example afs-workspace-probe` and
+placed into a test rootfs by [the acceptance preparation tool](../../development/acceptance/prepare-workspace-rootfs-linux.py).
+The preparation command runs as root on Linux after input admission:
+
+```sh
+python3 development/acceptance/prepare-workspace-rootfs-linux.py \
+  --helper /absolute/target/release/examples/afs-workspace-probe \
+  --helper-sha256 HELPER_SHA256 --busybox /absolute/regular/busybox \
+  --busybox-sha256 BUSYBOX_SHA256 --output /opt/new-test-rootfs \
+  --manifest /var/tmp/new-rootfs-inputs.json
+```
+
+Pass that rootfs and manifest to the maintained container acceptance driver
+with `--template-rootfs` and `--rootfs-inputs`; its `--idle-command` and
+`--identity-command` provide the two arrays. Rootfs creation refuses existing
+outputs or unsafe ancestors and records each copied library digest.
+It is outside default product binaries and ordinary trial packages. Any trusted
+configured observer must return the same final-view JSON contract; the adapter
+still validates source/namespace identities, unique mount ID and nosuid/nodev
+before startup success and every exec. OwnerFs core/host bind does not need
+these commands or a test rootfs.
+
 An explicit `--experimental-native-workspace false` overrides TOML. This is a
 startup-only switch. It does not bypass ordinary grant/permission/error gates.
 

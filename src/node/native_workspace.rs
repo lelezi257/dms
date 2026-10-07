@@ -37,7 +37,8 @@ type WorkerFailure = Option<(Option<i32>, String)>;
 
 const MAX_REQUEST: u64 = 8192;
 const MAX_OPERATIONS: usize = 64;
-const PROBE: &str = "/afs-workspace-probe";
+const MAX_COMMAND_ARGS: usize = 32;
+const MAX_ARG_BYTES: usize = 4096;
 const COMMAND_SUFFIXES: [&str; 4] = [".stdout", ".stderr", ".command.json", ".exit.json"];
 
 pub(super) struct NativeWorkspace {
@@ -201,7 +202,12 @@ impl Driver {
         }
         trusted_path(&cfg.runtime, false)?;
         trusted_tree(&cfg.rootfs)?;
-        trusted_path(&cfg.rootfs.join(PROBE.trim_start_matches('/')), false)?;
+        check_adapter_command(&cfg.idle_command)?;
+        check_adapter_command(&cfg.identity_command)?;
+        let idle_program = rootfs_command_path(&cfg.rootfs, &cfg.idle_command[0])?;
+        let identity_program = rootfs_command_path(&cfg.rootfs, &cfg.identity_command[0])?;
+        trusted_path(&idle_program, false)?;
+        trusted_path(&identity_program, false)?;
         if !cfg.rootfs.join("workspace").is_dir() || !cfg.rootfs.join("proc").is_dir() {
             return Err(io::Error::other(
                 "native rootfs needs empty workspace and proc directories",
@@ -214,13 +220,10 @@ impl Driver {
                 ));
             }
         }
-        for executable in [
-            &cfg.runtime,
-            &cfg.rootfs.join(PROBE.trim_start_matches('/')),
-        ] {
+        for executable in [&cfg.runtime, &idle_program, &identity_program] {
             if fs::metadata(executable)?.permissions().mode() & 0o111 == 0 {
                 return Err(io::Error::other(
-                    "native runtime and probe must be executable",
+                    "native runtime and configured commands must be executable",
                 ));
             }
         }
@@ -535,12 +538,7 @@ impl Driver {
         active.final_namespace = Some(final_ns);
         active.final_root = Some(final_root);
         active.pid = Some(process);
-        let probe = self.run_runtime(
-            &["exec", &container, PROBE, "identity"],
-            Duration::from_secs(5),
-            true,
-        )?;
-        let observed: Value = serde_json::from_slice(&probe).map_err(io::Error::other)?;
+        let observed = self.identity_observation(&container)?;
         verify_final(
             &observed,
             (dev, ino),
@@ -590,12 +588,7 @@ impl Driver {
             .expect("verified namespace")
             .metadata()?;
         let unique = active.final_unique.expect("verified unique mount");
-        let observed: Value = serde_json::from_slice(&self.run_runtime(
-            &["exec", &container, PROBE, "identity"],
-            Duration::from_secs(5),
-            true,
-        )?)
-        .map_err(io::Error::other)?;
+        let observed = self.identity_observation(&container)?;
         verify_final(
             &observed,
             (source.dev, source.ino),
@@ -620,6 +613,13 @@ impl Driver {
             false,
         )?)
         .map_err(io::Error::other)
+    }
+
+    fn identity_observation(&mut self, container: &str) -> io::Result<Value> {
+        let command = identity_runtime_args(container, &self.cfg.identity_command);
+        let args: Vec<_> = command.iter().map(String::as_str).collect();
+        serde_json::from_slice(&self.run_runtime(&args, Duration::from_secs(5), true)?)
+            .map_err(io::Error::other)
     }
 
     fn cleanup(&mut self) -> io::Result<()> {
@@ -835,13 +835,19 @@ fn next_command_sequence(control_dir: &Path) -> io::Result<u64> {
 fn container_spec(cfg: &NativeWorkspaceConfig, rootfs: &Path, source: &Path) -> Value {
     json!({"ociVersion":"1.0.2","root":{"path":rootfs,"readonly":true},
         "hostname":"afs-native-workspace","process":{"terminal":false,"cwd":"/",
-            "args":[PROBE,"idle"],"user":{"uid":cfg.workload_uid,"gid":cfg.workload_gid},
+            "args":cfg.idle_command.clone(),"user":{"uid":cfg.workload_uid,"gid":cfg.workload_gid},
             "env":["PATH=/bin:/usr/bin"],"noNewPrivileges":true,
             "capabilities":{"bounding":[],"effective":[],"inheritable":[],"permitted":[],"ambient":[]},
             "rlimits":[{"type":"RLIMIT_NOFILE","hard":256,"soft":256}]},
         "mounts":[{"destination":"/proc","type":"proc","source":"proc","options":["nosuid","nodev","noexec"]},
             {"destination":"/workspace","type":"bind","source":source,"options":["bind","rw","nosuid","nodev"]}],
         "linux":{"namespaces":[{"type":"mount"},{"type":"pid"},{"type":"network"},{"type":"ipc"},{"type":"uts"},{"type":"cgroup"}]}})
+}
+
+fn identity_runtime_args(container: &str, identity_command: &[String]) -> Vec<String> {
+    let mut command = vec!["exec".to_owned(), container.to_owned()];
+    command.extend_from_slice(identity_command);
+    command
 }
 
 fn prepare_runtime_rootfs(template: &Path, destination: &Path) -> io::Result<()> {
@@ -946,12 +952,46 @@ fn check_component(name: &str) -> io::Result<()> {
 fn check_exec(argv: &[String]) -> io::Result<()> {
     if argv.is_empty()
         || argv.len() > 64
+        || argv
+            .iter()
+            .any(|s| s.contains('\0') || s.len() > MAX_ARG_BYTES)
         || !Path::new(&argv[0]).is_absolute()
-        || argv.iter().any(|s| s.contains('\0') || s.len() > 4096)
     {
         return Err(io::Error::from_raw_os_error(libc::EINVAL));
     }
     Ok(())
+}
+fn check_adapter_command(argv: &[String]) -> io::Result<()> {
+    check_exec(argv)?;
+    if argv.len() > MAX_COMMAND_ARGS
+        || argv.iter().any(String::is_empty)
+        || !valid_container_program(&argv[0])
+    {
+        return Err(io::Error::from_raw_os_error(libc::EINVAL));
+    }
+    Ok(())
+}
+fn valid_container_program(program: &str) -> bool {
+    let path = Path::new(program);
+    path.is_absolute()
+        && path.file_name().is_some()
+        && path
+            .components()
+            .all(|component| matches!(component, Component::RootDir | Component::Normal(_)))
+}
+fn rootfs_command_path(rootfs: &Path, program: &str) -> io::Result<PathBuf> {
+    if !valid_container_program(program) {
+        return Err(io::Error::from_raw_os_error(libc::EINVAL));
+    }
+    let mut path = rootfs.to_owned();
+    for component in Path::new(program).components() {
+        match component {
+            Component::RootDir => {}
+            Component::Normal(part) => path.push(part),
+            _ => return Err(io::Error::from_raw_os_error(libc::EINVAL)),
+        }
+    }
+    Ok(path)
 }
 fn path_str(path: &Path) -> io::Result<&str> {
     path.to_str()
@@ -1174,6 +1214,8 @@ mod tests {
                 control_dir: temp.path().into(),
                 runtime,
                 rootfs: temp.path().join("rootfs"),
+                idle_command: vec!["/bin/view-observer".into(), "idle".into()],
+                identity_command: vec!["/bin/view-observer".into(), "identity".into()],
                 workload_uid: 501,
                 workload_gid: 501,
             },
@@ -1545,9 +1587,9 @@ mod tests {
             fs::create_dir(root.join(directory)).unwrap();
             fs::set_permissions(root.join(directory), fs::Permissions::from_mode(0o755)).unwrap();
         }
-        fs::write(root.join(PROBE.trim_start_matches('/')), b"probe").unwrap();
+        fs::write(root.join("bin/view-observer"), b"probe").unwrap();
         fs::set_permissions(
-            root.join(PROBE.trim_start_matches('/')),
+            root.join("bin/view-observer"),
             fs::Permissions::from_mode(0o755),
         )
         .unwrap();
@@ -1601,6 +1643,8 @@ mod tests {
             control_dir: temp.path().into(),
             runtime: "/not-admitted".into(),
             rootfs: temp.path().join("rootfs"),
+            idle_command: vec!["/bin/view-observer".into(), "idle".into()],
+            identity_command: vec!["/bin/view-observer".into(), "identity".into()],
             workload_uid: 501,
             workload_gid: 501,
         };
@@ -1697,6 +1741,8 @@ mod tests {
             control_dir: temp.path().into(),
             runtime: "/not-admitted".into(),
             rootfs: temp.path().join("rootfs"),
+            idle_command: vec!["/bin/view-observer".into(), "idle".into()],
+            identity_command: vec!["/bin/view-observer".into(), "identity".into()],
             workload_uid: 501,
             workload_gid: 501,
         };
@@ -1745,6 +1791,8 @@ mod tests {
             control_dir: temp.path().into(),
             runtime: "/not-admitted".into(),
             rootfs: temp.path().join("rootfs"),
+            idle_command: vec!["/bin/view-observer".into(), "idle".into()],
+            identity_command: vec!["/bin/view-observer".into(), "identity".into()],
             workload_uid: 501,
             workload_gid: 501,
         };
@@ -1790,6 +1838,45 @@ mod tests {
         }
         assert!(check_exec(&[]).is_err());
         assert!(check_exec(&["relative".into()]).is_err());
+        assert!(check_exec(&["/bin/view-observer".into(), "x\0x".into()]).is_err());
+        assert!(check_exec(&["/bin/view-observer".into(), "x".repeat(MAX_ARG_BYTES + 1)]).is_err());
+        let workload_64_args = (0..64)
+            .map(|index| {
+                if index == 0 {
+                    "/bin/../legacy-workload".to_owned()
+                } else if index == 1 {
+                    String::new()
+                } else {
+                    format!("arg-{index}")
+                }
+            })
+            .collect::<Vec<_>>();
+        check_exec(&workload_64_args).unwrap();
+        assert!(check_adapter_command(&["/bin/../view-observer".into()]).is_err());
+        assert!(check_adapter_command(&["/bin/view-observer".into(), String::new()]).is_err());
+        assert!(check_adapter_command(&["/bin/view\0observer".into()]).is_err());
+        assert!(
+            check_adapter_command(&["/bin/view-observer".into(), "x".repeat(MAX_ARG_BYTES + 1)])
+                .is_err()
+        );
+        assert!(
+            check_adapter_command(
+                &(0..=MAX_COMMAND_ARGS)
+                    .map(|index| {
+                        if index == 0 {
+                            "/bin/view-observer".to_owned()
+                        } else {
+                            format!("arg-{index}")
+                        }
+                    })
+                    .collect::<Vec<_>>()
+            )
+            .is_err()
+        );
+        assert_eq!(
+            rootfs_command_path(Path::new("/rootfs"), "/bin/view-observer").unwrap(),
+            Path::new("/rootfs/bin/view-observer")
+        );
     }
     #[test]
     fn native_final_view_rejects_wrong_source_namespace_mount_and_policy() {
@@ -1810,6 +1897,8 @@ mod tests {
             control_dir: "/var/native".into(),
             runtime: "/usr/bin/runc".into(),
             rootfs: "/var/rootfs".into(),
+            idle_command: vec!["/bin/custom-idle".into(), "--sleep".into()],
+            identity_command: vec!["/bin/custom-observer".into(), "--json".into()],
             workload_uid: 501,
             workload_gid: 501,
         };
@@ -1821,6 +1910,19 @@ mod tests {
         assert_eq!(spec["root"]["readonly"], true);
         assert_eq!(spec["root"]["path"], "/var/native/bundle/rootfs");
         assert_ne!(spec["root"]["path"], cfg.rootfs.to_string_lossy().as_ref());
+        assert_eq!(
+            spec["process"]["args"],
+            json!(["/bin/custom-idle", "--sleep"])
+        );
+        assert_eq!(
+            identity_runtime_args("container-a", &cfg.identity_command),
+            vec![
+                "exec".to_owned(),
+                "container-a".to_owned(),
+                "/bin/custom-observer".to_owned(),
+                "--json".to_owned()
+            ]
+        );
         assert_eq!(spec["process"]["noNewPrivileges"], true);
         assert_eq!(spec["process"]["capabilities"]["permitted"], json!([]));
         let mounts = spec["mounts"].as_array().unwrap();
@@ -1847,8 +1949,8 @@ mod tests {
         )
         .unwrap();
         prepare_runtime_rootfs(&template, &first).unwrap();
-        let template_probe = fs::metadata(template.join(PROBE.trim_start_matches('/'))).unwrap();
-        let first_probe = fs::metadata(first.join(PROBE.trim_start_matches('/'))).unwrap();
+        let template_probe = fs::metadata(template.join("bin/view-observer")).unwrap();
+        let first_probe = fs::metadata(first.join("bin/view-observer")).unwrap();
         assert_ne!(
             (template_probe.dev(), template_probe.ino()),
             (first_probe.dev(), first_probe.ino())
@@ -1914,6 +2016,8 @@ mod tests {
             control_dir: temp.path().into(),
             runtime: "/usr/bin/runc".into(),
             rootfs: template,
+            idle_command: vec!["/bin/view-observer".into(), "idle".into()],
+            identity_command: vec!["/bin/view-observer".into(), "identity".into()],
             workload_uid: 501,
             workload_gid: 501,
         };

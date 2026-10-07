@@ -54,6 +54,47 @@ def good_manifest() -> dict[str, object]:
     }
 
 
+DELETE_RUN_ID = "123456789-4242"
+DELETE_DFS_ROOT = "/mnt/dfs"
+
+
+def good_delete_sample(round_index: int = 0, *, run_id: str = DELETE_RUN_ID, dfs_root: str = DELETE_DFS_ROOT, **overrides: object) -> dict[str, object]:
+    sample_name = dfs_manyread_small.delete_sample_name(run_id, round_index)
+    sample: dict[str, object] = {
+        "round": round_index,
+        "measured": round_index >= dfs_manyread_small.WARMUP_ROUNDS,
+        "sample_name": sample_name,
+        "directory": str(Path(dfs_root) / sample_name),
+        "files": dfs_manyread_small.expected_delete_files(),
+        "status": "PASS",
+        "prepare": {"files": dfs_manyread_small.expected_delete_files(), "fdatasync_per_file": True, "parent_fsync": True},
+        "fresh_open_verify": {"status": "PASS", "files_checked": dfs_manyread_small.DELETE_FILE_COUNT, "bytes_per_file": dfs_manyread_small.DELETE_FILE_BYTES},
+        "unlink_timer": {"status": "PASS", "files": dfs_manyread_small.DELETE_FILE_COUNT, "wall_ns": 1000},
+        "post_unlink": {"status": "PASS", "remaining": [], "parent_fsync": True},
+        "cleanup": {"status": "PASS", "removed_sample_dir": True},
+    }
+    sample.update(overrides)
+    return sample
+
+
+def good_delete_manifest() -> dict[str, object]:
+    rounds = [good_delete_sample(index) for index in range(dfs_manyread_small.WARMUP_ROUNDS + dfs_manyread_small.MEASUREMENT_ROUNDS)]
+    return {
+        "role": "delete-writer",
+        "status": "DATA_RECORDED",
+        "product_source_commit": dfs_manyread_small.PRODUCT_SOURCE_COMMIT,
+        "source6d": dfs_manyread_small.PRODUCT_SOURCE_COMMIT[:7],
+        "compiler_input_map": dfs_manyread_small.COMPILER_INPUT_MAP,
+        "map66": dfs_manyread_small.COMPILER_INPUT_MAP[:8],
+        "fs": {"dfs_root": {"path": DELETE_DFS_ROOT, "device": 1, "inode": 2, "mode": 0o755, "uid": 0, "gid": 0}},
+        "mount": {"source": "afs-dfs", "target": DELETE_DFS_ROOT, "fstype": "fuse", "options": "rw", "id": "10"},
+        "run_id": DELETE_RUN_ID,
+        "owner_delete_helper": {"sha256": dfs_manyread_small.OWNER_REMOTE_SMALL_SHA256},
+        "delete_shape": {"files": dfs_manyread_small.DELETE_FILE_COUNT, "file_bytes": dfs_manyread_small.DELETE_FILE_BYTES, "warmups": dfs_manyread_small.WARMUP_ROUNDS, "measurements": dfs_manyread_small.MEASUREMENT_ROUNDS},
+        "delete_rounds": rounds,
+    }
+
+
 class DfsManyReadSmallGuardTests(unittest.TestCase):
     def test_missing_or_bad_manifest_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
@@ -119,6 +160,114 @@ class DfsManyReadSmallGuardTests(unittest.TestCase):
             dfs_manyread_small.require_dfs_mount({"fstype": "fuse", "source": "afs-dfs", "target": "/mnt/other"}, Path("/mnt/dfs"))
         dfs_manyread_small.require_dfs_mount({"fstype": "fuse", "source": "afs-dfs", "target": "/mnt/dfs"}, Path("/mnt/dfs"))
 
+
+
+    def test_owner_delete_helper_loads_fixed_sha_and_shape(self) -> None:
+        helper = dfs_manyread_small.load_owner_delete_helper()
+        self.assertEqual(helper.DELETE_FILE_COUNT, dfs_manyread_small.DELETE_FILE_COUNT)
+        self.assertEqual(helper.DELETE_FILE_BYTES, dfs_manyread_small.DELETE_FILE_BYTES)
+        self.assertTrue(callable(helper.prepare_delete_files))
+        self.assertTrue(callable(helper.verify_delete_file_contents))
+        self.assertTrue(callable(helper.timed_unlink))
+
+    def test_delete_manifest_shape_and_helper_identity_are_checked(self) -> None:
+        rounds = dfs_manyread_small.validate_delete_manifest(good_delete_manifest())
+        self.assertEqual(len(rounds), dfs_manyread_small.WARMUP_ROUNDS + dfs_manyread_small.MEASUREMENT_ROUNDS)
+        bad = good_delete_manifest()
+        bad["owner_delete_helper"] = {"sha256": "0" * 64}
+        with self.assertRaises(ValueError):
+            dfs_manyread_small.validate_delete_manifest(bad)
+        bad_shape = good_delete_manifest()
+        bad_shape["delete_shape"] = {"files": 1}
+        with self.assertRaises(ValueError):
+            dfs_manyread_small.validate_delete_manifest(bad_shape)
+        bad_rounds = good_delete_manifest()
+        bad_rounds["delete_rounds"] = bad_rounds["delete_rounds"][:-1]
+        with self.assertRaises(ValueError):
+            dfs_manyread_small.validate_delete_manifest(bad_rounds)
+
+    def test_delete_manifest_binds_run_id_exact_names_directories_and_mount(self) -> None:
+        cases = []
+        missing_run_id = good_delete_manifest()
+        missing_run_id.pop("run_id")
+        cases.append(missing_run_id)
+        bad_run_id = good_delete_manifest()
+        bad_run_id["run_id"] = "run-x"
+        cases.append(bad_run_id)
+        bad_role = good_delete_manifest()
+        bad_role["role"] = "reader"
+        cases.append(bad_role)
+        wrong_name = good_delete_manifest()
+        wrong_name["delete_rounds"][0] = {**wrong_name["delete_rounds"][0], "sample_name": ".afs-dfs-delete-123456789-9999-r00"}
+        cases.append(wrong_name)
+        wrong_dir = good_delete_manifest()
+        wrong_dir["delete_rounds"][0] = {**wrong_dir["delete_rounds"][0], "directory": "/mnt/dfs/.afs-dfs-delete-123456789-4242-r99"}
+        cases.append(wrong_dir)
+        wrong_root = good_delete_manifest()
+        wrong_root["fs"]["dfs_root"]["path"] = "/mnt/other"
+        cases.append(wrong_root)
+        wrong_mount_source = good_delete_manifest()
+        wrong_mount_source["mount"] = {**wrong_mount_source["mount"], "source": "other-fuse"}
+        cases.append(wrong_mount_source)
+        for manifest in cases:
+            with self.subTest(manifest=manifest), self.assertRaises(ValueError):
+                dfs_manyread_small.validate_delete_manifest(manifest)
+
+    def test_delete_manifest_rejects_corrupt_content_failed_unlink_cleanup_and_traversal(self) -> None:
+        for mutated in (
+            {"fresh_open_verify": {"status": "FAIL", "files_checked": dfs_manyread_small.DELETE_FILE_COUNT, "bytes_per_file": dfs_manyread_small.DELETE_FILE_BYTES}},
+            {"unlink_timer": {"status": "FAIL", "files": dfs_manyread_small.DELETE_FILE_COUNT, "wall_ns": 1000}},
+            {"cleanup": {"status": "FAIL", "left_in_place": "/tmp/x"}},
+            {"sample_name": "../escape"},
+        ):
+            manifest = good_delete_manifest()
+            manifest["delete_rounds"][0] = {**manifest["delete_rounds"][0], **mutated}
+            with self.subTest(mutated=mutated), self.assertRaises(ValueError):
+                dfs_manyread_small.validate_delete_manifest(manifest)
+
+    def test_deleted_path_checker_requires_actual_lstat_enoent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest = good_delete_manifest()
+            rounds = dfs_manyread_small.validate_delete_manifest(manifest)
+            self.assertEqual(dfs_manyread_small.check_deleted_paths(root, rounds)["status"], "PASS")
+            present_dir = root / rounds[0]["sample_name"]
+            present_dir.mkdir()
+            (present_dir / "entry-0000.bin").write_bytes(b"still-here")
+            result = dfs_manyread_small.check_deleted_paths(root, rounds)
+            self.assertEqual(result["checked"], dfs_manyread_small.DELETE_FILE_COUNT * (dfs_manyread_small.WARMUP_ROUNDS + dfs_manyread_small.MEASUREMENT_ROUNDS))
+            self.assertEqual(result["status"], "FAIL")
+            self.assertEqual(result["failures"][0]["status"], "PRESENT")
+
+            original_lstat = dfs_manyread_small.os.lstat
+            try:
+                def denied_lstat(path: Path) -> object:
+                    if str(path).endswith("entry-0000.bin"):
+                        raise PermissionError(13, "denied", str(path))
+                    return original_lstat(path)
+
+                dfs_manyread_small.os.lstat = denied_lstat
+                wrong_errno = dfs_manyread_small.check_deleted_paths(root, rounds)
+            finally:
+                dfs_manyread_small.os.lstat = original_lstat
+            self.assertEqual(wrong_errno["status"], "FAIL")
+            self.assertEqual(wrong_errno["failures"][0]["status"], "WRONG_ERRNO")
+            self.assertEqual(wrong_errno["failures"][0]["errno"], 13)
+
+    def test_delete_writer_existing_output_sentinel_is_not_overwritten(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "out"
+            out.mkdir()
+            sentinel = out / "summary.json"
+            sentinel.write_text("sentinel", encoding="utf-8")
+
+            class Args:
+                dfs_root = "/missing-dfs"
+                output = str(out)
+
+            result = dfs_manyread_small.delete_writer(Args())
+            self.assertEqual(result["status"], "BLOCKED")
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "sentinel")
 
     def test_start_event_rejects_wrong_reader_round_or_session(self) -> None:
         good = json.dumps({"event": "START", "reader_id": "B", "session_token": "s", "round": 1, "round_token": "s:round:1"})

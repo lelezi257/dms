@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import select
@@ -31,6 +32,9 @@ COMPILER_INPUT_MAP = "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874
 WARMUP_ROUNDS = 1
 MEASUREMENT_ROUNDS = 5
 PAYLOAD_NAME = "payload64m.bin"
+DELETE_FILE_COUNT = 100
+DELETE_FILE_BYTES = 4096
+OWNER_REMOTE_SMALL_SHA256 = "d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98"
 
 
 def sha256_file(path: Path) -> str:
@@ -333,6 +337,290 @@ def sync_read_status(rounds: list[dict[str, Any]], final_content: dict[str, Any]
     if final_content.get("status") != "PASS" or final_eof.get("status") != "PASS":
         return "FAIL"
     return "DATA_RECORDED"
+
+
+def load_owner_delete_helper() -> Any:
+    helper_path = Path(__file__).with_name("owner_remote_small.py")
+    digest = sha256_file(helper_path)
+    if digest != OWNER_REMOTE_SMALL_SHA256:
+        raise ValueError(f"owner_remote_small.py sha256 mismatch: {digest}")
+    spec = importlib.util.spec_from_file_location("afs_owner_remote_small_delete_core", helper_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load owner delete helper: {helper_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for name in ("prepare_delete_files", "verify_delete_file_contents", "timed_unlink"):
+        if not callable(getattr(module, name, None)):
+            raise RuntimeError(f"owner delete helper missing {name}")
+    if getattr(module, "DELETE_FILE_COUNT", None) != DELETE_FILE_COUNT or getattr(module, "DELETE_FILE_BYTES", None) != DELETE_FILE_BYTES:
+        raise RuntimeError("owner delete helper shape differs")
+    return module
+
+
+def safe_manifest_name(value: Any) -> str:
+    if not isinstance(value, str) or value in ("", ".", "..") or value.startswith("/") or "/" in value or ".." in Path(value).parts:
+        raise ValueError(f"unsafe sample name: {value!r}")
+    return value
+
+
+def validate_delete_run_id(value: Any) -> str:
+    if not isinstance(value, str):
+        raise ValueError("delete run_id must be a string")
+    parts = value.split("-", 1)
+    if len(parts) != 2 or not all(part and part.isdigit() for part in parts):
+        raise ValueError(f"delete run_id must match digits-digits: {value!r}")
+    return value
+
+
+def validate_delete_writer_root(manifest: dict[str, Any]) -> str:
+    if manifest.get("role") != "delete-writer":
+        raise ValueError("delete manifest role must be delete-writer")
+    fs = manifest.get("fs")
+    if not isinstance(fs, dict):
+        raise ValueError("delete manifest missing fs")
+    dfs_root_identity = fs.get("dfs_root")
+    if not isinstance(dfs_root_identity, dict):
+        raise ValueError("delete manifest missing dfs_root identity")
+    dfs_root_path = dfs_root_identity.get("path")
+    if not isinstance(dfs_root_path, str) or not Path(dfs_root_path).is_absolute() or ".." in Path(dfs_root_path).parts:
+        raise ValueError(f"delete manifest dfs_root path must be absolute plain text: {dfs_root_path!r}")
+    for key in ("device", "inode", "mode", "uid", "gid"):
+        if not isinstance(dfs_root_identity.get(key), int):
+            raise ValueError(f"delete manifest dfs_root identity missing integer {key}")
+    mount = manifest.get("mount")
+    if not isinstance(mount, dict):
+        raise ValueError("delete manifest missing mount identity")
+    fstype = str(mount.get("fstype", ""))
+    if mount.get("source") != "afs-dfs" or mount.get("target") != dfs_root_path or not (fstype == "fuse" or fstype.startswith("fuse.")):
+        raise ValueError(f"delete manifest DFS mount identity mismatch: {mount!r}")
+    return dfs_root_path
+
+
+def expected_delete_files() -> list[str]:
+    return [f"entry-{index:04d}.bin" for index in range(DELETE_FILE_COUNT)]
+
+
+def delete_sample_name(run_id: str, round_index: int) -> str:
+    return f".afs-dfs-delete-{run_id}-r{round_index:02d}"
+
+
+def delete_status(rounds: list[dict[str, Any]]) -> str:
+    if len(rounds) != WARMUP_ROUNDS + MEASUREMENT_ROUNDS:
+        return "FAIL"
+    expected_rounds = list(range(WARMUP_ROUNDS + MEASUREMENT_ROUNDS))
+    if [row.get("round") for row in rounds] != expected_rounds:
+        return "FAIL"
+    for round_record in rounds:
+        if round_record.get("status") != "PASS" or round_record.get("cleanup", {}).get("status") != "PASS":
+            return "FAIL"
+    return "DATA_RECORDED"
+
+
+def run_delete_sample(dfs_root: Path, run_id: str, round_index: int, helper: Any) -> dict[str, Any]:
+    sample_name = delete_sample_name(run_id, round_index)
+    directory = dfs_root / sample_name
+    record: dict[str, Any] = {
+        "round": round_index,
+        "measured": round_index >= WARMUP_ROUNDS,
+        "sample_name": sample_name,
+        "directory": str(directory),
+        "files": expected_delete_files(),
+        "status": "FAIL",
+    }
+    cleanup: dict[str, Any] = {"status": "NOT_RUN"}
+    try:
+        if directory.exists() or directory.is_symlink():
+            raise FileExistsError(str(directory))
+        directory.mkdir(mode=0o700)
+        fsync_directory(dfs_root)
+        label = f"dfs-delete:r{round_index}"
+        record["prepare"] = helper.prepare_delete_files(directory, label)
+        record["fresh_open_verify"] = helper.verify_delete_file_contents(directory, label)
+        record["unlink_timer"] = helper.timed_unlink(directory)
+        fsync_directory(directory)
+        remaining = sorted(path.name for path in directory.iterdir())
+        record["post_unlink"] = {"status": "PASS" if not remaining else "FAIL", "remaining": remaining, "parent_fsync": True}
+        directory.rmdir()
+        cleanup = {"status": "PASS", "removed_sample_dir": True}
+        checks = [record["fresh_open_verify"], record["unlink_timer"], record["post_unlink"], cleanup]
+        record["status"] = "PASS" if all(item.get("status") == "PASS" for item in checks) else "FAIL"
+    except Exception as error:
+        record["error"] = repr(error)
+        if directory.exists():
+            cleanup["left_in_place"] = str(directory)
+    finally:
+        record["cleanup"] = cleanup
+    return record
+
+
+def validate_delete_manifest(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    if manifest.get("status") != "DATA_RECORDED":
+        raise ValueError("delete writer manifest is not DATA_RECORDED")
+    if manifest.get("product_source_commit") != PRODUCT_SOURCE_COMMIT or manifest.get("compiler_input_map") != COMPILER_INPUT_MAP:
+        raise ValueError("delete writer manifest source/map mismatch")
+    if manifest.get("source6d") != PRODUCT_SOURCE_COMMIT[:7] or manifest.get("map66") != COMPILER_INPUT_MAP[:8]:
+        raise ValueError("delete writer manifest display source/map mismatch")
+    run_id = validate_delete_run_id(manifest.get("run_id"))
+    dfs_root_path = validate_delete_writer_root(manifest)
+    helper = manifest.get("owner_delete_helper")
+    if not isinstance(helper, dict) or helper.get("sha256") != OWNER_REMOTE_SMALL_SHA256:
+        raise ValueError("delete writer helper identity mismatch")
+    shape = manifest.get("delete_shape")
+    expected_shape = {"files": DELETE_FILE_COUNT, "file_bytes": DELETE_FILE_BYTES, "warmups": WARMUP_ROUNDS, "measurements": MEASUREMENT_ROUNDS}
+    if shape != expected_shape:
+        raise ValueError(f"delete shape mismatch: {shape!r}")
+    rounds = manifest.get("delete_rounds")
+    if not isinstance(rounds, list) or delete_status(rounds) != "DATA_RECORDED":
+        raise ValueError("delete rounds incomplete or failed")
+    names: set[str] = set()
+    for index, sample in enumerate(rounds):
+        if sample.get("round") != index or sample.get("measured") != (index >= WARMUP_ROUNDS):
+            raise ValueError("delete sample round/measured mismatch")
+        name = safe_manifest_name(sample.get("sample_name"))
+        expected_name = delete_sample_name(run_id, index)
+        if name != expected_name:
+            raise ValueError(f"delete sample name mismatch: {name!r} != {expected_name!r}")
+        directory = sample.get("directory")
+        expected_directory = str(Path(dfs_root_path) / expected_name)
+        if directory != expected_directory:
+            raise ValueError(f"delete sample directory mismatch: {directory!r} != {expected_directory!r}")
+        if name in names:
+            raise ValueError("duplicate delete sample name")
+        names.add(name)
+        if sample.get("files") != expected_delete_files():
+            raise ValueError("delete sample file list mismatch")
+        if sample.get("status") != "PASS" or sample.get("cleanup", {}).get("status") != "PASS":
+            raise ValueError("delete sample did not pass")
+        prepare = sample.get("prepare")
+        if not isinstance(prepare, dict) or prepare.get("files") != expected_delete_files() or prepare.get("fdatasync_per_file") is not True or prepare.get("parent_fsync") is not True:
+            raise ValueError("delete prepare proof mismatch")
+        fresh = sample.get("fresh_open_verify")
+        if not isinstance(fresh, dict) or fresh.get("status") != "PASS" or fresh.get("files_checked") != DELETE_FILE_COUNT or fresh.get("bytes_per_file") != DELETE_FILE_BYTES:
+            raise ValueError("delete fresh content proof mismatch")
+        unlink = sample.get("unlink_timer")
+        if not isinstance(unlink, dict) or unlink.get("status") != "PASS" or unlink.get("files") != DELETE_FILE_COUNT or not isinstance(unlink.get("wall_ns"), int) or unlink.get("wall_ns") <= 0:
+            raise ValueError("delete unlink proof mismatch")
+        post = sample.get("post_unlink")
+        if not isinstance(post, dict) or post.get("status") != "PASS" or post.get("remaining") != [] or post.get("parent_fsync") is not True:
+            raise ValueError("delete post-unlink proof mismatch")
+    return rounds
+
+
+def check_deleted_paths(dfs_root: Path, rounds: list[dict[str, Any]]) -> dict[str, Any]:
+    failures: list[dict[str, Any]] = []
+    checked = 0
+    for sample in rounds:
+        sample_name = safe_manifest_name(sample.get("sample_name"))
+        for file_name in expected_delete_files():
+            path = dfs_root / sample_name / file_name
+            try:
+                os.lstat(path)
+                failures.append({"path": str(path), "status": "PRESENT"})
+            except FileNotFoundError as error:
+                if error.errno != 2:
+                    failures.append({"path": str(path), "status": "WRONG_ERRNO", "errno": error.errno})
+            except OSError as error:
+                failures.append({"path": str(path), "status": "WRONG_ERRNO", "errno": error.errno, "error": repr(error)})
+            checked += 1
+    return {"status": "PASS" if not failures else "FAIL", "checked": checked, "expected_errno": "ENOENT", "failures": failures}
+
+
+def delete_writer(args: argparse.Namespace) -> dict[str, Any]:
+    result: dict[str, Any] = {"role": "delete-writer", "status": "BLOCKED", "scope": "small DFS delete diagnostic; candidate correctness/data collection only"}
+    output: Path | None = None
+    output_created = False
+    rounds: list[dict[str, Any]] = []
+    try:
+        dfs_root = require_absolute_path(args.dfs_root, "dfs-root")
+        output = require_absolute_path(args.output, "output")
+        validate_output_path(output)
+        output.mkdir(mode=0o700)
+        output_created = True
+        platform_identity = verify_linux_aarch64_root()
+        require_existing_directory(dfs_root, "dfs-root")
+        mount = find_mount(dfs_root)
+        require_dfs_mount(mount, dfs_root)
+        helper = load_owner_delete_helper()
+        run_id = f"{time.time_ns()}-{os.getpid()}"
+        result.update({
+            "status": "FAIL",
+            "product_source_commit": PRODUCT_SOURCE_COMMIT,
+            "source6d": PRODUCT_SOURCE_COMMIT[:7],
+            "compiler_input_map": COMPILER_INPUT_MAP,
+            "map66": COMPILER_INPUT_MAP[:8],
+            "platform": platform_identity,
+            "fs": {"dfs_root": stat_identity(dfs_root)},
+            "mount": mount,
+            "run_id": run_id,
+            "delete_shape": {"files": DELETE_FILE_COUNT, "file_bytes": DELETE_FILE_BYTES, "warmups": WARMUP_ROUNDS, "measurements": MEASUREMENT_ROUNDS},
+            "owner_delete_helper": {"path": str(Path(__file__).with_name("owner_remote_small.py")), "sha256": OWNER_REMOTE_SMALL_SHA256},
+            "timer_scope": "unlink_timer covers exactly 100 unlink syscalls; prepare, fdatasync, fresh-open verification, directory fsync, namespace checks, and cleanup are outside timer",
+            "cache_state": "UNOBSERVED",
+            "comparison_status": "CANDIDATE_ONLY_3FS_COMPARATOR_NOT_RUN",
+        })
+        write_json(output / "preflight.json", {k: result[k] for k in ("product_source_commit", "compiler_input_map", "platform", "fs", "mount", "delete_shape", "owner_delete_helper")})
+        for index in range(WARMUP_ROUNDS + MEASUREMENT_ROUNDS):
+            sample = run_delete_sample(dfs_root, run_id, index, helper)
+            sample_path = output / "delete-samples" / f"round-{index:02d}.json"
+            write_json(sample_path, sample)
+            sample["artifact"] = str(sample_path)
+            rounds.append(sample)
+            if sample.get("status") != "PASS":
+                break
+        result["delete_rounds"] = rounds
+        write_json(output / "delete-rounds.json", rounds)
+        result["status"] = delete_status(rounds)
+    except Exception as error:
+        result["error"] = repr(error)
+        if rounds:
+            result["delete_rounds"] = rounds
+    finally:
+        if output_created and output is not None and output.exists() and output.is_dir():
+            write_json(output / "summary.json", result)
+            write_json(output / "confirmed.json", result)
+    return result
+
+
+def delete_checker(args: argparse.Namespace) -> dict[str, Any]:
+    checker_id = args.checker_id
+    result: dict[str, Any] = {"role": "delete-checker", "checker_id": checker_id, "status": "BLOCKED", "scope": "independent DFS mount ENOENT check for delete-writer manifest"}
+    output: Path | None = None
+    output_created = False
+    try:
+        dfs_root = require_absolute_path(args.dfs_root, "dfs-root")
+        manifest_path = require_absolute_path(args.manifest, "manifest")
+        output = require_absolute_path(args.output, "output")
+        validate_output_path(output)
+        output.mkdir(mode=0o700)
+        output_created = True
+        platform_identity = verify_linux_aarch64_root()
+        require_existing_directory(dfs_root, "dfs-root")
+        if manifest_path.is_symlink() or not manifest_path.is_file():
+            raise ValueError(f"manifest must be an existing non-symlink file: {manifest_path}")
+        mount = find_mount(dfs_root)
+        require_dfs_mount(mount, dfs_root)
+        manifest = read_json(manifest_path)
+        rounds = validate_delete_manifest(manifest)
+        check = check_deleted_paths(dfs_root, rounds)
+        write_json(output / "enoent-check.json", check)
+        result.update({
+            "status": "DATA_RECORDED" if check.get("status") == "PASS" else "FAIL",
+            "product_source_commit": PRODUCT_SOURCE_COMMIT,
+            "source6d": PRODUCT_SOURCE_COMMIT[:7],
+            "compiler_input_map": COMPILER_INPUT_MAP,
+            "map66": COMPILER_INPUT_MAP[:8],
+            "platform": platform_identity,
+            "fs": {"dfs_root": stat_identity(dfs_root)},
+            "mount": mount,
+            "manifest": {"path": str(manifest_path), "run_id": manifest.get("run_id"), "delete_shape": manifest.get("delete_shape")},
+            "enoent_check": check,
+        })
+    except Exception as error:
+        result["error"] = repr(error)
+    finally:
+        if output_created and output is not None and output.exists() and output.is_dir():
+            write_json(output / "summary.json", result)
+    return result
 
 
 def writer_directory_name() -> str:
@@ -733,6 +1021,14 @@ def parse_args() -> argparse.Namespace:
         item.add_argument("--dfs-root", required=True)
         item.add_argument("--io-tool", required=True)
         item.add_argument("--output", required=True)
+    delete_writer_parser = sub.add_parser("delete-writer")
+    delete_writer_parser.add_argument("--dfs-root", required=True)
+    delete_writer_parser.add_argument("--output", required=True)
+    delete_checker_parser = sub.add_parser("delete-checker")
+    delete_checker_parser.add_argument("--dfs-root", required=True)
+    delete_checker_parser.add_argument("--manifest", required=True)
+    delete_checker_parser.add_argument("--output", required=True)
+    delete_checker_parser.add_argument("--checker-id", choices=("B", "C"), required=True)
     coordinator_parser = sub.add_parser("coordinator")
     coordinator_parser.add_argument("--output", required=True)
     coordinator_parser.add_argument("--session-token", required=True)
@@ -750,6 +1046,12 @@ def main() -> int:
     args = parse_args()
     if args.role == "writer":
         result = writer(args)
+        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.role == "delete-writer":
+        result = delete_writer(args)
+        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.role == "delete-checker":
+        result = delete_checker(args)
         print(json.dumps(result, indent=2, sort_keys=True))
     elif args.role == "coordinator":
         result = coordinator(args)

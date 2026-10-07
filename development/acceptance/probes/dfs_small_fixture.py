@@ -21,8 +21,10 @@ from pathlib import Path
 
 FIXTURE = "dfs-small-6d-20261007-r1"
 SYNC_FIXTURE = "dfs-sync-6d-20261007-r1"
+DELETE_FIXTURE = "dfs-delete-6d-20261007-r1"
 FIXTURE_PORTS = {FIXTURE: {"ctl": (23100, 23101), "node": (23200, 23201)},
-                 SYNC_FIXTURE: {"ctl": (23700, 23701), "node": (23800, 23801)}}
+                 SYNC_FIXTURE: {"ctl": (23700, 23701), "node": (23800, 23801)},
+                 DELETE_FIXTURE: {"ctl": (23900, 23901), "node": (24000, 24001)}}
 VOLUMES = {"ctl": "/mnt/lima-afsctlstate", "a": "/mnt/lima-afsadata",
            "b": "/mnt/lima-afsbdata", "c": "/mnt/lima-afscdata"}
 IPS = {"ctl": "192.168.109.11", "a": "192.168.109.12",

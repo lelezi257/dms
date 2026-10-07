@@ -1,0 +1,557 @@
+[
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015717299975221977,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--version"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0013848939997842535,
+    "stdout": "001.stdout",
+    "stderr": "001.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-xzf",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/afs-0.1.0-g2-orderly-3cc10a2-linux-aarch64.tar.gz",
+      "-C",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/package"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.23131275600462686,
+    "stdout": "002.stdout",
+    "stderr": "002.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-orderly-recovery-20261007-r1/package/afs-0.1.0-g2-orderly-3cc10a2-linux-aarch64/install.sh",
+      "--prefix",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/logs",
+      "--mount-root",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/mount"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.5425430230097845,
+    "stdout": "003.stdout",
+    "stderr": "003.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix/bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0038037190097384155,
+    "stdout": "004.stdout",
+    "stderr": "004.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix/bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0041733909893082455,
+    "stdout": "005.stdout",
+    "stderr": "005.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix/bin/afs-trial-config",
+      "single",
+      "--backend",
+      "local-file",
+      "--config-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/run",
+      "--mount-root",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/mount",
+      "--meta-grpc-port",
+      "24400",
+      "--meta-rest-port",
+      "24401",
+      "--node-grpc-port",
+      "24500",
+      "--node-rest-port",
+      "24501",
+      "--force"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.4802832940040389,
+    "stdout": "006.stdout",
+    "stderr": "006.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3691107269987697,
+    "stdout": "007.stdout",
+    "stderr": "007.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0014275610010372475,
+    "stdout": "008.stdout",
+    "stderr": "008.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "initial",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06828810200386215,
+    "stdout": "009.stdout",
+    "stderr": "009.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "first",
+      "start",
+      "workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.16830618200765457,
+    "stdout": "010.stdout",
+    "stderr": "010.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/runtime-state",
+      "state",
+      "afs-native-first"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003914177999831736,
+    "stdout": "011.stdout",
+    "stderr": "011.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "orderly-phase1-status",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0749534860078711,
+    "stdout": "012.stdout",
+    "stderr": "012.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/runtime-state",
+      "state",
+      "afs-native-first"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.007985817996086553,
+    "stdout": "013.stdout",
+    "stderr": "013.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "orderly-confirm-write",
+      "exec",
+      "--",
+      "/bin/sh",
+      "-ec",
+      "set -C; umask 077; i=0; while [ \"$i\" -lt 64 ]; do printf '%s' '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-'; i=$((i+1)); done > /workspace/orderly-recovery-proof; /bin/busybox sync -f /workspace/orderly-recovery-proof"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.17118509700230788,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "orderly-phase1-read",
+      "exec",
+      "--",
+      "/bin/sh",
+      "-ec",
+      "/bin/busybox cat /workspace/orderly-recovery-proof; printf \"\\nRECOVERY_META \"; /bin/busybox stat -c \"%s %a %u %g\" /workspace/orderly-recovery-proof; /bin/busybox sha256sum /workspace/orderly-recovery-proof; printf \"RECOVERY_EOF \"; /bin/busybox tail -c +4097 /workspace/orderly-recovery-proof | /bin/busybox wc -c"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06460530300682876,
+    "stdout": "015.stdout",
+    "stderr": "015.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "orderly-phase1-stop",
+      "stop"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.11993006098782644,
+    "stdout": "016.stdout",
+    "stderr": "016.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "orderly-phase1-idle",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06618307399912737,
+    "stdout": "017.stdout",
+    "stderr": "017.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/runtime-state",
+      "list",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034392969973850995,
+    "stdout": "018.stdout",
+    "stderr": "018.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.17002070500166155,
+    "stdout": "019.stdout",
+    "stderr": "019.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0014055609935894608,
+    "stdout": "020.stdout",
+    "stderr": "020.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3725348150037462,
+    "stdout": "021.stdout",
+    "stderr": "021.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0015810629993211478,
+    "stdout": "022.stdout",
+    "stderr": "022.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "orderly-second",
+      "start",
+      "workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.17330616700928658,
+    "stdout": "023.stdout",
+    "stderr": "023.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "orderly-phase2-status",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06657266299589537,
+    "stdout": "024.stdout",
+    "stderr": "024.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/runtime-state",
+      "state",
+      "afs-native-orderly-second"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003638925001723692,
+    "stdout": "025.stdout",
+    "stderr": "025.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "orderly-phase2-read",
+      "exec",
+      "--",
+      "/bin/sh",
+      "-ec",
+      "/bin/busybox cat /workspace/orderly-recovery-proof; printf \"\\nRECOVERY_META \"; /bin/busybox stat -c \"%s %a %u %g\" /workspace/orderly-recovery-proof; /bin/busybox sha256sum /workspace/orderly-recovery-proof; printf \"RECOVERY_EOF \"; /bin/busybox tail -c +4097 /workspace/orderly-recovery-proof | /bin/busybox wc -c"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06531572800304275,
+    "stdout": "026.stdout",
+    "stderr": "026.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "stop-first",
+      "stop"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.11971259900019504,
+    "stdout": "027.stdout",
+    "stderr": "027.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "after-stop",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.032742323994170874,
+    "stdout": "028.stdout",
+    "stderr": "028.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/runtime-state",
+      "list",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035594239889178425,
+    "stdout": "029.stdout",
+    "stderr": "029.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/control/control.sock",
+      "--id",
+      "finally-stop",
+      "stop"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.07016071199905127,
+    "stdout": "030.stdout",
+    "stderr": "030.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.2194107989926124,
+    "stdout": "031.stdout",
+    "stderr": "031.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0015441050054505467,
+    "stdout": "032.stdout",
+    "stderr": "032.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-managed-orderly-recovery-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0014657279971288517,
+    "stdout": "033.stdout",
+    "stderr": "033.stderr"
+  }
+]

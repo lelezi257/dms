@@ -1,0 +1,38 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+Traceback (most recent call last):
+  File "<string>", line 5, in <module>
+  File "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/development/acceptance/orderly-runtime-checks.py", line 384, in postcheck
+    self.report['actual_waits'] = verify_waits(args.root, oracle,
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/development/acceptance/orderly-runtime-checks.py", line 212, in verify_waits
+    child, receipt, ready = [probe.fields(path / name) for name in ('child', 'exit', 'ready')]
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/development/acceptance/probes/native_orderly_recovery.py", line 214, in fields
+    return dict(line.split('=', 1) for line in path.read_text().splitlines() if '=' in line)
+                                               ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1029, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/opt/afs-managed-orderly-recovery-20261007-r1/run/meta.lifecycle.QVJIM1/child'
+Traceback (most recent call last):
+  File "<string>", line 5, in <module>
+  File "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/development/acceptance/orderly-runtime-checks.py", line 384, in postcheck
+    self.report['actual_waits'] = verify_waits(args.root, oracle,
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/development/acceptance/orderly-runtime-checks.py", line 212, in verify_waits
+    child, receipt, ready = [probe.fields(path / name) for name in ('child', 'exit', 'ready')]
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/tmp/afs-managed-orderly-recovery-20261007-r1/tools/development/acceptance/probes/native_orderly_recovery.py", line 214, in fields
+    return dict(line.split('=', 1) for line in path.read_text().splitlines() if '=' in line)
+                                               ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1029, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/pathlib.py", line 1015, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/opt/afs-managed-orderly-recovery-20261007-r1/run/meta.lifecycle.QVJIM1/child'

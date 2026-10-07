@@ -1,0 +1,48 @@
+{
+  "schema": "afs.package-build-receipt.v1",
+  "status": "PASS",
+  "source_commit": "3cc10a26b6c5fc4a2edc34f1bf210f4c4849082e",
+  "compiler_map_sha256": "e15c7eab07d0a58376ce0fe260526eefa8bbb3e3185d95185211c2bdaa0273be",
+  "version": "0.1.0-g2-orderly-3cc10a2",
+  "package": {
+    "file": "afs-0.1.0-g2-orderly-3cc10a2-linux-aarch64.tar.gz",
+    "bytes": 14731638,
+    "sha256": "a5bdc4faab13e3a118a43194d0124946a8e1a05e5ddfb1b2bbba6b9d887355fe"
+  },
+  "binaries": {
+    "afs-meta": {
+      "sha256": "8c53c693023249b69c22f51d8aad7d0950b0f1d3452534e219c3d1c7c906e286",
+      "bytes": 15816704
+    },
+    "afs-node": {
+      "sha256": "738ea5eaf0fe8f6412c99f79e26d1e3a92fba78a068510e7e27b129301d85324",
+      "bytes": 25943584
+    },
+    "afs-workspace-probe": {
+      "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+      "bytes": 560000
+    }
+  },
+  "argv": [
+    "env",
+    "PATH=/home/lzc.guest/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "SOURCE_DATE_EPOCH=0",
+    "bash",
+    "scripts/deploy/build-package.sh",
+    "--bin-dir",
+    "/var/tmp/afs-e2e-release-20261006-r1/target/release",
+    "--output",
+    "/var/tmp/afs-native-orderly-package-20261007-r1",
+    "--version",
+    "0.1.0-g2-orderly-3cc10a2",
+    "--source-commit",
+    "3cc10a26b6c5fc4a2edc34f1bf210f4c4849082e",
+    "--features",
+    "ownerfs,dfs,rdma"
+  ],
+  "platform": "afs-build Linux aarch64",
+  "returncode": 0,
+  "stdout": "/var/tmp/afs-native-orderly-package-20261007-r1/afs-0.1.0-g2-orderly-3cc10a2-linux-aarch64.tar.gz\n",
+  "identity_checks": "Build-VM, host and runtime-VM archive SHA agree; 13 packaging inputs match the fixed Git commit. SHA256SUMS payload validation is pending admission.",
+  "scope": "New candidate; not installed runtime recovery PASS or public trial replacement. Probe listed in gate is not packaged."
+}

@@ -1,0 +1,31 @@
+{
+  "files": {
+    "development/acceptance/native-workspace-linux.py": {
+      "sha256": "a7e1254b7132b9e452c6f986606661e1677e9a2f1c5bd5bb07d657ccadfce46c",
+      "bytes": 21961
+    },
+    "development/acceptance/installed-smoke-linux.py": {
+      "sha256": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+      "bytes": 13639
+    },
+    "development/acceptance/probes/native_source_rejection.py": {
+      "sha256": "faae54c1e608b5505fa207228ce2b3e1550841547a5e648a7a63363e72867f84",
+      "bytes": 6765
+    },
+    "development/acceptance/probes/native_orderly_recovery.py": {
+      "sha256": "3dc731423f47ee08bb35d7b020402466f74bcbdffdbf7d7ec72207ae710b4064",
+      "bytes": 15544
+    },
+    "development/acceptance/probes/test_native_orderly_recovery.py": {
+      "sha256": "1b2e4fc827664b143283cb963d0ac12f8a16c07bf18a0ff75907933057d369bf",
+      "bytes": 12623
+    },
+    "scripts/ownerfs/native-workspace-control.py": {
+      "sha256": "11b32a45f5e24801260acddfc47e3a4e7e16385c3f0a2af08e0dba9a9573217b",
+      "bytes": 2603
+    }
+  },
+  "product_pending": true,
+  "previous_guards_reused": 10,
+  "r4_affected_guard": "shared final archiver for all native modes"
+}

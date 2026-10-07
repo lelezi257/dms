@@ -1,3 +1,9 @@
+**当前小阶段收口（2026-10-07）：** source3cc10a2/157-map e15c的新Linux release源码检查及4KiB容器有序恢复PASS，58项驱动检查/独立postcheck通过，四wait0、八服务PID与两容器消失、旧记录/模板/本地Meta目录保留；首collector路径FAIL保留、只修工具复核未重跑产品。不是全ON、性能或通用OwnerFs bind验收。G1历史8/8、G2计数及defaultOFF不变。
+
+**当前下一项：** 高优先级OwnerFs workspace bind mount命名/归属整改：核心移到单个ownerfs/bind_mount.rs，runc留适配层；现有第一层覆盖仅控制线程private namespace可见，普通宿主仍FUSE。先精准小改/受影响Linux检查/独审，再Lore发布；不扩大可见性或改配置解析，不用改名隐藏缺口。
+
+[本轮实际版本与证据](evidence/20261007-native-orderly-recovery-runtime/README.md)。[独立整改计划](ownerfs-workspace-bind-remediation.md)。
+
 **当前状态（2026-10-07）：** 3FS基线资格按用户决定留专题，主线容器workspace。main f09185e、产品6d/157/map66/既有ELF包的通过范围保留；新rootfs私有副本/命令续号修复在独立分支fix/native-orderly-recovery-20261007，不视为新可用候选。G1历史8/8，G2为10限定完成/2性能FAIL/2bind进行中/13待验收，bind默认OFF。
 
 **新增/阻塞：** 工具11个独立Linux guards通过；早期Rust10+4有输出但未冻结源码SHA，不计最终版本PASS。静态审阅发现并最小修正非root测试入口，原FAIL保留。afs-build85GiB根盘实际满：误用debug与root工具链下载、后续ENOSPC，已停止构建并求助；最终续号/源码门禁/新包/重启读回均未完成。[版本、失败与证据](evidence/20261007-native-orderly-recovery/README.md)。

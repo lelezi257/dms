@@ -1,0 +1,14 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+test_four_actual_wait0_eight_distinct_pids (test_orderly_runtime_checks.Guards.test_four_actual_wait0_eight_distinct_pids) ... ok
+test_missing_actual_exit_not_replaced_by_saved_pass (test_orderly_runtime_checks.Guards.test_missing_actual_exit_not_replaced_by_saved_pass) ... ok
+test_wrong_incarnation_rejected_even_when_saved_receipt_matches (test_orderly_runtime_checks.Guards.test_wrong_incarnation_rejected_even_when_saved_receipt_matches) ... ok
+test_nonzero_wait_rejected_even_when_saved_receipt_matches (test_orderly_runtime_checks.Guards.test_nonzero_wait_rejected_even_when_saved_receipt_matches) ... ok
+test_actual_child_or_supervisor_residue_rejected (test_orderly_runtime_checks.Guards.test_actual_child_or_supervisor_residue_rejected) ... ok
+test_foreign_and_extra_lifecycle_rejected (test_orderly_runtime_checks.Guards.test_foreign_and_extra_lifecycle_rejected) ... ok
+test_missing_phase1_archived_receipt_rejected_without_live_fallback (test_orderly_runtime_checks.Guards.test_missing_phase1_archived_receipt_rejected_without_live_fallback) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.007s
+
+OK

@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/native-orderly-recovery-20261007-r1/tool-identity-r4.json",
+    "afs-g2-micro:/tmp/afs-orderly-r4-identity.json"
+  ],
+  "rc": 0
+}

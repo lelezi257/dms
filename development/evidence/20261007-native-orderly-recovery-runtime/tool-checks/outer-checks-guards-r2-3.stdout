@@ -1,0 +1,42 @@
+usage: orderly-runtime-checks.py [-h] --root ROOT --out OUT --tools-root
+                                 TOOLS_ROOT --package PACKAGE --runtime
+                                 RUNTIME --template-rootfs TEMPLATE_ROOTFS
+                                 --rootfs-inputs ROOTFS_INPUTS --tool-inputs
+                                 TOOL_INPUTS --snapshot SNAPSHOT --report
+                                 REPORT --source-commit SOURCE_COMMIT
+                                 --package-sha256 PACKAGE_SHA256
+                                 --afs-meta-sha256 AFS_META_SHA256
+                                 --afs-node-sha256 AFS_NODE_SHA256
+                                 --runtime-sha256 RUNTIME_SHA256
+                                 --rootfs-inputs-sha256 ROOTFS_INPUTS_SHA256
+                                 --tool-inputs-sha256 TOOL_INPUTS_SHA256
+                                 {admit,postcheck}
+
+Linux-only admission and direct closure observations for one orderly restart.
+
+positional arguments:
+  {admit,postcheck}
+
+options:
+  -h, --help            show this help message and exit
+  --root ROOT
+  --out OUT
+  --tools-root TOOLS_ROOT
+  --package PACKAGE
+  --runtime RUNTIME
+  --template-rootfs TEMPLATE_ROOTFS
+  --rootfs-inputs ROOTFS_INPUTS
+  --tool-inputs TOOL_INPUTS
+  --snapshot SNAPSHOT
+  --report REPORT
+  --source-commit SOURCE_COMMIT
+  --package-sha256 PACKAGE_SHA256
+  --afs-meta-sha256 AFS_META_SHA256
+  --afs-node-sha256 AFS_NODE_SHA256
+  --runtime-sha256 RUNTIME_SHA256
+  --rootfs-inputs-sha256 ROOTFS_INPUTS_SHA256
+  --tool-inputs-sha256 TOOL_INPUTS_SHA256
+9803aec7002d68386d73cc76e20fd6bf844e2b96ecff22ac3b0f12dc00ec37e6  orderly-runtime-checks.py
+f9ea91f75eda96f5597703ec679fd4be55f7a59edbbad53e5d56b7b679f41fbe  test_orderly_runtime_checks.py
+42dddc6d3ecbcc5d3b1f4e2d7ac2c05b56888b7ac8cb9b360378b8983829d7f2  /var/tmp/afs-managed-orderly-recovery-20261007-r1/tool-identity-r4.json
+718e1be7aa74b49f356a34961056f9328e4a1d93fedefa9d934ad71f13d292b3  /var/tmp/afs-runc-admission-20261007-r1/rootfs-inputs.json

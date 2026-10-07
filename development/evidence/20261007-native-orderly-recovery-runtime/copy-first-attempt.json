@@ -1,0 +1,11 @@
+{
+  "status": "FAIL",
+  "returncode": 23,
+  "operation": "ordinary-user limactl copy of root-owned result tree and two outer receipts",
+  "errors": [
+    "root-owned control/lifecycle directories not traversable",
+    "root-owned lock/outer receipts not readable"
+  ],
+  "resolution": "sudo tar stream read of already-stopped result evidence, extract on host; original guest modes/ownership unchanged",
+  "product_rerun": false
+}

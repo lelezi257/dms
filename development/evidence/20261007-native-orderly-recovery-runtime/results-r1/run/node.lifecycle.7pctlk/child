@@ -1,0 +1,7 @@
+pid=66163
+exe=/opt/afs-managed-orderly-recovery-20261007-r1/prefix/bin/afs-node
+config=/opt/afs-managed-orderly-recovery-20261007-r1/etc/node.toml
+start_ticks=7565907
+boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
+lifecycle=/opt/afs-managed-orderly-recovery-20261007-r1/run/node.lifecycle.7pctlk
+supervisor_pid=66147

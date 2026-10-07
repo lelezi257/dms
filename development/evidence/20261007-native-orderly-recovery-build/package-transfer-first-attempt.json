@@ -1,0 +1,8 @@
+{
+  "status": "FAIL",
+  "operation": "limactl copy to existing root-owned fixture preparation directory",
+  "returncode": 23,
+  "stderr": "rsync mkstemp Permission denied (13)",
+  "source_package_sha256": "a5bdc4faab13e3a118a43194d0124946a8e1a05e5ddfb1b2bbba6b9d887355fe",
+  "resolution": "Use a fresh ordinary-user transport staging path, then sudo install the exact package; do not change fixture ownership or permissions."
+}

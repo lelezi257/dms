@@ -1,3 +1,9 @@
+**当前小阶段收口（2026-10-07）：** source3cc10a2/157-map e15c的新Linux release源码检查及4KiB容器有序恢复PASS，58项驱动检查/独立postcheck通过，四wait0、八服务PID与两容器消失、旧记录/模板/本地Meta目录保留；首collector路径FAIL保留、只修工具复核未重跑产品。不是全ON、性能或通用OwnerFs bind验收。G1历史8/8、G2计数及defaultOFF不变。
+
+**当前下一项：** 高优先级OwnerFs workspace bind mount命名/归属整改：核心移到单个ownerfs/bind_mount.rs，runc留适配层；现有第一层覆盖仅控制线程private namespace可见，普通宿主仍FUSE。先精准小改/受影响Linux检查/独审，再Lore发布；不扩大可见性或改配置解析，不用改名隐藏缺口。
+
+[本轮实际版本与证据](evidence/20261007-native-orderly-recovery-runtime/README.md)。[独立整改计划](ownerfs-workspace-bind-remediation.md)。
+
 **最终修复受影响检查（2026-10-07）：** 磁盘已由已归档历史副本移出释放37.64GiB；固定Rust8c6f1d50/157-map e15c，Linux release四门禁通过，普通10PASS/7忽略及root实际7PASS，test ELF SHA884ba8f9。仅此范围，不称新服务ELF/包/重启PASS。下一必要剩余源码检查、构建、新包及4KiB有序恢复；不重跑旧标准/性能，G1/G2计数和defaultOFF不变。
 
 [本次版本、原始命令与完整结果](evidence/20261007-native-orderly-recovery-source/README.md)。

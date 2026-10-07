@@ -1,0 +1,10 @@
+{"msg":"Mounting /opt/afs-managed-orderly-recovery-20261007-r1/mount/ownerfs","level":"INFO","ts":"2026-10-07T03:50:40.162067082Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-07T03:50:40.166096763Z","instance":"node-a","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/opt/afs-managed-orderly-recovery-20261007-r1/run/node.sock","rest":"127.0.0.1:24501","grpc":"127.0.0.1:24500"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T03:50:40.338074912Z","instance":"node-a","service_name":"afs-node","message":"OwnerFs root is not registered in Meta","kind":"NotFound","code":34078721}
+{"msg":"FUSE operation parse failed for request RequestId(22): Unknown FUSE opcode (52)","level":"WARN","ts":"2026-10-07T03:50:40.424039424Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-07T03:50:40.646721268Z","instance":"node-a","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T03:50:41.116940548Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"Mounting /opt/afs-managed-orderly-recovery-20261007-r1/mount/ownerfs","level":"INFO","ts":"2026-10-07T03:50:41.587259578Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"node.ready","level":"INFO","ts":"2026-10-07T03:50:41.589813946Z","instance":"node-a","service_name":"afs-node","dfs":false,"ownerfs":true,"uds":"/opt/afs-managed-orderly-recovery-20261007-r1/run/node.sock","rest":"127.0.0.1:24501","grpc":"127.0.0.1:24500"}
+{"msg":"FUSE operation parse failed for request RequestId(8): Unknown FUSE opcode (52)","level":"WARN","ts":"2026-10-07T03:50:41.744086852Z","instance":"node-a","service_name":"afs-node"}
+{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T03:50:42.31433946Z","instance":"node-a","service_name":"afs-node"}

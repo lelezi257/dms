@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/orderly-runtime-checks.py",
+    "afs-g2-micro:/tmp/afs-orderly-runtime-checks-r2.py"
+  ],
+  "rc": 0
+}

@@ -1,0 +1,8 @@
+bash: line 1: cd: /Users/lzc/workspace/code/agentruntime: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+test_ram_available_and_finite_ancestor_headroom (test_orderly_runtime_checks.Guards.test_ram_available_and_finite_ancestor_headroom) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+OK

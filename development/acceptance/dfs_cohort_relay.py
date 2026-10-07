@@ -20,9 +20,14 @@ ROLES = ("ctl", "A", "B", "C")
 
 
 def relay_commands(commands: dict[str, list[str]], output: Path, *, timeout: float = 95,
-                   drain_timeout: float = 65, terminate_timeout: float = 2) -> dict[str, object]:
-    if set(commands) != set(ROLES) or any(not v or not all(isinstance(s, str) and s for s in v) for v in commands.values()):
-        raise ValueError("exact ctl/A/B/C nonempty argv required")
+                   drain_timeout: float = 65, terminate_timeout: float = 2,
+                   protocol: str = "multinode") -> dict[str, object]:
+    if protocol not in ("multinode", "pair"):
+        raise ValueError("protocol must be multinode or pair")
+    roles = ROLES if protocol == "multinode" else ("ctl", "B", "C")
+    workers = roles[1:]
+    if set(commands) != set(roles) or any(not v or not all(isinstance(s, str) and s for s in v) for v in commands.values()):
+        raise ValueError("exact protocol roles with nonempty argv required")
     if min(timeout, drain_timeout, terminate_timeout) <= 0:
         raise ValueError("positive timeouts required")
     output.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -86,7 +91,7 @@ def relay_commands(commands: dict[str, list[str]], output: Path, *, timeout: flo
         if role == "ctl":
             if kind in ("START", "ACK"):
                 target = event.get("reader_id")
-                if target not in ("A", "B", "C"):
+                if target not in workers:
                     fail("route", "invalid reader_id", role)
                     return
             elif kind in ("SUMMARY", "FINAL"):
@@ -95,7 +100,8 @@ def relay_commands(commands: dict[str, list[str]], output: Path, *, timeout: flo
                 fail("protocol", f"unexpected coordinator event {kind!r}", role)
                 return
         else:
-            if kind not in ("READY", "C_DONE", "FINAL"):
+            allowed = ("READY", "C_DONE", "FINAL") if protocol == "multinode" else ("HELLO", "READY", "DONE", "FINAL")
+            if kind not in allowed:
                 fail("protocol", f"unexpected worker event {kind!r}", role)
                 return
             target = "ctl"
@@ -119,7 +125,7 @@ def relay_commands(commands: dict[str, list[str]], output: Path, *, timeout: flo
                     pass
 
     try:
-        for role in ROLES:
+        for role in roles:
             (output / (role + ".command.json")).write_text(json.dumps({"argv": commands[role],
                 "timeout": timeout, "drain_timeout": drain_timeout, "timing_owner": "Linux worker/ctl only"}, indent=2) + "\n")
             out = (output / (role + ".stdout")).open("w")
@@ -182,17 +188,19 @@ def relay_commands(commands: dict[str, list[str]], output: Path, *, timeout: flo
             out.close()
             err.close()
     summaries = [v["event"] for v in events if v["source"] == "ctl" and v["event"].get("event") == "SUMMARY"]
-    finals = {r: [v["event"] for v in events if v["source"] == r and v["event"].get("event") == "FINAL"] for r in ("A", "B", "C")}
-    if primary is None and (len(summaries) != 1 or summaries[0].get("status") != "DATA_RECORDED"
+    finals = {r: [v["event"] for v in events if v["source"] == r and v["event"].get("event") == "FINAL"] for r in workers}
+    summary_complete = ((len(summaries) == 1 and summaries[0].get("status") == "DATA_RECORDED")
+                        if protocol == "multinode" else not summaries)
+    if primary is None and (not summary_complete
                            or any(len(rows) != 1 or rows[0].get("status") != "DATA_RECORDED" for rows in finals.values())):
-        fail("missing_completion", "exact successful coordinator and three worker finals required")
-    if primary is None and (set(codes) != set(ROLES) or any(rc != 0 for rc in codes.values())):
+        fail("missing_completion", "exact protocol completion and successful worker finals required")
+    if primary is None and (set(codes) != set(roles) or any(rc != 0 for rc in codes.values())):
         fail("process_exit", codes)
     result = {"status": "PASS_TRANSPORT_CLOSURE_ONLY" if primary is None else "FAIL",
               "primary_error": primary, "errors": errors, "codes": codes,
               "all_started_processes_reaped": all(p.poll() is not None for p in procs.values()),
               "all_stdout_pumps_closed": all(not t.is_alive() for t in threads.values()),
-              "started_roles": list(procs), "no_data_or_performance_acceptance_claim": True}
+              "started_roles": list(procs), "protocol": protocol, "no_data_or_performance_acceptance_claim": True}
     (output / "events.json").write_text(json.dumps(events, indent=2) + "\n")
     (output / "summary.json").write_text(json.dumps(result, indent=2) + "\n")
     return result
@@ -204,9 +212,11 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True, help="fresh receipt directory")
     parser.add_argument("--timeout", type=float, default=95)
     parser.add_argument("--drain-timeout", type=float, default=65)
+    parser.add_argument("--protocol", choices=("multinode", "pair"), default="multinode",
+                        help="pair uses existing ctl/B/C HELLO/READY/DONE protocol; default unchanged")
     args = parser.parse_args()
     result = relay_commands(json.loads(args.commands.read_text()), args.output,
-                            timeout=args.timeout, drain_timeout=args.drain_timeout)
+                            timeout=args.timeout, drain_timeout=args.drain_timeout, protocol=args.protocol)
     print(json.dumps(result, indent=2))
     return 0 if result["status"] == "PASS_TRANSPORT_CLOSURE_ONLY" else 1
 

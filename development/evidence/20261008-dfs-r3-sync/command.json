@@ -1,0 +1,32 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "--",
+    "python3",
+    "-B",
+    "/workspace/dms/evidence/afs-delivery/dfs-r3-sync-f03-20261008-r1/audit.py"
+  ],
+  "sha256": "019ae851845fdcd09ead2c80b49d26c0056616c05181763102fa1b19bcb1c4ca",
+  "attempts": [
+    {
+      "rc": 1,
+      "reason": "sample saved before caller round_token",
+      "sha256": "02f38cf5630fcecbf40a32fc482226105d532561ffcd553756653ac0c7b2a40d",
+      "stderr": "audit-first.stderr"
+    },
+    {
+      "rc": 1,
+      "reason": "complete initial inventory includes ctl Redis; count12",
+      "sha256": "580887e49fbe9237c5c5ae1a0720563bdfb909fb5c725008ecfb59e870188514",
+      "stderr": "audit-r2.stderr"
+    },
+    {
+      "rc": 0,
+      "stderr": "audit.stderr",
+      "result": "audit-result.json"
+    }
+  ]
+}

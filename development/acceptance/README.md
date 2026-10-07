@@ -103,3 +103,10 @@ Never promote a smoke profile to full coverage. Never use memory Meta success as
 ### Independent remote backing-hot read fixture
 
 `owner_remote_fixture.py --fixture owner-remote-backing-hot-f03-20261008-r1` selects fresh fixed role roots/ports25080–25243, f03 ELFs, explicit bind OFF and stock Moose AUTO. Original `owner-remote-read-f03-20261008-r1` keeps DIRECT/ports24780–24943 and its stopped failure; never edit an old lifecycle helper after identity admission. Use command-specific CLI actions (`prepare-config`, `preflight-config`, `moose-start`, `moose-stop`, `postcheck`) and real wait receipts. Run22 guard cases only on Linux with the existing official Moose prefix; no install is needed on B. [Frozen contract, exact recipe deltas, raw intervals and limited dual performance FAIL](../evidence/20261008-owner-remote-read-backing-hot/README.md). Client residency and B physical residency are separately recorded, not forced equal.
+
+
+### Fixed-candidate same-file pair and capacity inputs
+
+`dfs_cohort_relay.py --protocol pair` accepts exactly ctl/B/C commands for the existing `dfs_r3_small.py` HELLO/READY/DONE/FINAL protocol. The default `multinode` ctl/A/B/C protocol remains unchanged. Pair relay success only proves transport closure; independently audit the coordinator's saved summary/events and both readers' raw content/round outputs. Neither relay mode proves actual cross-VM I/O overlap or performance acceptance.
+
+`probes/dfs_r3_fixture.py --ceiling-bytes N --floor-bytes N` sets positive integer per-role limits prospectively for a fresh named case; defaults remain historical1GiB/1GiB. Require allocated≤ceiling, free≥floor and free+allocated≥floor+ceiling, and enforce the separately frozen aggregate in the parent workflow. Do not change a failed existing case's budget after the run. [Current one-file f03 case](../evidence/20261008-dfs-r3-sync/README.md) documents its package/install/payload allowance and original failures; historical600MiB/2GiB capacity failures retain their original criteria.

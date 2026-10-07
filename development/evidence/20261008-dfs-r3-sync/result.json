@@ -1,0 +1,156 @@
+{
+  "status": "PASS_LIMITED_SYNC_CONTENT_AND_CLOSURE_AUDIT",
+  "checks": 288,
+  "identity": {
+    "product_source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "compiler_input_map": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
+    "afs_meta_sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+    "afs_node_sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+    "io_sha256": "c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804"
+  },
+  "write_file_bytes": 67108864,
+  "reader_rounds": {
+    "warmup_each": 1,
+    "measured_each": 5
+  },
+  "full_file_sha256": "4c47e859a6831026ba9367262afb1e1803d11abc30f6f3d996ceea829af89324",
+  "distinct_chunks": 16,
+  "physical_observations": 48,
+  "same_file_joint_dispatch_rounds": 5,
+  "write_C_mib_s_diagnostic": 86.83666625642222,
+  "read_C_wall_ns": {
+    "b": [
+      1395286981,
+      1412428029,
+      1425107188,
+      1399839446,
+      1420113181
+    ],
+    "c": [
+      1395121453,
+      1412028190,
+      1422062812,
+      1399808273,
+      1420085839
+    ]
+  },
+  "individual_C_mib_s_diagnostic": {
+    "b": [
+      45.86870003913553,
+      45.312043294207385,
+      44.90890266985307,
+      45.71952889517303,
+      45.06683048666105
+    ],
+    "c": [
+      45.87414225648783,
+      45.32487414433277,
+      45.00504440446615,
+      45.72054704523096,
+      45.06769819285551
+    ]
+  },
+  "individual_C_mib_s_medians": {
+    "b": 45.312043294207385,
+    "c": 45.32487414433277
+  },
+  "ctl_common_wall_ns": [
+    1397549269,
+    1414204899,
+    1427008925,
+    1401571538,
+    1421827148
+  ],
+  "ctl_common_mib_s_diagnostic": [
+    91.58889982575634,
+    90.51022245115274,
+    89.6981075293555,
+    91.32605545247594,
+    90.02500773743841
+  ],
+  "ctl_common_mib_s_median_diagnostic": 90.51022245115274,
+  "protected_incarnations": 12,
+  "actual_wait0": 4,
+  "owned_service_and_supervisor_pids_gone": 8,
+  "closure": [
+    {
+      "role": "ctl",
+      "wait": 0,
+      "pids": [
+        1695561,
+        1695545
+      ],
+      "remaining_free_bytes": 3057397760
+    },
+    {
+      "role": "a",
+      "wait": 0,
+      "pids": [
+        864000,
+        863984
+      ],
+      "remaining_free_bytes": 1937248256
+    },
+    {
+      "role": "b",
+      "wait": 0,
+      "pids": [
+        9768,
+        9752
+      ],
+      "remaining_free_bytes": 23270989824
+    },
+    {
+      "role": "c",
+      "wait": 0,
+      "pids": [
+        3906,
+        3890
+      ],
+      "remaining_free_bytes": 38359433216
+    }
+  ],
+  "aggregate_peak_bytes": 591343616,
+  "logs": [
+    {
+      "role": "ctl",
+      "path": "logs/meta.log",
+      "bytes": 296,
+      "ERRO": 0,
+      "WARN": 0,
+      "TRACE": 0
+    },
+    {
+      "role": "a",
+      "path": "logs/node.log",
+      "bytes": 2184,
+      "ERRO": 5,
+      "WARN": 2,
+      "TRACE": 0
+    },
+    {
+      "role": "b",
+      "path": "logs/node.log",
+      "bytes": 1414,
+      "ERRO": 0,
+      "WARN": 4,
+      "TRACE": 0
+    },
+    {
+      "role": "c",
+      "path": "logs/node.log",
+      "bytes": 1416,
+      "ERRO": 0,
+      "WARN": 4,
+      "TRACE": 0
+    }
+  ],
+  "limits": [
+    "joint dispatch verified; actual cross-VM syscall interval overlap unobserved",
+    "cache and RPC topology unqualified",
+    "no per-operation arrays or p50/p95/p99",
+    "no qualifying 3FS comparator; timings diagnostic only",
+    "three VMs share one physical host",
+    "no crash/restart/large/long acceptance claim"
+  ]
+}

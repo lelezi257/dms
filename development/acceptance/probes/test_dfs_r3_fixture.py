@@ -1,5 +1,6 @@
 """Linux-only pure guards; never start or contact any product service."""
 import copy
+import json
 import os
 from pathlib import Path
 import platform
@@ -7,6 +8,7 @@ import socket
 import tempfile
 import tomllib
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from dfs_r3_fixture import Fixture, NODES, POLICY, SHA, allocated, digest, render, safe, validate_elf, validate_policy
@@ -50,6 +52,32 @@ class FixtureGuards(unittest.TestCase):
         self.assertEqual(fixture.sha, CURRENT_PUBLIC_SHA)
         self.assertEqual(cfg, fixture.expected())
         validate_policy(cfg)
+
+    def test_capacity_override_keeps_historical_defaults_and_rejects_invalid_values(self):
+        old = Fixture('a')
+        self.assertEqual((old.ceiling, old.floor), (2**30, 2**30))
+        for ceiling, floor in [(0, 2**30), (-1, 2**30), (True, 2**30),
+                               (2**28, 0), (2**28, -1), (2**28, False)]:
+            with self.subTest(ceiling=ceiling, floor=floor), self.assertRaisesRegex(RuntimeError, 'capacity budget'):
+                Fixture('a', ceiling_bytes=ceiling, floor_bytes=floor)
+
+    def test_capacity_override_enforces_allocation_and_full_remaining_reservation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture('a', ceiling_bytes=2**28, floor_bytes=2**30)
+            fixture.root = fixture.volume = Path(directory)
+            row = {'target': directory, 'fstype': 'ext4'}
+            with patch.object(fixture, 'command', return_value=json.dumps({'filesystems': [row]})):
+                for used, free, permitted in [(2**27, 2**30 + 2**27, True),
+                                               (2**28 + 1, 2**31, False),
+                                               (2**27, 2**30 + 2**27 - 1, False)]:
+                    with self.subTest(used=used, free=free), patch('dfs_r3_fixture.allocated', return_value=used), \
+                            patch('dfs_r3_fixture.os.statvfs', return_value=SimpleNamespace(f_bavail=free, f_frsize=1)):
+                        if permitted:
+                            result = fixture.budget()
+                            self.assertEqual((result['ceiling_bytes'], result['floor_bytes']), (2**28, 2**30))
+                        else:
+                            with self.assertRaisesRegex(RuntimeError, 'allocation/reserve'):
+                                fixture.budget()
 
     def test_desired_three_sync_one_and_other_weakened_policies_rejected(self):
         for key in POLICY:

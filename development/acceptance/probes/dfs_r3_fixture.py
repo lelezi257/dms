@@ -116,9 +116,12 @@ def ram():
 
 
 class Fixture:
-    def __init__(self, role, fixture_name=FIXTURE, expected_sha=None):
+    def __init__(self, role, fixture_name=FIXTURE, expected_sha=None, *, ceiling_bytes=CEILING, floor_bytes=FLOOR):
         require(fixture_name and Path(fixture_name).name == fixture_name and '..' not in Path(fixture_name).parts,
                 'invalid fixture name')
+        require(type(ceiling_bytes) is int and ceiling_bytes > 0 and
+                type(floor_bytes) is int and floor_bytes > 0, 'positive integer capacity budget required')
+        self.ceiling, self.floor = ceiling_bytes, floor_bytes
         self.role, self.volume = role, Path(VOLUMES[role])
         self.fixture_name = fixture_name
         self.root = self.volume / 'afs-delivery' / fixture_name
@@ -215,10 +218,11 @@ class Fixture:
         used = allocated(self.root)
         info = os.statvfs(self.volume)
         free = info.f_bavail * info.f_frsize
-        require(used <= CEILING and free >= FLOOR and free + used >= FLOOR + CEILING, 'allocation/reserve limit failed')
-        return {'allocated_bytes': used, 'free_bytes': free, 'volume': row[0], 'ceiling_bytes': CEILING,
-                'floor_bytes': FLOOR, 'excluded': str(self.root / 'mount'),
-                'scope': 'one role only; parent must sum all four allocated_bytes <=1GiB'}
+        require(used <= self.ceiling and free >= self.floor and free + used >= self.floor + self.ceiling,
+                'allocation/reserve limit failed')
+        return {'allocated_bytes': used, 'free_bytes': free, 'volume': row[0], 'ceiling_bytes': self.ceiling,
+                'floor_bytes': self.floor, 'excluded': str(self.root / 'mount'),
+                'scope': 'one role only; parent must enforce its predeclared aggregate ceiling'}
 
     def preflight(self):
         self.fresh()
@@ -280,11 +284,16 @@ def main():
                         help='expected afs-meta SHA256 for this fresh fixture')
     parser.add_argument('--node-sha256', default=SHA['node'],
                         help='expected afs-node SHA256 for this fresh fixture')
+    parser.add_argument('--ceiling-bytes', type=int, default=CEILING,
+                        help='predeclared per-role capacity ceiling; historical default remains1GiB')
+    parser.add_argument('--floor-bytes', type=int, default=FLOOR,
+                        help='predeclared backing free-space reserve; historical default remains1GiB')
     parser.add_argument('action', choices=('patch', 'preflight', 'budget'))
     args = parser.parse_args()
     fixture = None
     try:
-        fixture = Fixture(args.role, args.fixture_name, {'meta': args.meta_sha256, 'node': args.node_sha256})
+        fixture = Fixture(args.role, args.fixture_name, {'meta': args.meta_sha256, 'node': args.node_sha256},
+                          ceiling_bytes=args.ceiling_bytes, floor_bytes=args.floor_bytes)
         fixture.guest()
         result = getattr(fixture, args.action)()
         code = 0

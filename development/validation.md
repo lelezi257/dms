@@ -33,7 +33,7 @@ G2 starts with Owner-first standard fallback and small cases, then enters DFS st
 - Owner-relevant short fixed-seed FSx.
 - Affected Owner basic operation and local-file recovery combination.
 - Performance priority: container-mounted workspace access from Issue42/PR43, with explicit-switch/default-OFF functional qualification before paired OFF/ON/ext4 measurements.
-- Ordinary Owner local/remote and DFS cases may baseline and retain raw data and FAIL; defer targeted tuning. Unchanged passing standard results are reused with their version/scope, not rerun as performance tests.
+- Ordinary Owner local/remote and DFS cases may baseline and retain raw data; defer targeted tuning unless the active item needs it. Ordinary Owner read/write performance now follows [the current OwnerFs criteria](ownerfs-performance-criteria.md): throughput >=1.2x same-condition MooseFS and independently measured operation latency <=0.8x MooseFS. Unchanged passing standard results are reused with their version/scope, not rerun as performance tests.
 - DFS pjdfstest, DFS-relevant LTP/FSx and DFS affected basic checks before DFS performance claims.
 - DFS one-writer/many-readers before broader DFS performance.
 
@@ -45,9 +45,9 @@ G3 contains broad LTP/POSIX, long FSx/differential random, 8-hour soak, failure 
 
 ## Comparator rules
 
-OwnerFs local uses native ext4 as the main comparator and targets at least 90% ordinary throughput. OwnerFs remote targets MooseFS parity. DFS targets 3FS parity under matched POSIX/FUSE and three synchronous durable copies. Delete cases require correctness and a measured comparative report; they have no new hard ratio unless a later checklist item adds one.
+Ordinary OwnerFs local and remote read/write use MooseFS as the comparator and require both throughput >=1.2x and operation latency <=0.8x under the same frozen case. OwnerFs workspace bind mount keeps the separate native-ext4 ON/OFF comparison. DFS targets 3FS parity under matched POSIX/FUSE and three synchronous durable copies. Delete cases require correctness and a measured comparative report; they have no new hard ratio unless a later checklist item adds one.
 
-Baseline and candidate must use the same data shape, cache policy, durability barrier, replica count, mount type and resource budget. Noise tolerance is fixed before the run. Do not rerun an unchanged failed case until a new input or hypothesis exists.
+Baseline and candidate must use the same interface, data shape, concurrency, cache policy, durability barrier, applicable replica semantics, mount type and resource budget. Noise tolerance, timer clock, sample count, quantile method and latency judging percentile are fixed before the run; throughput defaults to paired-median comparison, p50/p95/p99 are recorded from a per-operation latency sample array, and latency is not inferred from throughput. Do not rerun an unchanged failed case until a new input or hypothesis exists.
 
 ## Capacity and logs
 

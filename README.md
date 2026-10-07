@@ -27,7 +27,7 @@ AFS has two backends:
 Current priority is:
 
 - G1: historical `g1.5` colleague-trial scope is complete for its stated range.
-- G2: pjdfstest and selected standard suites qualify functional completeness. Performance first targets container-mounted OwnerFs workspace access from Issue42/PR43, with a default-OFF experimental adapter. Ordinary local/remote/DFS data and failures are retained and focused tuning deferred. The comparison targets remain ≥90% native ext4 locally, MooseFS parity remotely, and matched 3FS parity for DFS with one-writer/many-readers first.
+- G2: pjdfstest and selected standard suites qualify functional completeness. Performance first targets OwnerFs workspace bind mount access from Issue42/PR43, with a default-OFF experimental adapter. Ordinary OwnerFs local/remote read/write cases now require throughput >=1.2x same-condition MooseFS and independently measured operation latency <=0.8x MooseFS; incomplete old ext4/parity data is retained as historical or diagnostic. DFS still targets matched 3FS parity with one-writer/many-readers first.
 - G3: long soak, broad fault matrices, etcd memory/resource work and Redis persistence are deferred.
 
 OwnerFs native bind mount is tracked as two separate G2 items: a function gate and a performance gate. It remains default-off; a public production enable switch is not qualified in this checkpoint.

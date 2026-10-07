@@ -46,7 +46,7 @@ G3 is deferred. Long soak, broad random/POSIX matrices, complex fault matrices, 
 
 ## Immediate sequence
 
-Latest user override: pjdfstest targets functional completeness; after high-priority repository remediation, performance priority is the Issue42/PR43 container-mounted workspace path (G2.12 prerequisite qualification, then G2.13). Ordinary read/write baselines retain data and defer targeted optimization. The original sequence below remains a dependency/reference map, not an instruction to optimize every ordinary case first.
+Latest user override: pjdfstest targets functional completeness; after high-priority repository remediation, performance priority is the Issue42/PR43 OwnerFs workspace bind mount path (G2.12 prerequisite qualification, then G2.13). Ordinary OwnerFs read/write baselines retain data and defer targeted optimization, and the active target is now [throughput >=1.2x MooseFS plus operation latency <=0.8x MooseFS](ownerfs-performance-criteria.md). The original sequence below remains a dependency/reference map, not an instruction to optimize every ordinary case first.
 
 | Order | Checklist item | Exit |
 | --- | --- | --- |
@@ -55,11 +55,11 @@ Latest user override: pjdfstest targets functional completeness; after high-prio
 | 2 | G2.06 Owner-relevant fixed LTP subset | Frozen list, ext4 reference boundary and OwnerFs result ledger |
 | 3 | G2.07 Owner-relevant short FSx | Fixed seed/profile, no content or length mismatch |
 | 4 | G2.08 affected Owner/basic + local-file recovery | Owner local/remote basics and Meta local-file restart on current candidate |
-| 5 | G2.09 Owner local small read | Correct data and >=90% ext4 ordinary throughput under frozen case |
-| 6 | G2.10 Owner local small write | Correct readback and >=90% ext4 ordinary throughput under matching barriers |
+| 5 | G2.09 Owner local small read | Correct data, same-condition MooseFS baseline, throughput >=1.2x and operation latency <=0.8x under the frozen case |
+| 6 | G2.10 Owner local small write | Correct readback, matching durability barrier, throughput >=1.2x MooseFS and operation latency <=0.8x |
 | 7 | G2.11 Owner local delete | Correct namespace and measured comparative report |
 | 8 | G2.12/G2.13 bind function/performance | Explicit default-OFF switch, OFF regression, ON lifecycle and paired OFF/ON/ext4 numbers |
-| 9 | G2.14-G2.16 Owner remote small cases | MooseFS parity for read/write, delete report |
+| 9 | G2.14-G2.16 Owner remote small cases | MooseFS throughput/latency target for read/write, delete report |
 | 10 | G2.05/G2.06/G2.07 DFS standard entry | DFS pjdfstest, DFS-relevant LTP and short FSx before DFS performance claims |
 | 11 | G2.08 DFS affected basic check | DFS basics and any needed local-file recovery combination on current candidate |
 | 12 | G2.21 DFS one-writer/many-readers | Highest-priority DFS performance item, with correctness and 3FS comparison |
@@ -74,7 +74,7 @@ This order is intentionally small-to-large. Completing a small item keeps its co
 - Fix corruption, unsafe success, permission bypass, acknowledged-data loss and core recovery failure immediately.
 - Defer broad coverage when it does not block the current item: 8 GiB, 8-hour soak, long FSx, full differential random, extensive fault axes and backend parity.
 - Keep bind/native independent. OFF/FUSE must stay usable while ON is incomplete.
-- Do not let a comparator problem stop unrelated functional progress. A blocked MooseFS/3FS lane blocks only the comparisons that require it.
+- Do not let a comparator problem stop unrelated functional progress. A blocked MooseFS/3FS lane blocks only the comparisons that require it; incomplete ordinary Owner latency or comparator evidence stays pending, not inferred from throughput.
 - Record failed experiments once with enough evidence; do not repeat unchanged failed cases without a new cause or implementation change.
 
 ## Historical evidence boundary

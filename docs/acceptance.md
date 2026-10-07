@@ -1,6 +1,6 @@
 # AFS 交付验收规范
 
-**2026-10-06用户最新分级决策：** [三阶段独立验收主表](../development/trial-release-goals.md)决定当前交付范围、顺序与性能目标。G1内测试用出口已完成；新候选标准回归和核心性能独立列G2；复杂/长时/全矩阵与etcd/Redis列G3。下文完整用例目录不是每个小case或G1的统一前置。Owner local基线改为ext4，remote旧≤0.8耗时要求改为MooseFS持平；正确性/权限/持久语义不豁免。
+**2026-10-07用户最新分级决策：** [三阶段独立验收主表](../development/trial-release-goals.md)决定当前交付范围、顺序与性能目标。G1内测试用出口已完成；新候选标准回归和核心性能独立列G2；复杂/长时/全矩阵与etcd/Redis列G3。下文完整用例目录不是每个小case或G1的统一前置。普通OwnerFs本地和远端核心读写统一按[普通OwnerFs性能准则](../development/ownerfs-performance-criteria.md)验收：吞吐>=同条件MooseFS的1.2倍，操作时延<=同条件MooseFS的0.8倍，两项分别测量且同时满足；正确性/权限/持久语义不豁免。
 
 本规范定义 OwnerFs 和 DistributedFs（DFS）的交付目标、固定实验环境和验收用例。开发、回归和发布使用同一份合同；实现完成度见 [实现状态](status.md)。接口或类型存在、测试被跳过、环境无法启动，都不等于验收通过。
 
@@ -31,14 +31,14 @@ etcd可使用三成员持久后端；其选主不等于AFS Meta服务选主。et
 | --- | --- |
 | 功能 | 所有适用的必测用例通过，数据、长度、属性、返回值及 errno 与合同一致 |
 | POSIX | pjdfstest 全集、固定的 LTP 文件系统子集、FSx 和差分随机测试通过；排除项在执行前审定，不接受运行失败后删除测试 |
-| OwnerFs 性能 | 本地读、写吞吐分别≥同条件native ext4的90%；远端读、写与MooseFS持平，中心目标比1.0；噪声容差每case测前固定 |
+| OwnerFs 性能 | 普通本地、远端读写吞吐分别>=同条件MooseFS的1.2倍，操作时延分别<=同条件MooseFS的0.8倍；两项独立验收且噪声容差、判定分位数每case测前固定 |
 | DFS 性能 | 同条件、同接口、同副本及持久化要求的读、写任务耗时分别 ≤ 3FS；不以不同任务的平均成绩抵消不达标项 |
 | RDMA | 文件读写实际经过 RDMA，并通过故障、资源回收、gRPC 回退和禁用回退测试；记录性能，无硬性速度目标 |
 | 可靠性 | 成功完成持久化屏障的数据不因保证范围内的故障丢失；不返回混合版本、坏数据或错误成功；未知提交可恢复 |
 | 运维 | 每个故障能通过状态、日志和指标定位到组件、请求及文件；进程重启后可验证恢复状态 |
 | 安装 | 全新 VM 无源码、无 Rust 编译器时一条命令部署，完成实际 mount 读写；第二次执行不会删除数据或启动重复进程 |
 
-同数据量同时记录吞吐与任务耗时，明确比例方向；p50/p95/p99、CPU和资源使用同时记录。具体计时边界见第5节。删除先验正确性并报告对照操作数/秒及延迟，不新增硬比例。bind功能及性能分别为G2.12/13，要求显式开关且默认OFF；当前生产开关/ON流程尚未资格化。
+同数据量同时记录吞吐与操作时延，明确比例方向；普通OwnerFs吞吐默认用配对中位数判定，操作时延默认用测前声明的p95判定；p50/p95/p99、CPU和资源使用同时记录。具体计时边界见第5节和[普通OwnerFs性能准则](../development/ownerfs-performance-criteria.md)。删除先验正确性并报告对照操作数/秒及延迟，不新增硬比例。bind功能及性能分别为G2.12/13，要求显式开关且默认OFF；当前生产开关/ON流程尚未资格化。
 
 ## 2. 文件语义与判定方式
 
@@ -172,7 +172,7 @@ Redis 的 `always` 在回复前同步 AOF；`everysec` 可能丢失最近的写�
 
 MooseFS、3FS 和 AFS 顺序使用同一 VM/卷/网络/数据集/客户端资源。固定版本和全部配置；禁止候选用 RAM、对端用磁盘，或候选单副本、对端多副本。对端的 Meta/存储基础设施消耗计入资源清单，不隐藏 3FS 的 FoundationDB。
 
-OwnerFs 本地与同条件native ext4比较；远端主lane与MooseFS goal=1比较，固定Home/数据位置以确保B的远端case不变成本地命中。DFS 主 lane 使用 3 个同步 durable copies，与 3FS 有效三副本 chain 对比。若某种副本或持久化合同不能匹配，该项 BLOCKED，不能使用折算系数充当通过。
+普通OwnerFs 本地和远端读写均与同条件MooseFS比较，固定Home/数据位置以确保远端case不变成本地命中；吞吐和操作时延分别验收，必须同时达标。OwnerFs workspace bind mount是单独G2.13，继续与native ext4做OFF/ON/ext4配对。DFS 主 lane 使用 3 个同步 durable copies，与 3FS 有效三副本 chain 对比。若某种副本或持久化合同不能匹配，该项 BLOCKED，不能使用折算系数充当通过。
 
 读写都经 FUSE/POSIX；不拿 3FS USRBIO 数字与本期不含 SDK 的 AFS 混比。3FS 和 AFS RDMA 使用同一 RXE 网络；另外的 gRPC 结果单独报告。RXE 数据只能说明这个 VM lane，不能外推为物理 RDMA 集群的“持平 3FS”。
 
@@ -180,14 +180,14 @@ OwnerFs 本地与同条件native ext4比较；远端主lane与MooseFS goal=1比�
 
 ### 5.2 工作负载
 
-下表是大规模/扩展矩阵规格。G2先独立验收64MiB核心单节点读、写、删除及多节点读、写；512MiB/8GiB各自登记，不等待整张表。DFS先一写确认后多读者，记录逐读者正确性、吞吐及总吞吐。先C1再扩并发；没有驻留证明只称buffered/repeat。每case开跑前固定版本、种子、屏障、规模、计时、样本数、噪声容差、容量与停止预算，不按结果变更。
+下表是大规模/扩展矩阵规格。G2先独立验收64MiB核心单节点读、写、删除及多节点读、写；512MiB/8GiB各自登记，不等待整张表。DFS先一写确认后多读者，记录逐读者正确性、吞吐及总吞吐。先C1再扩并发；没有驻留证明只称buffered/repeat。每case开跑前固定版本、种子、接口、数据、并发、缓存、屏障、适用副本语义、规模、计时边界、计时器、样本数、分位数算法、噪声容差、容量、停止预算和判定分位数，不按结果变更。
 
 | ID | 固定工作负载 | 门槛 |
 | --- | --- | --- |
-| `PERF-01 owner-local-read` | A/Home 冷读、预热后重复读；连续 8 GiB、随机 4 KiB/64 KiB；另测 512 MiB 页缓存可驻留的热读 lane；并发 1/8 | 吞吐≥0.90×native ext4；同接口/屏障，case测前固定噪声容差 |
-| `PERF-02 owner-local-write` | A/Home 连续 8 GiB，1 MiB 写；4 KiB/64 KiB 固定 512 MiB 随机覆盖；并发 1/8，三种屏障 lane | 吞吐≥0.90×native ext4，同持久屏障 |
-| `PERF-03 owner-remote-read` | B 读 Home A，同 PERF-01；明确冷首次/重复读取，不启用 DFS 缓存 | 与MooseFS持平（中心目标比1.0，噪声容差测前固定） |
-| `PERF-04 owner-remote-write` | B 写 Home A，同 PERF-02 | 与MooseFS持平，同持久屏障 |
+| `PERF-01 owner-local-read` | A/Home 冷读、预热后重复读；连续 8 GiB、随机 4 KiB/64 KiB；另测 512 MiB 页缓存可驻留的热读 lane；并发 1/8 | 吞吐>=1.2×同条件MooseFS，操作时延<=0.8×MooseFS；同接口/缓存，case测前固定噪声容差和判定分位数 |
+| `PERF-02 owner-local-write` | A/Home 连续 8 GiB，1 MiB 写；4 KiB/64 KiB 固定 512 MiB 随机覆盖；并发 1/8，三种屏障 lane | 吞吐>=1.2×同条件MooseFS，操作时延<=0.8×MooseFS，同持久屏障 |
+| `PERF-03 owner-remote-read` | B 读 Home A，同 PERF-01；明确冷首次/重复读取，不启用 DFS 缓存 | 吞吐>=1.2×同条件MooseFS，操作时延<=0.8×MooseFS；固定Home/缓存条件 |
+| `PERF-04 owner-remote-write` | B 写 Home A，同 PERF-02 | 吞吐>=1.2×同条件MooseFS，操作时延<=0.8×MooseFS，同持久屏障 |
 | `PERF-05 dfs-read` | R=3；连续 8 GiB、固定 512 MiB 随机读，4 KiB/64 KiB/1 MiB，并发 1/8；冷、重复读及 512 MiB 页缓存热读分开 | 每项 T_AFS/T_3FS ≤ 1.0 |
 | `PERF-06 dfs-write` | R=3；连续 8 GiB、固定 512 MiB 覆盖，4 KiB/64 KiB/1 MiB，并发 1/8；三种屏障 lane | ≤ 1.0 |
 | `PERF-07 metadata` | 10,000 个 4 KiB 文件 create/stat/readdir/rename/unlink，并发 1/8，OwnerFs/DFS 分开 | 固定报告，不冒充已约定的读写比例指标 |
@@ -195,7 +195,7 @@ OwnerFs 本地与同条件native ext4比较；远端主lane与MooseFS goal=1比�
 
 随机任务固定 seed，8 GiB 顺序任务可采用 N 个等大小文件保证总字节相等；并发是任务并发而非每个 worker 再增加 8 GiB。所有任务校验内容，失败运行不得进入性能统计。
 
-每项至少 1 次预热、5 个有效配对运行，交替候选/基线顺序。以配对任务耗时比的中位数判定；同时公开每一轮原值、差值、离散度和 p50/p95/p99。任一功能错误失败；明显宿主争用/热降频先标记环境无效并重跑，不挑选最快轮。门槛没有默认 10% 容差；证据不足或波动足以改变结论则 INCONCLUSIVE。
+每项至少 1 次预热、5 个有效配对运行，交替候选/基线顺序。普通OwnerFs吞吐默认以配对中位数判定；操作时延必须来自测前固定的文件事务或逐I/O调用样本数组，p50/p95/p99全部公开，默认以p95作为时延判定分位数，除非case计划在运行前另行固定。既有C工具的聚合wall-time/任务汇总只能作为吞吐诊断，不能当作系统调用或逐操作时延。DFS继续以同条件任务耗时比判定。任一功能错误失败；明显宿主争用/热降频先标记环境无效并重跑，不挑选最快轮。门槛没有默认 10% 容差；证据不足或波动足以改变结论则 INCONCLUSIVE。
 
 冷读在没有其他业务的专用 VM 中清理 guest 页缓存、重建 mount 并证明无产品数据缓存；宿主 APFS 缓存无法完全控制的边界明确记录。8 GiB 超过单台 guest RAM，预热后重复读不能称为全量热缓存；真正热读使用 512 MiB 数据集，记录页缓存驻留及缺页/底层读取量。有限资源下的小集群结果不替代大规模扩展性指标。
 

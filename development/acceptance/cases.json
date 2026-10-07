@@ -1275,7 +1275,7 @@
     {
       "id": "PERF-01",
       "name": "owner-local-read",
-      "description": "Compare OwnerFs local Home read task duration against MooseFS goal=1 for cold, repeated and hot lanes.",
+      "description": "Ordinary OwnerFs local-read core I/O: throughput >= 1.2x comparable MooseFS AND independently measured operation latency <= 0.8x. Historical criteria/results remain immutable.",
       "category": "performance",
       "matrix": {
         "backends": [
@@ -1307,7 +1307,7 @@
       },
       "full": {
         "required": true,
-        "scope": "8 GiB sequential and 512 MiB random/hot read lanes; median paired T_AFS/T_MooseFS must be <= 0.5 for each applicable task."
+        "scope": "Later full matrix retains declared sizes; each applicable read/write case requires BOTH throughput >= 1.2x same-condition MooseFS and predeclared operation-latency quantile <= 0.8x. Phase-two core small cases run first; no full-matrix expansion from this criteria update."
       },
       "driver": {
         "state": "TODO",
@@ -1319,15 +1319,45 @@
         "raw per-round values",
         "digest checks",
         "cache-state records",
-        "ratio report"
+        "ratio report",
+        "independent operation samples and p50/p95/p99",
+        "pre-run frozen comparison conditions, timing boundary and decision quantile"
       ],
       "status": "NOT_RUN",
-      "active": true
+      "active": true,
+      "performance_acceptance": {
+        "revision": "20261007-ordinary-owner-moose-1.2-0.8",
+        "effective_for": "new ordinary OwnerFs core local/remote read-write acceptance only",
+        "throughput_ratio_min": 1.2,
+        "operation_latency_ratio_max": 0.8,
+        "both_required": true,
+        "latency_report_quantiles": [
+          "p50",
+          "p95",
+          "p99"
+        ],
+        "default_decision_quantile": "p95",
+        "decision_quantile_frozen_before_run": true,
+        "operation_scope_and_timer_boundary_frozen_before_run": true,
+        "latency_must_be_measured_independently": true,
+        "conditions_frozen_before_run": [
+          "interface",
+          "dataset",
+          "block_size",
+          "concurrency",
+          "cache_requested_and_observed",
+          "persistence_barrier",
+          "applicable_replica_semantics"
+        ],
+        "incomparable_result": "diagnostic only; NOT acceptance",
+        "existing_results": "reuse only if comparable and both independent metrics complete; otherwise PENDING, no immediate rerun",
+        "unchanged_targets": "workspace bind >= 0.90x native ext4; DFS matched R3 durability parity with 3FS; delete correctness and comparison report without added ratio"
+      }
     },
     {
       "id": "PERF-02",
       "name": "owner-local-write",
-      "description": "Compare OwnerFs local Home write task duration against MooseFS goal=1 for sequential, random overwrite and barrier lanes.",
+      "description": "Ordinary OwnerFs local-write core I/O: throughput >= 1.2x comparable MooseFS AND independently measured operation latency <= 0.8x. Historical criteria/results remain immutable.",
       "category": "performance",
       "matrix": {
         "backends": [
@@ -1359,7 +1389,7 @@
       },
       "full": {
         "required": true,
-        "scope": "8 GiB sequential and 512 MiB random write lanes; median paired T_AFS/T_MooseFS must be <= 0.5 for each applicable task."
+        "scope": "Later full matrix retains declared sizes; each applicable read/write case requires BOTH throughput >= 1.2x same-condition MooseFS and predeclared operation-latency quantile <= 0.8x. Phase-two core small cases run first; no full-matrix expansion from this criteria update."
       },
       "driver": {
         "state": "TODO",
@@ -1371,15 +1401,45 @@
         "barrier returns",
         "raw per-round values",
         "digest checks",
-        "ratio report"
+        "ratio report",
+        "independent operation samples and p50/p95/p99",
+        "pre-run frozen comparison conditions, timing boundary and decision quantile"
       ],
       "status": "NOT_RUN",
-      "active": true
+      "active": true,
+      "performance_acceptance": {
+        "revision": "20261007-ordinary-owner-moose-1.2-0.8",
+        "effective_for": "new ordinary OwnerFs core local/remote read-write acceptance only",
+        "throughput_ratio_min": 1.2,
+        "operation_latency_ratio_max": 0.8,
+        "both_required": true,
+        "latency_report_quantiles": [
+          "p50",
+          "p95",
+          "p99"
+        ],
+        "default_decision_quantile": "p95",
+        "decision_quantile_frozen_before_run": true,
+        "operation_scope_and_timer_boundary_frozen_before_run": true,
+        "latency_must_be_measured_independently": true,
+        "conditions_frozen_before_run": [
+          "interface",
+          "dataset",
+          "block_size",
+          "concurrency",
+          "cache_requested_and_observed",
+          "persistence_barrier",
+          "applicable_replica_semantics"
+        ],
+        "incomparable_result": "diagnostic only; NOT acceptance",
+        "existing_results": "reuse only if comparable and both independent metrics complete; otherwise PENDING, no immediate rerun",
+        "unchanged_targets": "workspace bind >= 0.90x native ext4; DFS matched R3 durability parity with 3FS; delete correctness and comparison report without added ratio"
+      }
     },
     {
       "id": "PERF-03",
       "name": "owner-remote-read",
-      "description": "Compare B reading Home A through OwnerFs against MooseFS goal=1 for cold first and repeated remote reads without DFS cache.",
+      "description": "Ordinary OwnerFs remote-read core I/O: throughput >= 1.2x comparable MooseFS AND independently measured operation latency <= 0.8x. Historical criteria/results remain immutable.",
       "category": "performance",
       "matrix": {
         "backends": [
@@ -1407,7 +1467,7 @@
       },
       "full": {
         "required": true,
-        "scope": "Remote read workload matching PERF-01; median paired T_AFS/T_MooseFS must be <= 0.8 for each applicable task."
+        "scope": "Later full matrix retains declared sizes; each applicable read/write case requires BOTH throughput >= 1.2x same-condition MooseFS and predeclared operation-latency quantile <= 0.8x. Phase-two core small cases run first; no full-matrix expansion from this criteria update."
       },
       "driver": {
         "state": "TODO",
@@ -1419,15 +1479,45 @@
         "remote traffic trace",
         "cache-disabled proof",
         "digest checks",
-        "ratio report"
+        "ratio report",
+        "independent operation samples and p50/p95/p99",
+        "pre-run frozen comparison conditions, timing boundary and decision quantile"
       ],
       "status": "NOT_RUN",
-      "active": true
+      "active": true,
+      "performance_acceptance": {
+        "revision": "20261007-ordinary-owner-moose-1.2-0.8",
+        "effective_for": "new ordinary OwnerFs core local/remote read-write acceptance only",
+        "throughput_ratio_min": 1.2,
+        "operation_latency_ratio_max": 0.8,
+        "both_required": true,
+        "latency_report_quantiles": [
+          "p50",
+          "p95",
+          "p99"
+        ],
+        "default_decision_quantile": "p95",
+        "decision_quantile_frozen_before_run": true,
+        "operation_scope_and_timer_boundary_frozen_before_run": true,
+        "latency_must_be_measured_independently": true,
+        "conditions_frozen_before_run": [
+          "interface",
+          "dataset",
+          "block_size",
+          "concurrency",
+          "cache_requested_and_observed",
+          "persistence_barrier",
+          "applicable_replica_semantics"
+        ],
+        "incomparable_result": "diagnostic only; NOT acceptance",
+        "existing_results": "reuse only if comparable and both independent metrics complete; otherwise PENDING, no immediate rerun",
+        "unchanged_targets": "workspace bind >= 0.90x native ext4; DFS matched R3 durability parity with 3FS; delete correctness and comparison report without added ratio"
+      }
     },
     {
       "id": "PERF-04",
       "name": "owner-remote-write",
-      "description": "Compare B writing Home A through OwnerFs against MooseFS goal=1 for sequential, random and barrier lanes.",
+      "description": "Ordinary OwnerFs remote-write core I/O: throughput >= 1.2x comparable MooseFS AND independently measured operation latency <= 0.8x. Historical criteria/results remain immutable.",
       "category": "performance",
       "matrix": {
         "backends": [
@@ -1460,7 +1550,7 @@
       },
       "full": {
         "required": true,
-        "scope": "Remote write workload matching PERF-02; median paired T_AFS/T_MooseFS must be <= 0.8 for each applicable task."
+        "scope": "Later full matrix retains declared sizes; each applicable read/write case requires BOTH throughput >= 1.2x same-condition MooseFS and predeclared operation-latency quantile <= 0.8x. Phase-two core small cases run first; no full-matrix expansion from this criteria update."
       },
       "driver": {
         "state": "TODO",
@@ -1472,10 +1562,40 @@
         "barrier returns",
         "remote traffic trace",
         "digest checks",
-        "ratio report"
+        "ratio report",
+        "independent operation samples and p50/p95/p99",
+        "pre-run frozen comparison conditions, timing boundary and decision quantile"
       ],
       "status": "NOT_RUN",
-      "active": true
+      "active": true,
+      "performance_acceptance": {
+        "revision": "20261007-ordinary-owner-moose-1.2-0.8",
+        "effective_for": "new ordinary OwnerFs core local/remote read-write acceptance only",
+        "throughput_ratio_min": 1.2,
+        "operation_latency_ratio_max": 0.8,
+        "both_required": true,
+        "latency_report_quantiles": [
+          "p50",
+          "p95",
+          "p99"
+        ],
+        "default_decision_quantile": "p95",
+        "decision_quantile_frozen_before_run": true,
+        "operation_scope_and_timer_boundary_frozen_before_run": true,
+        "latency_must_be_measured_independently": true,
+        "conditions_frozen_before_run": [
+          "interface",
+          "dataset",
+          "block_size",
+          "concurrency",
+          "cache_requested_and_observed",
+          "persistence_barrier",
+          "applicable_replica_semantics"
+        ],
+        "incomparable_result": "diagnostic only; NOT acceptance",
+        "existing_results": "reuse only if comparable and both independent metrics complete; otherwise PENDING, no immediate rerun",
+        "unchanged_targets": "workspace bind >= 0.90x native ext4; DFS matched R3 durability parity with 3FS; delete correctness and comparison report without added ratio"
+      }
     },
     {
       "id": "PERF-05",

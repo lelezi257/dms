@@ -1,0 +1,50 @@
+{
+  "command": {
+    "argv": [
+      "curl",
+      "-fsS",
+      "http://127.0.0.1:24501/metrics"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003385892996448092,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  "counts": {
+    "access": 0,
+    "create": 2,
+    "destroy": 0,
+    "flush": 3,
+    "forget": 0,
+    "fsync": 2,
+    "fsyncdir": 0,
+    "getattr": 28,
+    "getlk_with_options": 0,
+    "getxattr": 0,
+    "init": 1,
+    "interrupt": 0,
+    "link": 0,
+    "listxattr": 0,
+    "lookup": 5,
+    "mkdir": 1,
+    "mknod": 0,
+    "open": 1,
+    "opendir": 1,
+    "read": 2,
+    "readdir": 0,
+    "readlink": 0,
+    "release": 3,
+    "releasedir": 0,
+    "removexattr": 0,
+    "rename": 0,
+    "rmdir": 0,
+    "setattr": 1,
+    "setlk_with_options": 0,
+    "setxattr": 0,
+    "statfs": 0,
+    "symlink": 0,
+    "unlink": 0,
+    "write": 2
+  }
+}

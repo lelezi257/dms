@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir",
+    "/tmp",
+    "afs-build",
+    "--",
+    "env",
+    "SOURCE_DATE_EPOCH=0",
+    "bash",
+    "/workspace/dms/source/scripts/deploy/build-package.sh",
+    "--bin-dir",
+    "/var/tmp/afs-e2e-release-20261006-r1/target/release",
+    "--output",
+    "/var/tmp/afs-callback-observed-package-20261007-r2",
+    "--version",
+    "0.1.0-g2-main-b31292a",
+    "--source-commit",
+    "b31292ac56dc3b88ec0f0dca09cbce014af1e7fb",
+    "--features",
+    "ownerfs,dfs,rdma"
+  ],
+  "exit": 0
+}

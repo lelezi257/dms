@@ -1,4 +1,4 @@
-// Descriptor-confined Linux native workspace export mounts.
+// Descriptor-confined Linux OwnerFs workspace bind mounts.
 //
 // The caller supplies an already-authorized Home source descriptor and a
 // trusted managed parent descriptor. This module records the current mount
@@ -7,24 +7,24 @@
 // while the same claim is still visible.
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct DirectoryIdentity {
-    pub(super) device: u64,
-    pub(super) inode: u64,
+pub(in crate::node) struct DirectoryIdentity {
+    pub(in crate::node) device: u64,
+    pub(in crate::node) inode: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct NamespaceIdentity {
-    pub(super) device: u64,
-    pub(super) inode: u64,
+pub(in crate::node) struct NamespaceIdentity {
+    pub(in crate::node) device: u64,
+    pub(in crate::node) inode: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct MountIdentity {
-    pub(super) namespace: NamespaceIdentity,
-    pub(super) mount_id: u64,
-    pub(super) unique_mount_id: u64,
-    pub(super) source: DirectoryIdentity,
-    pub(super) covered_target: DirectoryIdentity,
+pub(in crate::node) struct MountIdentity {
+    pub(in crate::node) namespace: NamespaceIdentity,
+    pub(in crate::node) mount_id: u64,
+    pub(in crate::node) unique_mount_id: u64,
+    pub(in crate::node) source: DirectoryIdentity,
+    pub(in crate::node) covered_target: DirectoryIdentity,
 }
 
 #[cfg(target_os = "linux")]
@@ -47,7 +47,7 @@ mod linux {
     const MOUNT_ATTR_NODEV: u64 = 0x4;
 
     #[derive(Debug)]
-    pub(in crate::node::native_workspace) struct ManagedExport {
+    pub(in crate::node) struct WorkspaceBindMount {
         namespace: NamespaceIdentity,
         source_identity: DirectoryIdentity,
         target_identity: DirectoryIdentity,
@@ -59,8 +59,8 @@ mod linux {
         activated: bool,
     }
 
-    impl ManagedExport {
-        pub(in crate::node::native_workspace) fn prepare(
+    impl WorkspaceBindMount {
+        pub(in crate::node) fn prepare(
             source: File,
             parent: File,
             name: &OsStr,
@@ -91,7 +91,7 @@ mod linux {
             })
         }
 
-        pub(in crate::node::native_workspace) fn activate(&mut self) -> io::Result<()> {
+        pub(in crate::node) fn activate(&mut self) -> io::Result<()> {
             if self.activated {
                 return Ok(());
             }
@@ -123,7 +123,7 @@ mod linux {
             Ok(())
         }
 
-        pub(in crate::node::native_workspace) fn detach(&mut self) -> io::Result<()> {
+        pub(in crate::node) fn detach(&mut self) -> io::Result<()> {
             if !self.activated {
                 if self.inspect()?.is_none() {
                     return Ok(());
@@ -145,13 +145,11 @@ mod linux {
             Ok(())
         }
 
-        pub(in crate::node::native_workspace) fn mount_identity(
-            &self,
-        ) -> io::Result<MountIdentity> {
+        pub(in crate::node) fn mount_identity(&self) -> io::Result<MountIdentity> {
             self.mount.ok_or_else(|| errno(libc::ESTALE))
         }
 
-        pub(in crate::node::native_workspace) fn source_identity(&self) -> DirectoryIdentity {
+        pub(in crate::node) fn source_identity(&self) -> DirectoryIdentity {
             self.source_identity
         }
 
@@ -210,7 +208,7 @@ mod linux {
         }
     }
 
-    pub(in crate::node::native_workspace) fn current_namespace() -> io::Result<NamespaceIdentity> {
+    pub(in crate::node) fn current_namespace() -> io::Result<NamespaceIdentity> {
         let metadata = File::open("/proc/thread-self/ns/mnt")?.metadata()?;
         namespace_identity_from_metadata(&metadata)
     }
@@ -239,13 +237,15 @@ mod linux {
         })
     }
 
-    pub(in crate::node::native_workspace) fn inspect_final_clone(
+    pub(in crate::node) fn inspect_secondary_clone(
         namespace: &File,
         root: &File,
+        target_component: &OsStr,
     ) -> io::Result<(NamespaceIdentity, DirectoryIdentity, u64)> {
+        let target_component = validate_component(target_component)?;
         in_mount_namespace(namespace, || {
             let namespace_identity = namespace_identity(namespace)?;
-            let target = open_child(root, workspace_name())?;
+            let target = open_child(root, &target_component)?;
             check_mount_policy(&target)?;
             Ok((
                 namespace_identity,
@@ -255,15 +255,17 @@ mod linux {
         })
     }
 
-    pub(in crate::node::native_workspace) fn detach_final_clone(
+    pub(in crate::node) fn detach_secondary_clone(
         namespace: &File,
         root: &File,
+        target_component: &OsStr,
         expected_source: DirectoryIdentity,
         expected_unique_mount_id: u64,
         covered: DirectoryIdentity,
     ) -> io::Result<()> {
+        let target_component = validate_component(target_component)?;
         in_mount_namespace(namespace, || {
-            let target = open_child(root, workspace_name())?;
+            let target = open_child(root, &target_component)?;
             if directory_identity(&target)? != expected_source
                 || unique_mount_id(&target)? != expected_unique_mount_id
             {
@@ -272,8 +274,8 @@ mod linux {
             check_mount_policy(&target)?;
             drop(target);
             change_directory(root)?;
-            normal_unmount(workspace_name())?;
-            let restored = open_child(root, workspace_name())?;
+            normal_unmount(&target_component)?;
+            let restored = open_child(root, &target_component)?;
             if directory_identity(&restored)? != covered
                 || unique_mount_id(&restored)? == expected_unique_mount_id
             {
@@ -298,10 +300,6 @@ mod linux {
         } else {
             Err(errno(libc::EPERM))
         }
-    }
-
-    fn workspace_name() -> &'static std::ffi::CStr {
-        c"workspace"
     }
 
     fn in_mount_namespace<T>(
@@ -507,7 +505,7 @@ mod linux {
             let parent = dir_fd(temp.path());
 
             for name in ["", ".", "..", "nested/name"] {
-                let error = ManagedExport::prepare(
+                let error = WorkspaceBindMount::prepare(
                     source.try_clone().unwrap(),
                     parent.try_clone().unwrap(),
                     OsStr::new(name),
@@ -523,7 +521,7 @@ mod linux {
             fs::create_dir(temp.path().join("source")).unwrap();
             std::os::unix::fs::symlink("source", temp.path().join("target")).unwrap();
 
-            let error = ManagedExport::prepare(
+            let error = WorkspaceBindMount::prepare(
                 dir_fd(&temp.path().join("source")),
                 dir_fd(temp.path()),
                 OsStr::new("target"),
@@ -533,6 +531,30 @@ mod linux {
                 error.raw_os_error(),
                 Some(libc::ENOTDIR | libc::ELOOP)
             ));
+        }
+
+        #[test]
+        fn secondary_clone_rejects_invalid_component_before_namespace_entry() {
+            let temp = tempfile::tempdir().unwrap();
+            let namespace = File::open("/proc/thread-self/ns/mnt").unwrap();
+            let root = dir_fd(temp.path());
+            let before = current_namespace().unwrap();
+            let error =
+                inspect_secondary_clone(&namespace, &root, OsStr::new("nested/name")).unwrap_err();
+            assert_eq!(error.raw_os_error(), Some(libc::EINVAL));
+            assert_eq!(current_namespace().unwrap(), before);
+            let root_identity = directory_identity(&root).unwrap();
+            let error = detach_secondary_clone(
+                &namespace,
+                &root,
+                OsStr::new("nested/name"),
+                root_identity,
+                1,
+                root_identity,
+            )
+            .unwrap_err();
+            assert_eq!(error.raw_os_error(), Some(libc::EINVAL));
+            assert_eq!(current_namespace().unwrap(), before);
         }
 
         #[test]
@@ -549,13 +571,15 @@ mod linux {
 
             let target_before = dir_fd(&temp.path().join("target"));
             let covered = directory_identity(&target_before).unwrap();
-            let mut export = ManagedExport::prepare(
+            let mut export = WorkspaceBindMount::prepare(
                 dir_fd(&temp.path().join("source")),
                 dir_fd(temp.path()),
                 OsStr::new("target"),
             )
-            .expect("native mount preparation failed");
-            export.activate().expect("native mount activation failed");
+            .expect("workspace bind mount preparation failed");
+            export
+                .activate()
+                .expect("workspace bind mount activation failed");
             assert_eq!(
                 export.source_identity(),
                 export.mount_identity().unwrap().source
@@ -583,13 +607,15 @@ mod linux {
             fs::create_dir(temp.path().join("foreign")).unwrap();
             fs::create_dir(temp.path().join("target")).unwrap();
 
-            let mut export = ManagedExport::prepare(
+            let mut export = WorkspaceBindMount::prepare(
                 dir_fd(&temp.path().join("source")),
                 dir_fd(temp.path()),
                 OsStr::new("target"),
             )
-            .expect("native mount preparation failed");
-            export.activate().expect("native mount activation failed");
+            .expect("workspace bind mount preparation failed");
+            export
+                .activate()
+                .expect("workspace bind mount activation failed");
             let claim = export.mount_identity().unwrap();
             bind_mount_private(&temp.path().join("foreign"), &temp.path().join("target")).unwrap();
 
@@ -616,12 +642,12 @@ mod linux {
             fs::create_dir(temp.path().join("foreign")).unwrap();
             fs::create_dir(temp.path().join("target")).unwrap();
 
-            let mut export = ManagedExport::prepare(
+            let mut export = WorkspaceBindMount::prepare(
                 dir_fd(&temp.path().join("source")),
                 dir_fd(temp.path()),
                 OsStr::new("target"),
             )
-            .expect("native mount preparation failed");
+            .expect("workspace bind mount preparation failed");
             bind_mount_private(&temp.path().join("foreign"), &temp.path().join("target")).unwrap();
 
             let error = export.detach().unwrap_err();
@@ -635,7 +661,7 @@ mod linux {
 
         #[test]
         #[ignore = "requires root Linux private mount namespace; run explicitly"]
-        fn final_clone_detach_rejects_wrong_identity_and_flags_with_proc_hidden() {
+        fn secondary_clone_detach_rejects_wrong_identity_and_flags_with_proc_hidden() {
             assert!(
                 can_create_private_mount_namespace(),
                 "private mount namespace admission failed"
@@ -647,22 +673,25 @@ mod linux {
             let temp = tempfile::tempdir().unwrap();
             fs::create_dir(temp.path().join("source")).unwrap();
             fs::create_dir(temp.path().join("root")).unwrap();
-            fs::create_dir(temp.path().join("root/workspace")).unwrap();
+            fs::create_dir(temp.path().join("root/project")).unwrap();
             fs::write(temp.path().join("source/file"), b"native").unwrap();
 
             let root = dir_fd(&temp.path().join("root"));
-            let covered =
-                directory_identity(&open_child(&root, workspace_name()).unwrap()).unwrap();
-            let mut export = ManagedExport::prepare(
+            let component = OsStr::new("project");
+            let component_c = validate_component(component).unwrap();
+            let covered = directory_identity(&open_child(&root, &component_c).unwrap()).unwrap();
+            let mut export = WorkspaceBindMount::prepare(
                 dir_fd(&temp.path().join("source")),
                 root.try_clone().unwrap(),
-                OsStr::new("workspace"),
+                component,
             )
-            .expect("native mount preparation failed");
-            export.activate().expect("native mount activation failed");
+            .expect("workspace bind mount preparation failed");
+            export
+                .activate()
+                .expect("workspace bind mount activation failed");
             let claim = export.mount_identity().unwrap();
             assert_eq!(
-                fs::read(temp.path().join("root/workspace/file")).unwrap(),
+                fs::read(temp.path().join("root/project/file")).unwrap(),
                 b"native"
             );
 
@@ -681,28 +710,29 @@ mod linux {
             setns_mount(&controller_namespace).expect("restore controller namespace before probe");
             change_directory(&controller_cwd).unwrap();
             let (observed_namespace, observed_source, observed_unique) =
-                inspect_final_clone(&final_namespace, &final_root).unwrap();
+                inspect_secondary_clone(&final_namespace, &final_root, component).unwrap();
             assert_ne!(observed_namespace, claim.namespace);
             assert_eq!(observed_source, claim.source);
             assert_ne!(observed_unique, claim.unique_mount_id);
             assert_eq!(current_namespace().unwrap(), controller_identity);
 
             in_mount_namespace(&final_namespace, || {
-                let target = open_child(&final_root, workspace_name())?;
+                let target = open_child(&final_root, &component_c)?;
                 clear_policy(&target)
             })
             .unwrap();
             assert_eq!(
-                inspect_final_clone(&final_namespace, &final_root)
+                inspect_secondary_clone(&final_namespace, &final_root, component)
                     .unwrap_err()
                     .raw_os_error(),
                 Some(libc::EPERM)
             );
             assert_eq!(current_namespace().unwrap(), controller_identity);
             assert_eq!(
-                detach_final_clone(
+                detach_secondary_clone(
                     &final_namespace,
                     &final_root,
+                    component,
                     claim.source,
                     observed_unique,
                     covered
@@ -713,7 +743,7 @@ mod linux {
             );
             assert_eq!(current_namespace().unwrap(), controller_identity);
             in_mount_namespace(&final_namespace, || {
-                let target = open_child(&final_root, workspace_name())?;
+                let target = open_child(&final_root, &component_c)?;
                 apply_policy(&target)
             })
             .unwrap();
@@ -721,9 +751,10 @@ mod linux {
                 device: claim.source.device,
                 inode: claim.source.inode.wrapping_add(1),
             };
-            let error = detach_final_clone(
+            let error = detach_secondary_clone(
                 &final_namespace,
                 &final_root,
+                component,
                 wrong,
                 observed_unique,
                 covered,
@@ -732,7 +763,7 @@ mod linux {
             assert_eq!(error.raw_os_error(), Some(libc::ESTALE));
             assert_eq!(current_namespace().unwrap(), controller_identity);
             let (_, still_source, still_unique) =
-                inspect_final_clone(&final_namespace, &final_root).unwrap();
+                inspect_secondary_clone(&final_namespace, &final_root, component).unwrap();
             assert_eq!(still_source, claim.source);
             assert_eq!(still_unique, observed_unique);
             assert_eq!(current_namespace().unwrap(), controller_identity);
@@ -741,9 +772,10 @@ mod linux {
                 controller_directory
             );
             assert_eq!(
-                detach_final_clone(
+                detach_secondary_clone(
                     &final_namespace,
                     &final_root,
+                    component,
                     claim.source,
                     observed_unique.wrapping_add(1),
                     covered
@@ -758,9 +790,10 @@ mod linux {
                 controller_directory
             );
 
-            detach_final_clone(
+            detach_secondary_clone(
                 &final_namespace,
                 &final_root,
+                component,
                 claim.source,
                 observed_unique,
                 covered,
@@ -772,20 +805,20 @@ mod linux {
                 controller_directory
             );
             let (restored_source, restored_unique) = in_mount_namespace(&final_namespace, || {
-                let target = open_child(&final_root, workspace_name())?;
+                let target = open_child(&final_root, &component_c)?;
                 Ok((directory_identity(&target)?, unique_mount_id(&target)?))
             })
             .unwrap();
             assert_eq!(restored_source, covered);
             assert_ne!(restored_unique, observed_unique);
             assert_eq!(
-                fs::read(temp.path().join("root/workspace/file")).unwrap(),
+                fs::read(temp.path().join("root/project/file")).unwrap(),
                 b"native"
             );
             export.detach().unwrap();
-            let restored = open_child(&root, workspace_name()).unwrap();
+            let restored = open_child(&root, &component_c).unwrap();
             assert_eq!(directory_identity(&restored).unwrap(), covered);
-            assert!(!temp.path().join("root/workspace/file").exists());
+            assert!(!temp.path().join("root/project/file").exists());
         }
 
         #[allow(unsafe_code)]
@@ -872,4 +905,6 @@ mod linux {
 }
 
 #[cfg(target_os = "linux")]
-pub(super) use linux::{ManagedExport, detach_final_clone, inspect_final_clone};
+pub(in crate::node) use linux::{
+    WorkspaceBindMount, detach_secondary_clone, inspect_secondary_clone,
+};

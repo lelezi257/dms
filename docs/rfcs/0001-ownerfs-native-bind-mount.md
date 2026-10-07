@@ -1,9 +1,15 @@
-# RFC 0001：OwnerFs workspace 同路径原生 bind mount
+# RFC 0001：OwnerFs workspace bind mount
 
 - 状态：G2 候选方案。机制穿刺支持继续实施，但当前 checkpoint 未发布生产功能、未提供已资格化的公开开关，默认路径仍是 OwnerFs FUSE。
 - 日期：2026-09-30。
 - 穿刺基线：`6ee3f177a43ee85cc6b79666502330095d445fdb`。
 - 关联：[OwnerFs 架构](../architecture/ownerfs.md)、[实现状态](../status.md)、[发布验收](../acceptance.md)、[三阶段目标](../../development/trial-release-goals.md)、[当前源码 checkpoint](../../development/current-checkpoint.md)。
+
+## 命名、归属与当前暴露范围（2026-10-07）
+
+功能统一命名为 **OwnerFs workspace bind mount**，与容器无关。核心归属单个 `src/node/vfs/ownerfs/bind_mount.rs`，runc 只是独立适配层；Node 保留生命周期接线。旧 RFC 文件路径保留以兼容既有链接，下方历史穿刺版本、失败和结论不改写。
+
+当前实现确实从 Home 真实目录挂到 OwnerFs FUSE 根下 workspace 一级目录，但仅在控制线程的私有挂载 namespace 内可见；普通宿主调用者仍见 FUSE。之后 runc 再将该视图挂到容器 `/workspace`。命名/模块整改不扩大可见性，不能计通用功能或 ON 验收。已有 `experimental_native_workspace` / `[native_workspace]` / CLI 名称保留为 runc 实验适配的兼容配置，默认 OFF；未引入通用 bind 开关。独立普通调用者入口、多 workspace 管理和完整语义/排空/恢复仍待验收。参见 [当前 OwnerFs 架构](../architecture/ownerfs.md#ownerfs-workspace-bind-mount)。
 
 ## Problem
 

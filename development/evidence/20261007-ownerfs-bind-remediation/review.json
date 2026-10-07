@@ -1,0 +1,17 @@
+{
+  "status": "APPROVE",
+  "reviewer": "native_lock_review",
+  "scope": "Independent plan and final static architecture/interface review, no runtime or Cargo executed by reviewer.",
+  "findings": [
+    "Single OwnerFs core file, node-internal visibility; runc remains adapter, target component selected there.",
+    "Component validation precedes setns; no-follow, source/namespace/unique-mount identity and nosuid/nodev preserved.",
+    "Normal detach and errno propagation/retained claim preserved; no EBUSY test claimed.",
+    "Precise filters retain 4 privileged bind tests and 3 privileged rootfs tests.",
+    "Default OFF and unchanged legacy config parsing; private-view/ordinary-host gap remains explicit."
+  ],
+  "reviewed_sha256": {
+    "src/node/vfs/ownerfs/bind_mount.rs": "ff3deecb2bb685ed6d85b8d3a7caa79096f5e2e7b84ee47a8bcc64083a619a85",
+    "src/node/native_workspace.rs": "3109d96dea057e843229b616baf35ba5506055b50e1de187b3013f53bcb8ba58",
+    "development/acceptance/source-slice-linux.py": "c48efb636a14bd404a81da54c0aa75567ab1239209368a2e6c1a03ebbdce795a"
+  }
+}

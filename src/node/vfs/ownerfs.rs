@@ -42,6 +42,7 @@ use crate::node::storage::{
     OpenSpec, RenameMode, StoragePath,
 };
 
+pub(in crate::node) mod bind_mount;
 pub mod catalog;
 pub mod files;
 mod native_home;

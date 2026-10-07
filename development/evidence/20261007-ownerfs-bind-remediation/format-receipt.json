@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "first_write_attempt": "Linux cargo fmt failed readonly shared source, originalstderr retained",
+  "resolution": "Linux rustfmt --emit stdout; host applies only exact emitted source after removing verified filename headers; no VM mount/permission changes",
+  "changes": [
+    {
+      "path": "src/node/vfs/ownerfs/bind_mount.rs",
+      "before": "fb12988454509889263c9638d5ba113b46d5f5b1510e7cfa41c44e01e421167c",
+      "after": "ff3deecb2bb685ed6d85b8d3a7caa79096f5e2e7b84ee47a8bcc64083a619a85"
+    },
+    {
+      "path": "src/node/native_workspace.rs",
+      "before": "23d6af28eb4b0ef11532d38796c998de5f54aa25ae9845d57d1eb25a65a1daeb",
+      "after": "3109d96dea057e843229b616baf35ba5506055b50e1de187b3013f53bcb8ba58"
+    },
+    {
+      "path": "src/node/vfs/ownerfs.rs",
+      "before": "66b382f04c9c261431d1a1f2468ebe7e4defb4ec750e59a2b1e1fcca4dbc45e2",
+      "after": "b509ee333cc2d477e47682da975038f8924bfb941415fbc40f3b2bd382416f9e"
+    }
+  ]
+}

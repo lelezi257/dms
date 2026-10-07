@@ -1,8 +1,12 @@
-# Container workspace source slice
+# Runc adapter for OwnerFs workspace bind mount
 
 2026-10-07; baseline main `0891cbfe558cdda7c8d780b7fa9e8f97329e2554`, mechanism reference [Issue42](https://github.com/lelezi257/dms/issues/42) / [PR43](https://github.com/lelezi257/dms/pull/43) head `80b0bca3d9d86a1357aa745bb65abfb567f5623f`.
 
 **Decision:** pjdfstest qualifies functional completeness. The first performance lane is container-mounted workspace access. Ordinary FUSE/local/remote/DFS timings and failures remain available for later focused optimization. This slice does not reopen historical G1 8/8 or change previous acceptance conclusions.
+
+## Current module boundary (2026-10-07)
+
+The shared mount/identity/normal-unmount core now belongs to one `src/node/vfs/ownerfs/bind_mount.rs` file, with `WorkspaceBindMount` and component-parameterized secondary-clone operations. This file remains the runc adapter design entry; its historical path and evidence references are preserved. The physical Home source is covered onto the FUSE first-level workspace only in the controller private namespace; ordinary callers have no covering bind. Core extraction is not a new generic Node lifecycle or full bind acceptance. Existing TOML/CLI adapter options retain names/semantics/default OFF. [Independent repair plan](ownerfs-workspace-bind-remediation.md).
 
 ## Implemented boundary
 

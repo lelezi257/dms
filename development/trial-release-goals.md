@@ -1,6 +1,10 @@
+**当前整改收口（2026-10-07，事实）：** OwnerFs workspace bind mount核心已归属单个ownerfs/bind_mount.rs，runc保留独立适配层，配置原名兼容、默认OFF。6e基底/157-map fabab19a的新Linux受影响检查通过：25项独立测试（含4真实bind/3rootfs）、fmt/严格Clippy/release构建；独立静态审阅通过。新ELF尚未打包/部署，不继承3cc运行验收；G1历史8/8及G2计数不变。
+
+[整改版本、命令与证据](evidence/20261007-ownerfs-bind-remediation/README.md)。
+
 **当前小阶段收口（2026-10-07）：** source3cc10a2/157-map e15c的新Linux release源码检查及4KiB容器有序恢复PASS，58项驱动检查/独立postcheck通过，四wait0、八服务PID与两容器消失、旧记录/模板/本地Meta目录保留；首collector路径FAIL保留、只修工具复核未重跑产品。不是全ON、性能或通用OwnerFs bind验收。G1历史8/8、G2计数及defaultOFF不变。
 
-**当前下一项：** 高优先级OwnerFs workspace bind mount命名/归属整改：核心移到单个ownerfs/bind_mount.rs，runc留适配层；现有第一层覆盖仅控制线程private namespace可见，普通宿主仍FUSE。先精准小改/受影响Linux检查/独审，再Lore发布；不扩大可见性或改配置解析，不用改名隐藏缺口。
+**当前下一项（决策）：** 回到既定G2独立小项。workspace bind通用宿主可见性/独立生命周期及append、锁、watch、撤权排空仍待功能验收；现有bind仅控制线程private namespace可见，不能以改名计完整通过。不重跑已过恢复/标准/性能；可独立推进既有6d身份的Owner远端B-Home小读/删除，保留原FAIL，后续DFS一写多读，复杂可靠性/etcd/Redis后置。
 
 [本轮实际版本与证据](evidence/20261007-native-orderly-recovery-runtime/README.md)。[独立整改计划](ownerfs-workspace-bind-remediation.md)。
 
@@ -27,7 +31,7 @@
 | 阶段 | 独立交付结果 | 当前可信状态 |
 | --- | --- | --- |
 | 阶段一 G1 | 同事独立安装OwnerFs/DFS；memory演示；中心local-file Meta可重启恢复 | **已完成，8/8；推荐g1.5**。新候选回归不重开G1；不是完整POSIX/69项认证 |
-| 阶段二 G2 | 标准回归；OwnerFs核心性能；DFS一写多读；可开关bind功能/性能 | **进行中，27项：9项限定完成、2项存在性能失败、2项bind进行中、14项待验收**。Owner小读/写性能FAIL；DFS本地R1标准缺口已补齐，旧失败保留；系统对照/新性能包未完成 |
+| 阶段二 G2 | 标准回归；OwnerFs核心性能；DFS一写多读；可开关bind功能/性能 | **进行中，27项：10项限定完成、2项存在性能失败、2项bind进行中、13项待验收**。Owner小读/写性能FAIL；DFS本地R1标准缺口已补齐，旧失败保留；系统对照/新性能包未完成 |
 | 阶段三 G3 | 长时间、复杂并发/故障、扩展矩阵和最后的后端 | **后置，13项**；局部证据保留，不称整体验收 |
 
 ## 启动前收尾（不重开阶段一）
@@ -81,8 +85,8 @@
 | G2.09 | OwnerFs本地小规模读 | 与ext4同条件、内容/EOF正确并达本地目标 | **性能FAIL**；e925c5b 64MiB/C1/5对，功能PASS，dev0.5709/release0.3477×ext4<0.90，摸底数据保留、专项优化暂缓；[证据](evidence/20261006-e2e-current/r4/README.md)，不刷成绩 |
 | G2.10 | OwnerFs本地小规模写 | 相同持久屏障，计open/write/sync/close，读回正确并达标 | **性能FAIL**；e925c5b 64MiB/C1/5对，同fdatasync，功能PASS，dev0.6297/release0.5879×ext4<0.90，摸底数据保留、专项优化暂缓；[证据](evidence/20261006-e2e-current/r4/README.md) |
 | G2.11 | OwnerFs本地删除 | 固定小文件集合，删除正确，操作性能对照报告 | **完成（限定小项）**；e925c5b 100×4KiB/C1/5对，正确且对照报告已留，无新增比例门槛；[证据](evidence/20261006-e2e-current/r4/README.md) |
-| G2.12 | bind功能验收（独立开关） | 显式可配置、默认OFF；OFF原FUSE回归；ON受管挂载/启动/停止、必要语义/权限、引用排空及重启对账；不安全配置拒绝 | **进行中**；[交接](current-checkpoint.md#historical-evidence)、[基础资格](current-checkpoint.md#historical-evidence)；[管理员实验接线](native-workspace-slice.md)，默认OFF；[实际受管单容器生命周期/清理PASS](evidence/20261007-managed-workspace/README.md)；[短语义](evidence/20261007-managed-semantics/README.md)：mmap字节/权限PASS，锁/append偏移/watch传播FAIL；[append r8独立数据](evidence/20261007-append-diagnostic/README.md)顺序/128记录PASS，偏移仍FAIL，本轮诊断收口；[经典锁原语/机制边界](native-classic-lock-boundary.md)收口、产品仍FAIL；[活动容器source注入拒绝](evidence/20261007-native-source-rejection/README.md)新有限PASS：真实identity/artifacts不变、20B合法exec及收尾；[活动控制额度耗尽](evidence/20261007-native-control-capacity/README.md)新有限PASS：63busy/64ledger、ENOSPC无副作用、Status及Stop收尾；[有序恢复窄修复](evidence/20261007-native-orderly-recovery/README.md)独立草稿/最终Linux验证因实际ENOSPC阻塞，尚无新ELF或重启运行；完整ON及生产开关未资格化 |
-| G2.13 | bind性能验收（独立开关） | 同候选OFF/ON/ext4配对；核心数据读写和元数据接近ext4，内容/语义正确 | **进行中**；[当前6d51aeb小配对诊断](evidence/20261007-container-perf/README.md)：OFF/ON各1预热+5轮，ON写/读耗时1.023/1.031×ext4、六元数据1.048–1.158×ext4；内容/清理通过，缓存/FUSE计数限制及锁/append/watch缺口保留，完整出口未过 |
+| G2.12 | OwnerFs workspace bind mount功能验收（独立开关） | 显式可配置、默认OFF；OFF原FUSE回归；ON受管挂载/启动/停止、必要语义/权限、引用排空及重启对账；不安全配置拒绝 | **进行中**；[交接](current-checkpoint.md#historical-evidence)、[基础资格](current-checkpoint.md#historical-evidence)；[管理员实验接线](native-workspace-slice.md)，默认OFF；[实际受管单容器生命周期/清理PASS](evidence/20261007-managed-workspace/README.md)；[短语义](evidence/20261007-managed-semantics/README.md)：mmap字节/权限PASS，锁/append偏移/watch传播FAIL；[append r8独立数据](evidence/20261007-append-diagnostic/README.md)顺序/128记录PASS，偏移仍FAIL，本轮诊断收口；[经典锁原语/机制边界](native-classic-lock-boundary.md)收口、产品仍FAIL；[活动容器source注入拒绝](evidence/20261007-native-source-rejection/README.md)新有限PASS：真实identity/artifacts不变、20B合法exec及收尾；[活动控制额度耗尽](evidence/20261007-native-control-capacity/README.md)新有限PASS：63busy/64ledger、ENOSPC无副作用、Status及Stop收尾；[有序恢复窄修复](evidence/20261007-native-orderly-recovery/README.md)原ENOSPC及草稿身份保留；[3cc新包4KiB两阶段有序恢复](evidence/20261007-native-orderly-recovery-runtime/README.md)限定通过；独立高优先级[命名/模块归属整改](evidence/20261007-ownerfs-bind-remediation/README.md)已完成限定收口，通用宿主可见性/独立bind生命周期仍待功能验收；完整ON及生产开关未资格化 |
+| G2.13 | OwnerFs workspace bind mount性能验收（独立开关） | 同候选OFF/ON/ext4配对；核心数据读写和元数据接近ext4，内容/语义正确 | **进行中**；[当前6d51aeb小配对诊断](evidence/20261007-container-perf/README.md)：OFF/ON各1预热+5轮，ON写/读耗时1.023/1.031×ext4、六元数据1.048–1.158×ext4；内容/清理通过，缓存/FUSE计数限制及锁/append/watch缺口保留，完整出口未过 |
 | G2.14 | OwnerFs远端小规模读 | 同Home/缓存/接口MooseFS对照，内容正确并持平 | **正式待验收；小数据已留**；6d B-Home/C1/64MiB/1预热5配对，内容PASS，427.371/14854.399MiB/s、配对比0.028803；缓存未观察/旧负载限制，不计持平；Moose客户端wait1清理FAIL保留。[证据](evidence/20261007-owner-remote-small/README.md) |
 | G2.15 | OwnerFs远端小规模写 | 同持久屏障/数据量，跨节点读回正确并持平 | **当前6d小功能/清理PASS、数据已留，正式待验收**；A远端/B-Home，64MiB/1预热5配对，12内容校验+B6fresh全量读、6正常退出PASS；234.630/430.767MiB/s，配对比0.528615。缓存未观察/波动、Moose强持久ACK基线独立BLOCKED，不计持平。[当前证据](evidence/20261007-owner-remote-write-small/README.md) |
 | G2.16 | OwnerFs远端删除 | 跨挂载可见性正确，操作性能对照报告 | **完成（当前限定小项）**；6d/100×4KiB/1预热5配对，12sample PASS、B600路径ENOENT、6实际wait0；Owner1049.602/Moose1542.929ops/s、配对比0.680266，无硬比例。旧wait1 FAIL保留。[完整证据](evidence/20261007-owner-remote-delete-small/README.md) |

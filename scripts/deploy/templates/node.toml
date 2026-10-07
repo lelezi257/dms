@@ -23,3 +23,8 @@ tls_identity_certificate = "/etc/afs/tls/node-a.pem"
 tls_identity_private_key = "/etc/afs/tls/node-a-key.pem"
 tls_server_name = "afs-meta"
 trusted_node_certs = { node-a = "/etc/afs/tls/node-a.pem" }
+
+# OwnerFs workspace bind mount stays OFF. This legacy option controls only
+# the runc experiment; it does not expose a standalone host-visible bind.
+# Existing TOML/CLI names remain compatible; see docs/architecture/ownerfs.md.
+experimental_native_workspace = false

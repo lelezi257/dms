@@ -75,11 +75,14 @@ commands = [
     ('fmt', ['cargo', 'fmt', '--all', '--', '--check'], 60),
     ('control-client', ['python3', '-m', 'unittest', 'discover', '-s', 'scripts/ownerfs', '-p', 'test_native_workspace_control.py', '-v'], 60),
     ('native-control', base + ['--lib', 'native_workspace', '--', '--nocapture'], 900),
+    ('bind-core', base + ['--lib', 'ownerfs::bind_mount::', '--', '--nocapture'], 300),
+    ('config-contracts', base + ['--test', 'config_contract', '--', '--nocapture'], 300),
     ('native-home', base + ['--lib', 'native_home', '--', '--nocapture'], 600),
     ('contracts', base + ['--test', 'config_contract', '--test', 'vfs_contract', '--test', 'fuse_contract', '--test', 'node_health_contract', '--test', 'ownerfs_peer_contract', '--', '--nocapture'], 600),
     ('library', base + ['--lib', '--', '--nocapture'], 900),
     ('physical-build', base + ['--lib', '--no-run', '--message-format=json'], 300),
     ('physical-native', None, 180),
+    ('physical-bind', None, 180),
     ('fuse-build', base + ['--test', 'fuse_contract', '--no-run', '--message-format=json'], 300),
     ('physical-fuse', None, 180),
     ('owner-only', ['cargo', 'check', '--release', '--locked', '--offline', '--no-default-features', '--features', 'ownerfs'], 600),
@@ -96,14 +99,14 @@ if args.labels:
 summary = {'source_base': frozen['source_base'], 'map_sha256': frozen['map_sha256'], 'status': 'RUNNING', 'selected_gates': [row[0] for row in commands], 'commands': []}
 for label, command, timeout in commands:
     if command is None:
-        native = label == 'physical-native'
+        native = label in ('physical-native', 'physical-bind')
         rows = [json.loads(line) for line in (args.out / ('physical-build.log' if native else 'fuse-build.log')).read_text().splitlines() if line.startswith('{')]
         paths = {r['executable'] for r in rows if r.get('reason') == 'compiler-artifact' and r.get('executable') and r['profile']['test'] and r['target']['name'] == ('afs' if native else 'fuse_contract')}
         if len(paths) != 1:
             raise RuntimeError({'artifacts': sorted(paths)})
         command = ['sudo', '-n', 'timeout', str(timeout), paths.pop()]
         if native:
-            command += ['node::native_workspace::']
+            command += ['node::vfs::ownerfs::bind_mount::' if label == 'physical-bind' else 'node::native_workspace::']
         command += ['--ignored', '--test-threads=1', '--nocapture']
     dump(label + '.command.json', {'argv': command, 'cwd': str(args.source), 'target': str(args.target), 'timeout_seconds': timeout})
     start = time.monotonic()

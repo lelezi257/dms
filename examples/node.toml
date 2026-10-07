@@ -14,3 +14,8 @@ log_level = "info"
 trace_enabled = false
 trace_sample_ratio = 1.0
 trace_endpoint = "http://127.0.0.1:4317"
+
+# OwnerFs workspace bind mount stays OFF. This legacy option controls only
+# the runc experiment; it does not expose a standalone host-visible bind.
+# Existing TOML/CLI names remain compatible; see docs/architecture/ownerfs.md.
+experimental_native_workspace = false

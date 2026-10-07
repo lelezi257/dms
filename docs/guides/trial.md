@@ -137,9 +137,13 @@ config, state, logs and lifecycle evidence.
 - Redis is intentionally left for a later TODO. etcd remains supported by code
   and prior evidence, but it is below `local-file` in the current trial order
   and its memory/resource work is a later topic.
-- OwnerFs native bind mount is not enabled by this trial guide. Its function
+- OwnerFs workspace bind mount is not enabled by this trial guide. Its function
   and performance gates are separate G2 items, default off, and a public
-  production enable switch is not qualified in this checkpoint.
+  production enable switch is not qualified in this checkpoint. Existing
+  experimental_native_workspace / native_workspace settings keep their parsing
+  and remain runc-adapter options, not a standalone bind switch. The current
+  first-level bind is visible only in the adapter private namespace; see
+  [OwnerFs architecture](../architecture/ownerfs.md#ownerfs-workspace-bind-mount).
 - Full 69-case acceptance, full upstream POSIX matrices, 8-hour soak and G2
   performance ratios are not claimed by this trial smoke. G2 starts with
   standard fallback suites and small core performance cases, then grows to

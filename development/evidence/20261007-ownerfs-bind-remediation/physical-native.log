@@ -1,0 +1,8 @@
+
+running 3 tests
+test node::native_workspace::tests::runtime_rootfs_copy_keeps_template_reusable_after_mutable_dev_artifacts ... ok
+test node::native_workspace::tests::runtime_rootfs_copy_rejects_untrusted_source_and_destination_collision ... ok
+test node::native_workspace::tests::runtime_rootfs_workspace_is_the_oci_root_covered_directory ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 582 filtered out; finished in 0.01s
+

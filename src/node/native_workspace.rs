@@ -1,13 +1,16 @@
 //! Explicit administrator-only experiment for one managed Owner workspace container.
 //! The dedicated mount thread owns runc and final-view cleanup. This is not the
 //! production Agent READY/revocation/restart-reconciliation protocol.
-mod mount;
 
 use crate::{
     config::NativeWorkspaceConfig,
-    node::vfs::ownerfs::{HomeExportAuthority, OwnerFs},
+    node::vfs::ownerfs::{
+        HomeExportAuthority, OwnerFs,
+        bind_mount::{
+            DirectoryIdentity, WorkspaceBindMount, detach_secondary_clone, inspect_secondary_clone,
+        },
+    },
 };
-use mount::{DirectoryIdentity, ManagedExport, detach_final_clone, inspect_final_clone};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
@@ -127,7 +130,7 @@ impl Request {
 
 struct Active {
     permit: HomeExportAuthority,
-    export: ManagedExport,
+    export: WorkspaceBindMount,
     container: String,
     // Holding the final namespace/root allows normal clone unmount after all
     // managed processes have stopped. These are dropped only after that proof.
@@ -364,7 +367,7 @@ impl Driver {
         if (namespace.dev, namespace.ino) != (actual_ns.dev(), actual_ns.ino()) {
             return Err(io::Error::from_raw_os_error(libc::ESTALE));
         }
-        let export = ManagedExport::prepare(
+        let export = WorkspaceBindMount::prepare(
             permit.source_descriptor().map_err(io::Error::other)?,
             File::open(&self.mount)?,
             permit.name(),
@@ -568,7 +571,8 @@ impl Driver {
         {
             let namespace = active.final_namespace.as_ref().expect("captured namespace");
             let root = active.final_root.as_ref().expect("captured root");
-            let (observed_ns, observed_source, unique) = inspect_final_clone(namespace, root)?;
+            let (observed_ns, observed_source, unique) =
+                inspect_secondary_clone(namespace, root, OsStr::new("workspace"))?;
             let expected_ns = namespace.metadata()?;
             let expected_source = active.permit.source_identity();
             if (observed_ns.device, observed_ns.inode) != (expected_ns.dev(), expected_ns.ino())
@@ -638,9 +642,10 @@ impl Driver {
                 .as_ref()
                 .ok_or_else(|| io::Error::other("missing owned runtime rootfs"))?;
             let covered = fs::metadata(runtime_rootfs.join("workspace"))?;
-            detach_final_clone(
+            detach_secondary_clone(
                 namespace,
                 root,
+                OsStr::new("workspace"),
                 DirectoryIdentity {
                     device: source.dev,
                     inode: source.ino,

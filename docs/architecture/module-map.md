@@ -19,6 +19,8 @@
 | Backend trait | `src/node/vfs.rs`, `src/node/vfs/types.rs` | common filesystem operation shape |
 | DFS backend | `src/node/vfs/dfs.rs` | write ownership, dirty view, commit and committed reads |
 | OwnerFs backend | `src/node/vfs/ownerfs.rs`, `src/node/vfs/ownerfs/` | Home local files and peer workspace operations |
+| OwnerFs workspace bind mount | `src/node/vfs/ownerfs/bind_mount.rs` | descriptor-confined mount, identity checks and normal unmount; no runc dependency |
+| Runc workspace adapter | `src/node/native_workspace.rs` | experimental container lifecycle and secondary clone selection; Node wires startup/shutdown |
 | Local chunks | `src/node/chunk.rs` | immutable chunk staging, finalization, catalog and reads |
 | Replication | `src/node/replication.rs` | R=1 and R=N execution shape and receipts |
 | Fixed-version reads | `src/node/dfs_read.rs` | extent-to-chunk read planning and source attempts |

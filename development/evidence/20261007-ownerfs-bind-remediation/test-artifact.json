@@ -1,0 +1,8 @@
+{
+  "status": "HASHED_AFTER_SELECTED_RUN",
+  "command": "limactl shell --workdir=/workspace/dms/source afs-build -- sh -c sha256sum/stat (absolute test artifact)",
+  "path": "/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2",
+  "sha256": "84f60c71c301ab25590e4c0ae68860485d0a6b89d9d706b86fbde930e7ab5a2e",
+  "bytes": 27583648,
+  "scope": "Cargo JSON selected this single executable for physical-native and physical-bind; no ELF copied into Git."
+}

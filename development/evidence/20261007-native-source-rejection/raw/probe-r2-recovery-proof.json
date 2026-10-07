@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "argv": [
+    "patch",
+    "-R",
+    "/var/tmp/afs-source-rejection-restore-k634vjw9/probe.py",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/native-source-rejection-20261007-r1/probe-r2-to-r3.patch"
+  ],
+  "rc": 0,
+  "stdout": "patching file '/var/tmp/afs-source-rejection-restore-k634vjw9/probe.py'\n",
+  "stderr": "",
+  "recovered_sha256": "d0f70b72b0985edeed73b6e1b07036beccf763c0fb5172eaaf45a9f696572589"
+}

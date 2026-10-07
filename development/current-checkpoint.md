@@ -1,6 +1,6 @@
-**当前切片（2026-10-07）：** 固定产品6d51aeb/157/map66及ELF未改。3FS patched22fca/R2小删除一次6×1004KiB功能/内容/删除、B/C各600实际ENOENT通过；中位615.210/合并509.565ops/s，对比旧DFS29.861/30.682仅先后运行摸底。A超预设1GiB预算4,067,328B但free2.99GB/floorPASS、日志1.57MB；8wait0+FDB-15未满足原9wait0判据，正式G2.25保持待验收。18ownedPID/新mounts已消失，旧10proc/所有旧mount按ID补证不变；原postcheck同TARGET误报保留。 [完整证据](evidence/20261007-threefs-delete-small/README.md)。
+**当前切片（2026-10-07）：** 固定6d产品/157/map66/包与ELF未改。容器source注入拒绝新小项实际PASS：unknownfieldsource，前后grant/PIDtick/ns/mount/source及16controller制品SHA完全不变；合法exec/FUSE完整20B与既有publicstop收尾通过。NodeMeta两actualwait0/4PIDgone、container及自有mount消失，旧1proc/26mountrows不变；91,070,464B<256MiB。只此有限G2.12分项，非完整ON/graceful drain/性能。3FS资格已按用户选择留专题，原FAIL/数据不改。 [证据](evidence/20261007-native-source-rejection/README.md)。
 
-**下一项：** 本3FS资格项暂停，数据已留，不降判据/扩盘/修环境/重测。用户已选择基线资格留专题；主线回到容器workspace，先确认append/SEEK_CUR偏移的最小修复路径，再独立处理经典锁/watch。已通过标准/候选小删除不重测；G1 8/8、G2 10限定完成/2性能FAIL/2bind进行中/13待验收不变；bind默认OFF，大规模/复杂可靠性/etcd/Redis后置。
+**下一项：** 容器主线继续下一独立控制器安全小项：操作额度耗尽后仍能status/stop并清理自有容器，先核对现有覆盖再冻结最小case；不重测本次PASS、64MiB/性能/标准/append/锁/watch。既有混合语义/API缺口保留，bind默认OFF，完整G2.12/G2.13未关闭。G1历史8/8、G2 10限定完成/2性能FAIL/2bind进行中/13待验收不变；3FS资格及大规模/复杂可靠性/etcd/Redis后置。
 
 **历史说明：** 下方旧检查点按原版本/范围保存；其旧下一动作由上方当前入口和验收主表覆盖。当前native偏移/经典锁/watch失败与普通性能失败原始记录均保留。
 

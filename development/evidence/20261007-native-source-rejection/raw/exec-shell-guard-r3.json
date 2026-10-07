@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "probe_sha256": "faae54c1e608b5505fa207228ce2b3e1550841547a5e648a7a63363e72867f84",
+  "busybox_sha256": "52151e7f322f926b64049cdaa1410dc3ea6485525e0624b05813791c219ae933",
+  "positive": {
+    "argv": [
+      "/opt/afs-native-20261007-r1/rootfs/bin/busybox",
+      "sh",
+      "-ec",
+      "set -C; printf 'source-rejection-ok\\n' > /var/tmp/afs-managed-source-rejection-20261007-r1/shell-guard-r3-n6gljpmh/source-rejection-proof; /opt/afs-native-20261007-r1/rootfs/bin/busybox sync -f /var/tmp/afs-managed-source-rejection-20261007-r1/shell-guard-r3-n6gljpmh/source-rejection-proof; test \"$(/opt/afs-native-20261007-r1/rootfs/bin/busybox cat /var/tmp/afs-managed-source-rejection-20261007-r1/shell-guard-r3-n6gljpmh/source-rejection-proof)\" = source-rejection-ok"
+    ],
+    "rc": 0,
+    "stdout": "",
+    "stderr": "",
+    "content_sha256": "ea4d5008b6db38998d7e16650080b3cf75bcebaeb494ae9238568bf08b2a2170",
+    "bytes": 20
+  },
+  "negative": {
+    "argv": [
+      "/opt/afs-native-20261007-r1/rootfs/bin/busybox",
+      "sh",
+      "-ec",
+      "test \"$(/opt/afs-native-20261007-r1/rootfs/bin/busybox cat /var/tmp/afs-managed-source-rejection-20261007-r1/shell-guard-r3-n6gljpmh/source-rejection-proof)\" = source-rejection-ok"
+    ],
+    "rc": 1,
+    "stdout": "",
+    "stderr": ""
+  }
+}

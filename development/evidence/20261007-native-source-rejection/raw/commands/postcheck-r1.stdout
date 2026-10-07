@@ -1,0 +1,326 @@
+{
+  "status": "PASS",
+  "checks": {
+    "driver": {
+      "status": "PASS",
+      "actual": {
+        "status": "PASS",
+        "scope": "single experimental managed OwnerFs workspace; not full G2.12/13",
+        "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+        "driver_sha256": "61c36184c947784ec864908210a4a433e3b060d673749cad7ef031b68c0580fd",
+        "basic_payload_selected": false,
+        "source_rejection_selected": true,
+        "semantic_groups": [],
+        "cleanup": "PASS"
+      }
+    },
+    "source-rejection": {
+      "status": "PASS",
+      "actual": {
+        "status": "PASS",
+        "request": {
+          "operation": "start",
+          "id": "source-injection",
+          "workspace": "workspace",
+          "source": "/etc"
+        },
+        "response": {
+          "error": "unknown field `source`, expected `id` or `workspace`",
+          "production_ready": false,
+          "status": "ERROR"
+        },
+        "before": {
+          "status": {
+            "access_generation": 1,
+            "container": "afs-native-first",
+            "epoch": 1,
+            "home_node": "node-a",
+            "home_session": "2d451107-77b8-4b9d-a7fa-afd2fb11748f",
+            "production_ready": false,
+            "root": "root-776f726b7370616365",
+            "scope": "single managed experimental container; not READY or revocation ACK",
+            "state": "FinalVerified"
+          },
+          "runtime": {
+            "id": "afs-native-first",
+            "status": "running",
+            "pid": 62914,
+            "bundle": "/opt/afs-managed-source-rejection-20261007-r1/control/bundle-afs-native-first",
+            "rootfs": "/opt/afs-managed-source-rejection-20261007-r1/rootfs"
+          },
+          "process": {
+            "pid": 62914,
+            "starttick": 6638152,
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd"
+          },
+          "namespace": {
+            "dev": 4,
+            "ino": 4026532355
+          },
+          "source": {
+            "dev": 64769,
+            "ino": 824705
+          },
+          "mount": "420 417 253:1 /opt/afs-managed-source-rejection-20261007-r1/state/node/ownerfs/root-776f726b7370616365-e1 /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "runtime_commands": {
+            "command-0001.command.json": "cd07b7d4b4c087f7df98c8ef6d3bec496526704353dc4489e683cc6aff38a053",
+            "command-0001.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0001.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0001.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0002.command.json": "fd7b32d0bcbcd05935cd7892f0c5c63155152dc53aad33328cef5dfd391f87be",
+            "command-0002.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0002.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0002.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0003.command.json": "eb05bdaf9d7465a959d151af90e4e0d66efe47dd1e069c9750cd5b85dc1c6da8",
+            "command-0003.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0003.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0003.stdout": "2cc7f376b1f4383ad36fcecedf54bf96b932b9a9ada073a2eb1a9d24172d30ec",
+            "command-0004.command.json": "6ca3786bb1107e606228e972a5a9a812a6d05fe69c7663da0bd2b7fd4155b786",
+            "command-0004.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0004.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0004.stdout": "5abea13b6c184fa2380138a7ff8ee8a846c88cb85fc84cc4627aa85f6b7793ab"
+          }
+        },
+        "after": {
+          "status": {
+            "access_generation": 1,
+            "container": "afs-native-first",
+            "epoch": 1,
+            "home_node": "node-a",
+            "home_session": "2d451107-77b8-4b9d-a7fa-afd2fb11748f",
+            "production_ready": false,
+            "root": "root-776f726b7370616365",
+            "scope": "single managed experimental container; not READY or revocation ACK",
+            "state": "FinalVerified"
+          },
+          "runtime": {
+            "id": "afs-native-first",
+            "status": "running",
+            "pid": 62914,
+            "bundle": "/opt/afs-managed-source-rejection-20261007-r1/control/bundle-afs-native-first",
+            "rootfs": "/opt/afs-managed-source-rejection-20261007-r1/rootfs"
+          },
+          "process": {
+            "pid": 62914,
+            "starttick": 6638152,
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd"
+          },
+          "namespace": {
+            "dev": 4,
+            "ino": 4026532355
+          },
+          "source": {
+            "dev": 64769,
+            "ino": 824705
+          },
+          "mount": "420 417 253:1 /opt/afs-managed-source-rejection-20261007-r1/state/node/ownerfs/root-776f726b7370616365-e1 /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "runtime_commands": {
+            "command-0001.command.json": "cd07b7d4b4c087f7df98c8ef6d3bec496526704353dc4489e683cc6aff38a053",
+            "command-0001.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0001.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0001.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0002.command.json": "fd7b32d0bcbcd05935cd7892f0c5c63155152dc53aad33328cef5dfd391f87be",
+            "command-0002.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0002.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0002.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0003.command.json": "eb05bdaf9d7465a959d151af90e4e0d66efe47dd1e069c9750cd5b85dc1c6da8",
+            "command-0003.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0003.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0003.stdout": "2cc7f376b1f4383ad36fcecedf54bf96b932b9a9ada073a2eb1a9d24172d30ec",
+            "command-0004.command.json": "6ca3786bb1107e606228e972a5a9a812a6d05fe69c7663da0bd2b7fd4155b786",
+            "command-0004.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0004.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0004.stdout": "5abea13b6c184fa2380138a7ff8ee8a846c88cb85fc84cc4627aa85f6b7793ab"
+          }
+        },
+        "content": {
+          "size": 20,
+          "sha256": "ea4d5008b6db38998d7e16650080b3cf75bcebaeb494ae9238568bf08b2a2170"
+        },
+        "scope": "source-field rejection only; lifecycle closure is recorded by parent driver"
+      }
+    },
+    "container-pid-gone": {
+      "status": "PASS",
+      "actual": 62914
+    },
+    "actual-two-service-wait0": {
+      "status": "PASS",
+      "actual": [
+        {
+          "path": "/opt/afs-managed-source-rejection-20261007-r1/run/meta.lifecycle.xNiV4V/exit",
+          "exit": {
+            "pid": "62566",
+            "exe": "/opt/afs-managed-source-rejection-20261007-r1/prefix/bin/afs-meta",
+            "config": "/opt/afs-managed-source-rejection-20261007-r1/etc/meta.toml",
+            "start_ticks": "6638104",
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+            "lifecycle": "/opt/afs-managed-source-rejection-20261007-r1/run/meta.lifecycle.xNiV4V",
+            "supervisor_pid": "62550",
+            "exit_code": "0"
+          },
+          "child": {
+            "pid": "62566",
+            "exe": "/opt/afs-managed-source-rejection-20261007-r1/prefix/bin/afs-meta",
+            "config": "/opt/afs-managed-source-rejection-20261007-r1/etc/meta.toml",
+            "start_ticks": "6638104",
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+            "lifecycle": "/opt/afs-managed-source-rejection-20261007-r1/run/meta.lifecycle.xNiV4V",
+            "supervisor_pid": "62550"
+          },
+          "ready": {
+            "supervisor_pid": "62550"
+          },
+          "receipt_matches_child": true,
+          "child_and_supervisor_gone": true
+        },
+        {
+          "path": "/opt/afs-managed-source-rejection-20261007-r1/run/node.lifecycle.RKCuxq/exit",
+          "exit": {
+            "pid": "62750",
+            "exe": "/opt/afs-managed-source-rejection-20261007-r1/prefix/bin/afs-node",
+            "config": "/opt/afs-managed-source-rejection-20261007-r1/etc/node.toml",
+            "start_ticks": "6638120",
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+            "lifecycle": "/opt/afs-managed-source-rejection-20261007-r1/run/node.lifecycle.RKCuxq",
+            "supervisor_pid": "62734",
+            "exit_code": "0"
+          },
+          "child": {
+            "pid": "62750",
+            "exe": "/opt/afs-managed-source-rejection-20261007-r1/prefix/bin/afs-node",
+            "config": "/opt/afs-managed-source-rejection-20261007-r1/etc/node.toml",
+            "start_ticks": "6638120",
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+            "lifecycle": "/opt/afs-managed-source-rejection-20261007-r1/run/node.lifecycle.RKCuxq",
+            "supervisor_pid": "62734"
+          },
+          "ready": {
+            "supervisor_pid": "62734"
+          },
+          "receipt_matches_child": true,
+          "child_and_supervisor_gone": true
+        }
+      ]
+    },
+    "protected-processes": {
+      "status": "PASS",
+      "actual": [
+        {
+          "before": {
+            "pid": 3554,
+            "exe": "/usr/bin/gpg-agent (deleted)",
+            "starttick": 4412560,
+            "argv": "gpg-agent --homedir /var/tmp/afs-runc-admission-20261007-r1/gnupg --use-standard-socket --daemon ",
+            "exe_sha256": "5bd7c61c431192d41478e288e6f5bba0287aa5e766b007db82d25f27c8b8cdd7"
+          },
+          "after": {
+            "pid": 3554,
+            "exe": "/usr/bin/gpg-agent (deleted)",
+            "starttick": 4412560,
+            "argv": "gpg-agent --homedir /var/tmp/afs-runc-admission-20261007-r1/gnupg --use-standard-socket --daemon ",
+            "exe_sha256": "5bd7c61c431192d41478e288e6f5bba0287aa5e766b007db82d25f27c8b8cdd7"
+          },
+          "unchanged": true
+        }
+      ]
+    },
+    "protected-mounts": {
+      "status": "PASS",
+      "actual": {
+        "before": [
+          "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+          "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+          "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4020012k,nr_inodes=1005003,mode=755,inode64",
+          "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+          "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811364k,mode=755,inode64",
+          "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+          "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+          "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+          "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+          "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+          "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+          "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+          "40 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3230",
+          "41 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:15 - mqueue mqueue rw",
+          "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:16 - debugfs debugfs rw",
+          "43 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:17 - hugetlbfs hugetlbfs rw,pagesize=2M",
+          "44 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:18 - tracefs tracefs rw",
+          "45 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+          "46 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+          "48 32 259:0 / /boot rw,relatime shared:30 - ext4 /dev/vda16 rw",
+          "50 48 253:15 / /boot/efi rw,relatime shared:47 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+          "52 40 0:37 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:49 - binfmt_misc binfmt_misc rw",
+          "56 32 0:44 / /workspace/dms ro,relatime shared:147 - virtiofs lima-a7a710dc212e898d ro",
+          "98 32 253:16 / /mnt/lima-cidata ro,relatime shared:350 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+          "58 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:99 - tmpfs tmpfs rw,size=811360k,nr_inodes=202840,mode=700,uid=501,gid=1000,inode64"
+        ],
+        "after": [
+          "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+          "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+          "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4020012k,nr_inodes=1005003,mode=755,inode64",
+          "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+          "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811364k,mode=755,inode64",
+          "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+          "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+          "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+          "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+          "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+          "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+          "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+          "40 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3230",
+          "41 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:15 - mqueue mqueue rw",
+          "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:16 - debugfs debugfs rw",
+          "43 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:17 - hugetlbfs hugetlbfs rw,pagesize=2M",
+          "44 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:18 - tracefs tracefs rw",
+          "45 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+          "46 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+          "48 32 259:0 / /boot rw,relatime shared:30 - ext4 /dev/vda16 rw",
+          "50 48 253:15 / /boot/efi rw,relatime shared:47 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+          "52 40 0:37 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:49 - binfmt_misc binfmt_misc rw",
+          "56 32 0:44 / /workspace/dms ro,relatime shared:147 - virtiofs lima-a7a710dc212e898d ro",
+          "98 32 253:16 / /mnt/lima-cidata ro,relatime shared:350 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+          "58 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:99 - tmpfs tmpfs rw,size=811360k,nr_inodes=202840,mode=700,uid=501,gid=1000,inode64"
+        ],
+        "missing": []
+      }
+    },
+    "owned-global-mounts-gone": {
+      "status": "PASS",
+      "actual": []
+    },
+    "owned-processes-gone": {
+      "status": "PASS",
+      "actual": []
+    },
+    "allocated-ceiling": {
+      "status": "PASS",
+      "actual": {
+        "roots": {
+          "runtime_root": {
+            "allocated_bytes": 90492928,
+            "apparent_bytes": 90229745,
+            "distinct_inodes": 158
+          },
+          "tools_and_raw": {
+            "allocated_bytes": 577536,
+            "apparent_bytes": 269992,
+            "distinct_inodes": 150
+          }
+        },
+        "total_allocated_bytes": 91070464,
+        "ceiling": 268435456
+      }
+    },
+    "final-free-floor": {
+      "status": "PASS",
+      "actual": {
+        "free_bytes": 9378131968,
+        "floor": 1073741824
+      }
+    }
+  },
+  "normal_detach_evidence": "fixed6d public Stopped/Idle plus successful clone/export detach path; no independent retained-final-namespace observation; not graceful drain"
+}

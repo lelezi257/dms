@@ -1,0 +1,25 @@
+{
+  "canonical_base": "c066971f5513cc364c00b11055f35a23e8813a11",
+  "files": {
+    "development/acceptance/native-workspace-linux.py": {
+      "sha256": "61c36184c947784ec864908210a4a433e3b060d673749cad7ef031b68c0580fd",
+      "bytes": 17923
+    },
+    "development/acceptance/installed-smoke-linux.py": {
+      "sha256": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+      "bytes": 13639
+    },
+    "development/acceptance/probes/native_source_rejection.py": {
+      "sha256": "faae54c1e608b5505fa207228ce2b3e1550841547a5e648a7a63363e72867f84",
+      "bytes": 6765
+    },
+    "development/acceptance/probes/test_native_source_rejection.py": {
+      "sha256": "fecd7fe5a6197b1248c45205c30703ef8205b7f3b13f927b80150850acc04e1c",
+      "bytes": 7448
+    },
+    "scripts/ownerfs/native-workspace-control.py": {
+      "sha256": "11b32a45f5e24801260acddfc47e3a4e7e16385c3f0a2af08e0dba9a9573217b",
+      "bytes": 2603
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/var/tmp",
+    "afs-g2-micro",
+    "sudo",
+    "python3",
+    "/var/tmp/afs-managed-source-rejection-20261007-r1/tools/development/acceptance/probes/test_native_source_rejection.py",
+    "-v"
+  ],
+  "rc": 0
+}

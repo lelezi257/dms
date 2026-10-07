@@ -1,0 +1,8 @@
+pid=62750
+exe=/opt/afs-managed-source-rejection-20261007-r1/prefix/bin/afs-node
+config=/opt/afs-managed-source-rejection-20261007-r1/etc/node.toml
+start_ticks=6638120
+boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
+lifecycle=/opt/afs-managed-source-rejection-20261007-r1/run/node.lifecycle.RKCuxq
+supervisor_pid=62734
+exit_code=0

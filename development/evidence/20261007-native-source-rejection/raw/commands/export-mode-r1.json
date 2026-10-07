@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/var/tmp",
+    "afs-g2-micro",
+    "sudo",
+    "chmod",
+    "644",
+    "/var/tmp/afs-native-source-rejection-results-r1.tar"
+  ],
+  "rc": 0,
+  "elapsed_seconds": 0.07346604100894183
+}

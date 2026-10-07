@@ -1,0 +1,24 @@
+# Active container source-field rejection — current bounded PASS
+
+2026-10-07, ARM64 Linux afs-g2-micro, Ubuntu6.8.0-106-generic, guest ext4, local-file Meta/gRPC, official runc1.5.2. This is one independently selected G2.12 runtime boundary. G1 remains historical8/8; full G2.12/G2.13 remain in progress and bind defaults OFF. The user deferred3FS baseline qualification to a separate topic; no reference rerun or threshold change.
+
+Reuse unchanged product6d51aeb45c1ed8669d80f612b3817e6d1bdabe04 /157inputs/map66dbbe3e. Packageee25d5892c4e884e67c86d4e5b9c6ab551af4c46649edab6a05da06659d1aff9; Meta2c7b7d088b759e3b9375080002182aa484a424b4fa216da1fb79a1004e96168e; Node2cf1f538fe7af332a711f3c66a074ace140c00773826a182709a6445b8ae2645. No Rust/vendor/package changes or builds. Maintained driver/probe/guards and [frozen contract](../../native-source-rejection-slice.md) are fixed in [9d809e0](https://github.com/lelezi257/dms/commit/9d809e06a1be1111b435d72d305c9a8f49234b82); [precise stop scope](../../native-source-rejection-stop-scope.md) was clarified before execution.
+
+| New evidence | Result and scope |
+| --- | --- |
+| [Contract review](raw/contract-review.json), [tools/admission review](raw/tools-admission-review-r1.json) | Approved before the one runtime; not product PASS |
+| [Once-only admission](raw/preflight-r1.json), [r3 tool identity](raw/tool-identity-r3.json) |36 checks PASS; exact package/ELF/ldd/runtime/six rootfs inputs/dependencies/ext4/ports/new root/capacity/RAM/protected inventory. Original admission records r2 probe; r3 deployment/SHA and affected guard addendum remain separate |
+| [Actual request](raw/results-r1/source-rejection-request.json), [response](raw/results-r1/source-rejection-response.json) |PASS: otherwise-valid Start with extra `source: /etc` rejected specifically as `unknown field source`; production_ready=false |
+| [Before](raw/results-r1/source-rejection-before.json), [after](raw/results-r1/source-rejection-after.json) |PASS: exact current grant/container/PID62914/start6638152/ns4026532355/mount420/source64769:824705 unchanged;16 complete controller command artifacts SHA-identical |
+| [Tiny legal exec and exact content](raw/results-r1/source-rejection-result.json) |PASS: owned container writes/syncs/cat+test; actual command-0006 rc0, fresh FUSE view verifies20B SHAea4d5008b6db38998d7e16650080b3cf75bcebaeb494ae9238568bf08b2a2170 |
+| [Driver](raw/results-r1/result.json), [postcheck](raw/postcheck-r1.json), [execution summary](raw/worker-summary-r1.json) |PASS: public Stopped/Idle/runtime empty; Node/Meta two actualwait0;4 child/supervisor PIDs and container gone; old gpg-agent and26 old mount rows unchanged. Allocated91,070,464B<256MiB, final free9,378,131,968B>1GiB |
+
+The selected run has `basic_payload_selected:false`, `source_rejection_selected:true`, `semantic_groups:[]`. Existing64MiB, standards, performance, append, locks and watch are unselected and retain their original version/scope. Eight distinct Linux oracle methods plus the affected exact-content/pinned-shell controls qualify the tools only; repeated verification of the same method is not another distinct test.
+
+The real public stop records `runc kill --all afs-native-first KILL` in command-0008, then actual Stopped/delete and successful fixed6d clone/export normal-unmount validation chain. This is bounded existing cleanup, **not graceful application draining or production revocation ACK**. There is no separate external observer holding the stopped final namespace. The controller's fixed code checks the covered directory identity/changed unique mount after normal detach; actual success/closure and external global postcheck are preserved separately.
+
+All original transport failures, earlier tool guard results and tool identities remain in raw evidence. [Historical tool recovery index](raw/historical-tools-recovery-index.json) verifies local-only r1/r2 tar members by exact SHA; [r2 reverse-delta proof](raw/probe-r2-recovery-proof.json) restores the original r2 probe. The old maintained drivercf52 is recoverable from fixed Gitc066971; current maintained sources use9d809e0. [Durable raw locations](raw/durable-historical-tool-locations.json) additionally preserve and re-verify both original archives outside the source tree; these local archives are not claimed recoverable from Git. No repeated Python source, archive, binary, rootfs or TLS private key is copied into this packet.
+
+This PASS establishes only active-controller source-field rejection, unchanged authorized runtime identity, continued tiny-command usability and the exact existing cleanup. Original mixed append/lock/watch FAIL, production ON, restart reconciliation, graceful draining, full POSIX and performance qualification remain unpassed.
+
+[Independent saved-raw runtime review](raw/runtime-review-r1.json) approves this bounded PASS; it does not close fullG2.12/ON or declare graceful drain.

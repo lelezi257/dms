@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "afs-g2-micro:/var/tmp/afs-native-source-rejection-results-r1.tar",
+    "/var/tmp/afs-native-source-rejection-results-r1.tar"
+  ],
+  "rc": 0,
+  "elapsed_seconds": 0.06793320795986801
+}

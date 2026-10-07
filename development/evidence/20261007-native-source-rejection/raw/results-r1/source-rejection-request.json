@@ -1,0 +1,6 @@
+{
+  "operation": "start",
+  "id": "source-injection",
+  "workspace": "workspace",
+  "source": "/etc"
+}

@@ -1,0 +1,22 @@
+[
+  {
+    "version": "r1",
+    "original_local_archive": "/var/tmp/afs-native-source-rejection-tools-r1.tar",
+    "durable_raw_archive": "evidence/afs-delivery/native-source-rejection-20261007-r1/local-only-inputs/afs-native-source-rejection-tools-r1.tar",
+    "sha256": "a0cf4489b095083b9ea261aa140d1c1ddbf680a60e388073c85803630661d24b",
+    "bytes": 61440,
+    "verified_members": 5,
+    "scope": "file recovery only; not Linux/product test",
+    "git_copy": false
+  },
+  {
+    "version": "r2",
+    "original_local_archive": "/var/tmp/afs-native-source-rejection-tools-r2.tar",
+    "durable_raw_archive": "evidence/afs-delivery/native-source-rejection-20261007-r1/local-only-inputs/afs-native-source-rejection-tools-r2.tar",
+    "sha256": "12e466a0665395dc5bd2809f5d0b1a460fd8fcfabbb135d9d971a57aa5b18aea",
+    "bytes": 61440,
+    "verified_members": 5,
+    "scope": "file recovery only; not Linux/product test",
+    "git_copy": false
+  }
+]

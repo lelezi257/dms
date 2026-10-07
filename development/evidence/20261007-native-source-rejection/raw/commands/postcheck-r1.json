@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/var/tmp",
+    "afs-g2-micro",
+    "sudo",
+    "python3",
+    "/var/tmp/afs-native-source-rejection-postcheck.py"
+  ],
+  "rc": 0,
+  "elapsed_seconds": 0.12691670807544142
+}

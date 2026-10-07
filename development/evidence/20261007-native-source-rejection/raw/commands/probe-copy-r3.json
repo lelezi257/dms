@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/native_source_rejection.py",
+    "afs-g2-micro:/var/tmp/afs-native-source-rejection-probe-r3.py"
+  ],
+  "rc": 0
+}

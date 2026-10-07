@@ -1,0 +1,12 @@
+bash: line 1: cd: /private/tmp: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+test_accepts_exact_bound_actual_wait_and_both_gone (__main__.ActualWaitEvidenceTests.test_accepts_exact_bound_actual_wait_and_both_gone) ... ok
+test_refuses_changed_captured_pid_tick_or_boot (__main__.ActualWaitEvidenceTests.test_refuses_changed_captured_pid_tick_or_boot) ... ok
+test_refuses_changed_live_child_or_supervisor_ready (__main__.ActualWaitEvidenceTests.test_refuses_changed_live_child_or_supervisor_ready) ... ok
+test_refuses_foreign_wait_or_nonzero_exit (__main__.ActualWaitEvidenceTests.test_refuses_foreign_wait_or_nonzero_exit) ... ok
+test_refuses_missing_actual_process_absence (__main__.ActualWaitEvidenceTests.test_refuses_missing_actual_process_absence) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.000s
+
+OK

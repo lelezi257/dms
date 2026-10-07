@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/current-trial-7e6-20261007-r1/local-only/observer.py",
+    "afs-g2-micro:/var/tmp/current-trial-7e6-observer.py"
+  ],
+  "timeout": 60
+}

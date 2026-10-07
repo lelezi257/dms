@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "afs-build",
+    "python3",
+    "-B",
+    "-c",
+    "import pathlib,tarfile,sys; p=pathlib.Path(sys.argv[1]);p.mkdir();t=tarfile.open(fileobj=sys.stdin.buffer,mode=\"r|*\");t.extractall(p,filter=\"data\");print(p)",
+    "/var/tmp/afs-installed-smoke-guards-7e6-r1"
+  ],
+  "stdin_tar_sha256": "a2088bb5cec8825631e5922b79c8a05e65915ab019abbb62c7301eb0cd5b75c3",
+  "input_files_sha256": {
+    "installed-smoke-linux.py": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+    "test_installed_smoke.py": "67d6635d37d4eec2ef94a16b0c8fc069a5d0626f95d44c93d52e035b8fac551a"
+  }
+}

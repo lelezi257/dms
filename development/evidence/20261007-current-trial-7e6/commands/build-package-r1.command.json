@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "bash",
+    "/workspace/dms/source/scripts/deploy/build-package.sh",
+    "--bin-dir",
+    "/var/tmp/afs-e2e-release-20261006-r1/target/release",
+    "--output",
+    "/var/tmp/current-trial-7e6-package-r1",
+    "--version",
+    "0.1.0-g2-main-7e6e00a",
+    "--source-commit",
+    "7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d",
+    "--features",
+    "ownerfs,dfs"
+  ],
+  "timeout": 60
+}

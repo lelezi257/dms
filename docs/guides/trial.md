@@ -1,156 +1,96 @@
-# Trial Package Guide
+# AFS 默认 OFF 试用包
 
-For the fixed candidate archive and commands, use the [6d51aeb trial checklist](trial-6d.md).
+当前交付候选为 Linux ARM64 `0.1.0-g2-main-7e6e00a`，产品源码
+`7e6e00a6e2d7fdf3c1d606ee743a016a419ec25d`。运行机器无需 Cargo、Rust/C 编译器或 Git。
+包内 `manifest.json` 标明实际版本和两个产品二进制的 SHA256；`SHA256SUMS` 校验包内文件。
+下载时同时保存归档校验文件和试用验收账本。历史
+[6d51aeb 交付](https://github.com/lelezi257/dms/releases/tag/afs-trial-6d51aeb)
+保持原版本和结论。
 
-The current6d51aeb default-OFF package has a fresh compiler-free single-node
-local-file installation/basic64MiB/ordered Meta recovery regression for OwnerFs
-and DFS. [Current version, package hashes and bounded evidence](../../development/evidence/20261007-installed-off-6d/README.md).
-The earlier [25a8061 receipt](../../development/evidence/20261007-installed-off/README.md)
-keeps its original identity. The archive excludes experimental container helper/control
-tools. Mixed native append offsets, classic locks and watch remain failed; keep
-native OFF. This trial receipt does not qualify full POSIX, performance or complete G2.27.
-Historical g1.5 acceptance remains intact. Use Linux ARM64/ext4 and the package's
-ordinary installer/config/selfcheck tools; no build is required on trial machines.
+本包包含 OwnerFs、DFS 和普通安装、配置、生命周期、自检工具，不含测试探针、
+容器 rootfs 或私钥。OwnerFs workspace bind mount 两个入口均默认 OFF。
+新候选的实际结果以
+[验收账本](https://github.com/lelezi257/dms/blob/main/development/evidence/20261007-current-trial-7e6/README.md)
+为准；下方命令是可复现操作步骤，不代表完整 POSIX 或性能达标。
 
-This guide is for the first colleague-trial package. It uses Linux binaries
-already present in the release archive. Trial machines do not need Cargo, Git or
-network access to build dependencies.
+## 环境和下载校验
 
-The current scope is anchored by the [three-stage goal table](../../development/trial-release-goals.md).
-G1 is the usable colleague-trial slice: OwnerFs and DFS can be installed and
-tested, `memory` is allowed only as a disposable demo, and `local-file` Meta
-provides the restart-recovery lane. The current source checkpoint is recorded in
-[development/current-checkpoint.md](../../development/current-checkpoint.md).
-
-## Supported Trial Shapes
-
-| Shape | Meta backend | DFS policy | What it is for |
-| --- | --- | --- | --- |
-| Single node | `memory` | R1 | Fast disposable OwnerFs/DFS demo |
-| Single node | `local-file` | R1 | Local persistent smoke and restart checks |
-| Meta + two data nodes | `memory` | R2, sync 2 | Disposable cross-node routing and replica demo |
-| Meta + two data nodes | `local-file` | R2, sync 2 | Persistent trial topology before G2 performance work |
-
-`memory` is intentionally non-durable. If `afs-meta` exits or is killed, the
-namespace and idempotency state are gone. Use `local-file` for any restart or
-recovery trial.
-
-## Single Node
-
-Install the package, generate one-host config, start both processes and run both
-mount smokes:
+已验证的试用环境为 Ubuntu24.04 ARM64、Linux6.8、guest ext4。准备
+`DEPENDENCIES.md` 所列 FUSE3、`/dev/fuse`、bash/coreutils、Python3、
+findmnt/ss/curl/openssl 及 `ldd.txt` 共享库。预留至少1GiB可用空间，
+测试数据放 guest ext4，不放 macOS 共享目录。检查将使用的四个端口和新根目录，
+已有部署请继续保留。
 
 ```sh
-tar -xf afs-*.tar.gz -C /tmp
-sudo /tmp/afs-*/install.sh
-sudo /opt/afs/bin/afs-trial-config single --backend local-file --force
-sudo /opt/afs/bin/afs-processctl start all
-sudo /opt/afs/bin/dep02-smoke.sh --mount /mnt/afs/dfs --name dfs-local
-sudo /opt/afs/bin/dep02-smoke.sh --mount /mnt/afs/ownerfs --name owner-local
-sudo /opt/afs/bin/afs-selfcheck --mount /mnt/afs/dfs --workspace g1-dfs --output /tmp/afs-selfcheck-dfs --force
-sudo /opt/afs/bin/afs-selfcheck --mount /mnt/afs/ownerfs --workspace g1-owner --output /tmp/afs-selfcheck-owner --force
-sudo /opt/afs/bin/afs-processctl status all
+sha256sum -c SHA256SUMS
+package_dir=afs-0.1.0-g2-main-7e6e00a-linux-aarch64
+tar -xzf "$package_dir.tar.gz"
+cd "$package_dir"
+sha256sum -c SHA256SUMS
+cat manifest.json
 ```
 
-For a disposable run, replace `--backend local-file` with `--backend memory`.
-The generated memory Node config sets `allow_volatile_meta = true`; local-file
-sets it to `false`. Do not use `--no-readiness` to bypass the persistence
-readiness check.
-
-`afs-selfcheck` is the package-level colleague-trial probe. By default it writes
-and verifies one 64 MiB streaming file plus small create/open/read/write,
-append, truncate, rename, unlink, chmod, fcntl-lock and mmap checks. It validates
-that `--mount` is the exact AFS FUSE mount using `findmnt`, and it wraps the
-Python probe in GNU `timeout` with a hard wall-clock limit of `--deadline + 30`
-seconds. Increase `--deadline` for slow machines; the outer timeout follows it.
-
-To test as a non-root colleague user, have an administrator create and chown one
-workspace directory inside each mount, then run the selfcheck as that user. Do
-not chmod the whole mount root:
+第一条命令使用下载侧归档校验文件，第二次校验使用包内校验文件。
+确认 `afs-meta` 和 `afs-node` 的依赖全部存在，必要环境不满足时先停止试用：
 
 ```sh
-sudo install -d -o "$USER" -g "$(id -gn)" /mnt/afs/dfs/g1-"$USER" /mnt/afs/ownerfs/g1-"$USER"
-/opt/afs/bin/afs-selfcheck --mount /mnt/afs/dfs --workspace g1-"$USER" --output "$HOME/afs-selfcheck-dfs" --force
-/opt/afs/bin/afs-selfcheck --mount /mnt/afs/ownerfs --workspace g1-"$USER" --output "$HOME/afs-selfcheck-owner" --force
+ldd bin/afs-meta
+ldd bin/afs-node
 ```
 
-## Two Data Nodes
+## 单节点安装、64MiB读写和中心恢复
 
-On an admin machine, generate the bundle. Replace the addresses with the actual
-Meta, A and B trial addresses:
+下面的根目录必须是新目录；固定端口22400/22401/22500/22501应事先确认空闲。
+生成的 OwnerFs 与 DFS 是两个独立挂载，DFS使用R1，Meta使用local-file。
 
 ```sh
-/opt/afs/bin/afs-trial-config cluster \
-  --backend local-file \
-  --meta-host 192.168.109.11 \
-  --node node-a=192.168.109.12 \
-  --node node-b=192.168.109.13 \
-  --output /tmp/afs-trial-r2 \
-  --force
+trial_root=/var/tmp/afs-trial-7e6
+test ! -e "$trial_root" || exit 1
+sudo ./install.sh --prefix "$trial_root/prefix" --config-dir "$trial_root/etc"   --state-dir "$trial_root/state" --run-dir "$trial_root/run"   --log-dir "$trial_root/logs" --mount-root "$trial_root/mount"
+sudo "$trial_root/prefix/bin/afs-trial-config" single --backend local-file   --config-dir "$trial_root/etc" --state-dir "$trial_root/state"   --run-dir "$trial_root/run" --mount-root "$trial_root/mount"   --meta-grpc-port 22400 --meta-rest-port 22401   --node-grpc-port 22500 --node-rest-port 22501 --force
+ctl() {
+  sudo "$trial_root/prefix/bin/afs-processctl" --prefix "$trial_root/prefix"     --config-dir "$trial_root/etc" --run-dir "$trial_root/run"     --log-dir "$trial_root/logs" --timeout 30 "$@"
+}
+ctl start all
+for fs in ownerfs dfs; do
+  sudo "$trial_root/prefix/bin/afs-selfcheck" --mount "$trial_root/mount/$fs"     --workspace trial-7e6 --size 64MiB --phase write --case-id "trial-7e6-$fs"     --deadline 180 --output "$trial_root/$fs-write.json"
+  sudo sync -f "$trial_root/mount/$fs/trial-7e6"
+done
+ctl restart meta
+for fs in ownerfs dfs; do
+  sudo "$trial_root/prefix/bin/afs-selfcheck" --mount "$trial_root/mount/$fs"     --workspace trial-7e6 --size 64MiB --phase read --case-id "trial-7e6-$fs"     --deadline 180 --input "$trial_root/$fs-write.json"     --output "$trial_root/$fs-read.json"
+done
+ctl status all
+ctl stop all
 ```
 
-Copy `/tmp/afs-trial-r2/meta/etc` to the Meta host's config directory. Copy
-`/tmp/afs-trial-r2/node-a/etc` and `/tmp/afs-trial-r2/node-b/etc` to the
-corresponding data nodes' config directories. Keep file modes on `*-key.pem`
-private.
+读回包含完整内容和 EOF 校验。中心正常重启后应能读回已确认文件；本步骤没有重启Node，
+也不证明断电/崩溃或多节点恢复。`stop` 必须取得精确监督进程的实际退出回执才成功，
+保留的 pid/identity/launch 文件是可追溯记录。停止后保留配置、数据、日志和回执，
+不要把删除挂载或杀掉进程作为通过依据。
 
-Start Meta first, then each Node:
+自检包含小规模创建、重开、追加、截断、重命名、删除、权限、经典锁和 mmap 检查。
+它是试用自检，标准 POSIX 套件和性能用例另有版本化账本。普通用户试用时先由管理员
+在每个挂载内创建并 chown 单独 workspace，再以普通用户运行自检；不要开放整个挂载根。
 
-```sh
-sudo /opt/afs/bin/afs-processctl start meta
-sudo /opt/afs/bin/afs-processctl start node
-sudo /opt/afs/bin/dep02-smoke.sh --mount /mnt/afs/dfs --name dfs-r2
-sudo /opt/afs/bin/dep02-smoke.sh --mount /mnt/afs/ownerfs --name owner-r2
-sudo /opt/afs/bin/afs-selfcheck --mount /mnt/afs/dfs --workspace g1-r2-dfs --output /tmp/afs-selfcheck-r2-dfs --force
-sudo /opt/afs/bin/afs-selfcheck --mount /mnt/afs/ownerfs --workspace g1-r2-owner --output /tmp/afs-selfcheck-r2-owner --force
-```
+## memory 演示及多节点
 
-The generated Node configs listen on `0.0.0.0` and advertise their configured
-node IPs. The controller still validates exact local FUSE mounts before it
-reports the Node ready.
+一次性演示可将生成配置命令改为 `--backend memory`。Meta退出后 namespace和幂等状态
+丢失；生成器显式设置 `allow_volatile_meta=true`。需要恢复时使用local-file，
+不能通过跳过 readiness 检查绕过持久性要求。
 
-## Operations
+多节点使用包内 `afs-trial-config cluster` 生成 Meta及各Node独立配置/TLS，
+先启动Meta再启动Node。R2的默认演示不代表三同步持久副本或3FS性能对照。
+完整参数及拓扑步骤见
+[操作指南](https://github.com/lelezi257/dms/blob/main/docs/guides/operations.md)。
 
-Use the managed controller for lifecycle:
+## 已知边界
 
-```sh
-sudo /opt/afs/bin/afs-processctl status all
-sudo /opt/afs/bin/afs-processctl restart node
-sudo /opt/afs/bin/afs-processctl stop all
-```
-
-`stop` succeeds only when the process supervisor records the matching exit code.
-Data, config and logs are preserved. `uninstall` removes program files but keeps
-config, state, logs and lifecycle evidence.
-
-## Current Limits
-
-- The trial package is Linux ARM64 when built from the current ARM64 candidate.
-- The qualified trial environment is Ubuntu 24.04 ARM64 with Linux 6.8 and
-  guest ext4 storage. Remote OwnerFs shared mmap requires the kernel to
-  advertise `FUSE_DIRECT_IO_ALLOW_MMAP`; the mount negotiates it while keeping
-  ordinary remote reads and writes in direct-I/O mode. Older kernels are not
-  qualified by this trial and may return `ENODEV` for remote shared mmap.
-- RDMA is not the default trial path; generated configs use gRPC data mode.
-- Memory trials require a binary that supports `allow_volatile_meta`; older
-  v208 binaries report Node health as not ready against volatile Meta.
-- Redis is intentionally left for a later TODO. etcd remains supported by code
-  and prior evidence, but it is below `local-file` in the current trial order
-  and its memory/resource work is a later topic.
-- OwnerFs workspace bind mount is not enabled by this trial guide. Its function
-  and performance gates are separate G2 items, default off, and a public
-  production enable switch is not qualified in this checkpoint. Existing
-  experimental_native_workspace / native_workspace settings keep their parsing
-  and remain runc-adapter options, not a standalone bind switch. The current
-  first-level bind is visible only in the adapter private namespace; see
-  [OwnerFs architecture](../architecture/ownerfs.md#ownerfs-workspace-bind-mount).
-- Full 69-case acceptance, full upstream POSIX matrices, 8-hour soak and G2
-  performance ratios are not claimed by this trial smoke. G2 starts with
-  standard fallback suites and small core performance cases, then grows to
-  larger and longer scenarios.
-
-2026-10-07补充：同6d候选[Owner远端小规模读/删除摸底](../../development/evidence/20261007-owner-remote-small/README.md)已留原始数据，采样正确性通过但正式性能和Moose客户端正常关闭出口未闭合，不改变OFF包的35项安装/核心恢复回执。
-
-2026-10-07补充：[当前6d DFS小一写两读](../../development/evidence/20261007-dfs-manyread-small/README.md)内容/正常关闭通过并留性能数据；范围为R2、均匀可去重内容，不能替代三同步/3FS正式对照。
-
-2026-10-07补充：[当前6d Owner远端小写](../../development/evidence/20261007-owner-remote-write-small/README.md)内容/B独立读回/正常关闭通过并留性能数据；默认OFF包身份未变，Moose强持久ACK/正式持平待验收，普通性能调优后置。
+- 本包尚未达到完整阶段二性能目标；普通读写失败和历史性能数据保留在账本中。
+- workspace bind核心将物理Home目录覆盖OwnerFs FUSE一级目录；宿主入口独立于runc。
+  容器适配器只是使用场景。两入口默认OFF，ON的广义排空和混合append/锁/watch仍待验。
+- Remote shared mmap需内核协商 `FUSE_DIRECT_IO_ALLOW_MMAP`，普通远端读写保持direct I/O。
+  旧内核remote shared mmap不在已验范围。
+- gRPC是本试用默认数据通道；RDMA、复杂故障、长时间/大规模、etcd/Redis后置。
+- 当前fuser仍保留历史私有差异；官方迁移存在公开API缺口，不能宣称原版依赖整改完成。
+- 历史G1/g1.5的8/8保留；新候选回归、历史标准、各性能子项均按各自版本记录。

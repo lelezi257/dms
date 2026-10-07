@@ -82,5 +82,107 @@ class InstalledExecutableTests(unittest.TestCase):
                         tool.verify_executable(candidate, installed)
 
 
+class ActualWaitEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.child = {'pid': '41', 'start_ticks': '100', 'boot_id': 'boot',
+                      'exe': '/owned/prefix/bin/afs-meta', 'config': '/owned/etc/meta.toml',
+                      'lifecycle': '/owned/run/meta.lifecycle.first', 'supervisor_pid': '40'}
+        self.ready = {'supervisor_pid': '40'}
+        self.captured = {'pid': 41, 'starttick': 100, 'boot_id': 'boot',
+                         'executable': {'path': '/owned/prefix/bin/afs-meta'},
+                         'lifecycle': {'path': self.child['lifecycle'], 'child': copy.deepcopy(self.child),
+                                       'ready': copy.deepcopy(self.ready), 'supervisor': {'pid': 40}}}
+        self.receipt = dict(self.child, exit_code='0')
+
+    def verify(self, gone=True):
+        tool.verify_wait(self.captured, self.child, self.ready, self.receipt, gone)
+
+    def test_accepts_exact_bound_actual_wait_and_both_gone(self):
+        self.verify()
+
+    def test_refuses_foreign_wait_or_nonzero_exit(self):
+        for key, value in (('lifecycle', '/foreign/run/meta.lifecycle.other'),
+                           ('supervisor_pid', '39'), ('exit_code', '1')):
+            with self.subTest(key=key):
+                original = self.receipt[key]
+                self.receipt[key] = value
+                with self.assertRaises(ValueError):
+                    self.verify()
+                self.receipt[key] = original
+
+    def test_refuses_changed_captured_pid_tick_or_boot(self):
+        for key, value in (('pid', 42), ('starttick', 101), ('boot_id', 'another-boot')):
+            with self.subTest(key=key):
+                original = self.captured[key]
+                self.captured[key] = value
+                with self.assertRaises(ValueError):
+                    self.verify()
+                self.captured[key] = original
+
+    def test_refuses_changed_live_child_or_supervisor_ready(self):
+        self.child['start_ticks'] = '101'
+        self.receipt['start_ticks'] = '101'
+        with self.assertRaises(ValueError):
+            self.verify()
+        self.child['start_ticks'] = self.receipt['start_ticks'] = '100'
+        self.ready['supervisor_pid'] = '39'
+        with self.assertRaises(ValueError):
+            self.verify()
+
+    def test_refuses_missing_actual_process_absence(self):
+        for value in (False, None, 1):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    self.verify(value)
+
+
+class InstalledConfigEvidenceTests(unittest.TestCase):
+    def configs(self, name):
+        generated = {'fs': 'all', 'dfs_desired_copies': 1, 'dfs_sync_required_copies': 1,
+                     'dfs_min_distinct_nodes': 1, 'dfs_min_distinct_failure_domains': 1,
+                     'dfs_local_copy': 'required'}
+        if name == 'meta':
+            generated['meta_store'] = 'local-file'
+        else:
+            generated.update(data_mode='grpc', allow_volatile_meta=False)
+        effective = dict(generated, ownerfs=True, dfs=True, experimental_native_workspace=False,
+                         experimental_ownerfs_workspace_bind=False)
+        return generated, effective
+
+    def test_accepts_generated_defaults_and_effective_off_r1_both_fs(self):
+        for name in ('meta', 'node'):
+            tool.verify_config(name, *self.configs(name))
+
+    def test_refuses_either_workspace_switch_or_missing_effective_default(self):
+        for name in ('meta', 'node'):
+            for key in ('experimental_native_workspace', 'experimental_ownerfs_workspace_bind'):
+                for target, value in (('generated', True), ('effective', True), ('effective', None)):
+                    with self.subTest(name=name, key=key, target=target, value=value):
+                        generated, effective = self.configs(name)
+                        (generated if target == 'generated' else effective)[key] = value
+                        with self.assertRaises(ValueError):
+                            tool.verify_config(name, generated, effective)
+
+    def test_refuses_wrong_backend_fs_or_r1_policy(self):
+        for name in ('meta', 'node'):
+            bad = [('fs', 'dfs'), ('dfs_desired_copies', 2), ('dfs_sync_required_copies', 2),
+                   ('dfs_min_distinct_nodes', 2), ('dfs_min_distinct_failure_domains', True),
+                   ('dfs_local_copy', 'disabled')]
+            bad += [('meta_store', 'memory')] if name == 'meta' else [('data_mode', 'rdma'), ('allow_volatile_meta', True)]
+            for key, value in bad:
+                for target in ('generated', 'effective'):
+                    if key == 'fs' and target == 'effective':
+                        continue
+                    with self.subTest(name=name, key=key, target=target):
+                        generated, effective = self.configs(name)
+                        (generated if target == 'generated' else effective)[key] = value
+                        with self.assertRaises(ValueError):
+                            tool.verify_config(name, generated, effective)
+            generated, effective = self.configs(name)
+            effective['ownerfs'] = False
+            with self.assertRaises(ValueError):
+                tool.verify_config(name, generated, effective)
+
+
 if __name__ == '__main__':
     unittest.main()

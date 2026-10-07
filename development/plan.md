@@ -1,3 +1,7 @@
+**当前普通试用交付分项（2026-10-07，事实）：** 产品7e6e00a6/157-map151a2c6d，既有Linux release ELF两次打包字节一致；新普通包c3bb5a30不含测试探针。隔离Linux/ext4无编译器一次安装，OwnerFs+DFS各64MiB/R1/gRPC/local-file、两workspace开关OFF，43驱动检查及独立恢复/退出/保护库存检查PASS；Meta-only正常重启后完整SHA/EOF读回，三actualwait0/六服务监督PID消失、Node及两mount跨重启身份不变。15工具检查按受影响范围通过/复用，无Rust/vendor改动或重建。G1历史8/8不重开、G2大项计数不变；931 R3/旧标准与性能保留原身份，当前7e6 R3/全POSIX/完整G2.27性能及ON仍待验。固定试用下载入口的实际发布以publication回执为准。下一回既定workspace元数据计数归因小项，普通性能FAIL与复杂可靠性后置。[当前版本、命令、结果及历史复用边界](evidence/20261007-current-trial-7e6/README.md)。
+
+以下保留原时点记录；旧下一动作由上方当前入口覆盖。
+
 **新增DFS三副本小项（2026-10-07，事实）：** 冻结产品931/map9661/既有ELF包未变，64MiB非重复内容一写/B+C两读通过；16不同chunk的三节点Ready/Durable及48物理文件先核对，完整前后SHA/EOF、1预热5同步读通过。共同窗口总吞吐中位98.052181MiB/s，B/C五轮C中位49.084466/52.197064；缓存/RPC未观察、同物理host三VM，不计3FS性能达标。四actualwait0/八服务监督incarnation消失、三FUSE/UDS正常闭合、11旧进程及完整mount库存不变，峰值607,477,760B低于1GiB。工具首错/关闭观察器误判和warmup汇总错均保留，只读修正复核、无产品重跑/环境修补。G1历史8/8/G2大项计数/defaultOFF不变，7e6最新DFS回归不继承。下一当前main的受影响DFS兼容/恢复小项，再新试用交付账本；普通性能/大规模/3FS资格后置。[版本、内容、计时、失败及回执](evidence/20261007-dfs-r3-small/README.md)。
 
 **最新开发/交付入口（2026-10-07，决策）：main唯一入口。** 按用户授权，fix/native-orderly-recovery-20261007相对f09185e的全部有效修改（恢复、归属整改、测试、文档和证据）及本次已验证Node启动失败修复73842cd已无冲突fast-forward纳入本地main，本记录随main正常推送；远端实际提交/文件树以推送核对回执为准。其它分支逐项盘点无当前AFS有效遗漏；8个旧dirty工作树及1个untracked草稿原样保留并在源码树外归档、验证补丁可恢复。不创建PR/MR，不设单特性人工审批；必要Linux门禁继续，整体目标完成后统一项目review。合并不升级历史验收，G1历史8/8不重开。下一仍G2.12 accepted Node/workspace生命周期→G2.13性能；普通性能FAIL/复杂可靠性/fuser原版API阻塞后置或独立保留。[纳入、未纳入、版本和证据](evidence/20261007-main-convergence/README.md)。下方按版本保留的历史记录不覆盖本入口。

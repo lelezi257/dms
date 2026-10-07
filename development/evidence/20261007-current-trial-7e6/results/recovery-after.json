@@ -1,0 +1,108 @@
+{
+  "meta": {
+    "pid": 90983,
+    "starttick": 9874704,
+    "sha256": "76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2",
+    "executable": {
+      "path": "/var/tmp/afs-current-trial-7e6-20261007-r1/prefix/bin/afs-meta",
+      "device": 64769,
+      "inode": 262439
+    },
+    "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+    "lifecycle": {
+      "path": "/var/tmp/afs-current-trial-7e6-20261007-r1/run/meta.lifecycle.iUFyjB",
+      "child": {
+        "pid": "90983",
+        "exe": "/var/tmp/afs-current-trial-7e6-20261007-r1/prefix/bin/afs-meta",
+        "config": "/var/tmp/afs-current-trial-7e6-20261007-r1/etc/meta.toml",
+        "start_ticks": "9874704",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-current-trial-7e6-20261007-r1/run/meta.lifecycle.iUFyjB",
+        "supervisor_pid": "90967"
+      },
+      "ready": {
+        "supervisor_pid": "90967"
+      },
+      "supervisor": {
+        "pid": 90967,
+        "starttick": 9874697,
+        "exe": "/usr/bin/bash",
+        "sha256": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015",
+        "argv": [
+          "bash",
+          "/var/tmp/afs-current-trial-7e6-20261007-r1/prefix/bin/afs-processctl",
+          "__supervise",
+          "/var/tmp/afs-current-trial-7e6-20261007-r1/prefix/bin/afs-meta",
+          "/var/tmp/afs-current-trial-7e6-20261007-r1/etc/meta.toml",
+          "/var/tmp/afs-current-trial-7e6-20261007-r1/run/meta.lifecycle.iUFyjB",
+          ""
+        ]
+      }
+    }
+  },
+  "node": {
+    "pid": 90529,
+    "starttick": 9874482,
+    "sha256": "c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7",
+    "executable": {
+      "path": "/var/tmp/afs-current-trial-7e6-20261007-r1/prefix/bin/afs-node",
+      "device": 64769,
+      "inode": 262440
+    },
+    "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+    "lifecycle": {
+      "path": "/var/tmp/afs-current-trial-7e6-20261007-r1/run/node.lifecycle.60jBw7",
+      "child": {
+        "pid": "90529",
+        "exe": "/var/tmp/afs-current-trial-7e6-20261007-r1/prefix/bin/afs-node",
+        "config": "/var/tmp/afs-current-trial-7e6-20261007-r1/etc/node.toml",
+        "start_ticks": "9874482",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-current-trial-7e6-20261007-r1/run/node.lifecycle.60jBw7",
+        "supervisor_pid": "90513"
+      },
+      "ready": {
+        "supervisor_pid": "90513"
+      },
+      "supervisor": {
+        "pid": 90513,
+        "starttick": 9874476,
+        "exe": "/usr/bin/bash",
+        "sha256": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015",
+        "argv": [
+          "bash",
+          "/var/tmp/afs-current-trial-7e6-20261007-r1/prefix/bin/afs-processctl",
+          "__supervise",
+          "/var/tmp/afs-current-trial-7e6-20261007-r1/prefix/bin/afs-node",
+          "/var/tmp/afs-current-trial-7e6-20261007-r1/etc/node.toml",
+          "/var/tmp/afs-current-trial-7e6-20261007-r1/run/node.lifecycle.60jBw7",
+          ""
+        ]
+      }
+    }
+  },
+  "mounts": {
+    "ownerfs": {
+      "filesystems": [
+        {
+          "target": "/var/tmp/afs-current-trial-7e6-20261007-r1/mount/ownerfs",
+          "source": "afs-ownerfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "id": 80
+        }
+      ]
+    },
+    "dfs": {
+      "filesystems": [
+        {
+          "target": "/var/tmp/afs-current-trial-7e6-20261007-r1/mount/dfs",
+          "source": "afs-dfs",
+          "fstype": "fuse",
+          "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+          "id": 91
+        }
+      ]
+    }
+  }
+}

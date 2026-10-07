@@ -1,0 +1,2 @@
+{"service":"meta","state":"stopped","pid":"","config":"/var/tmp/afs-current-trial-7e6-20261007-r1/etc/meta.toml","log":"/var/tmp/afs-current-trial-7e6-20261007-r1/logs/meta.log","exit_code":"0"}
+{"service":"node","state":"stopped","pid":"","config":"/var/tmp/afs-current-trial-7e6-20261007-r1/etc/node.toml","log":"/var/tmp/afs-current-trial-7e6-20261007-r1/logs/node.log","exit_code":"0"}

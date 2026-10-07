@@ -43,6 +43,50 @@ def verify_recovery(before, after, writes, reads):
             raise ValueError(name + ' recovered data mismatch')
 
 
+def fields(path):
+    return dict(line.split('=', 1) for line in Path(path).read_text().splitlines() if '=' in line)
+
+
+def verify_wait(captured, child, ready, receipt, gone):
+    lifecycle = captured['lifecycle']
+    expected = lifecycle['child']
+    executable = Path(captured['executable']['path'])
+    config = executable.parents[2] / 'etc' / (executable.name.removeprefix('afs-') + '.toml')
+    if (child != expected or ready != lifecycle['ready']
+            or receipt != dict(expected, exit_code='0')
+            or child.get('pid') != str(captured['pid'])
+            or child.get('start_ticks') != str(captured['starttick'])
+            or child.get('exe') != str(executable) or child.get('config') != str(config)
+            or child.get('lifecycle') != lifecycle['path']
+            or child.get('boot_id') != captured['boot_id']
+            or child.get('supervisor_pid') != str(lifecycle['supervisor']['pid'])
+            or ready != {'supervisor_pid': child.get('supervisor_pid')}
+            or gone is not True):
+        raise ValueError('exact captured child/supervisor actual wait0 missing')
+
+
+def verify_config(name, generated, effective):
+    if name not in ('meta', 'node') or generated.get('fs') != 'all':
+        raise ValueError('generated role/fs mismatch')
+    for key in ('experimental_native_workspace', 'experimental_ownerfs_workspace_bind'):
+        if generated.get(key, False) is not False or effective.get(key) is not False:
+            raise ValueError('workspace switch must be OFF: ' + key)
+    if effective.get('ownerfs') is not True or effective.get('dfs') is not True:
+        raise ValueError('effective fs must enable OwnerFs and DFS')
+    policy = {'dfs_desired_copies': 1, 'dfs_sync_required_copies': 1,
+              'dfs_min_distinct_nodes': 1, 'dfs_min_distinct_failure_domains': 1,
+              'dfs_local_copy': 'required'}
+    for config in (generated, effective):
+        if any(type(config.get(key)) is not type(value) or config[key] != value
+               for key, value in policy.items()):
+            raise ValueError('exact generated R1 policy required')
+        if name == 'meta' and config.get('meta_store') != 'local-file':
+            raise ValueError('Meta local-file backend required')
+        if name == 'node' and (config.get('data_mode') != 'grpc'
+                               or config.get('allow_volatile_meta') is not False):
+            raise ValueError('Node durable gRPC mode required')
+
+
 class Run:
     def __init__(self, args):
         self.args, self.root, self.out = args, args.root, args.out
@@ -149,14 +193,27 @@ class Run:
             config = tomllib.loads(path.read_text())
             self.check(name + '-native-OFF', not config.get('experimental_native_workspace', False),
                        config.get('experimental_native_workspace', False))
+            self.check(name + '-workspace-bind-OFF', config.get('experimental_ownerfs_workspace_bind', False) is False,
+                       config.get('experimental_ownerfs_workspace_bind', False))
             self.check(name + '-data-isolated', Path(config['data_dir']).is_relative_to(self.root),
                        config['data_dir'])
             if name == 'meta':
                 self.check('local-file', config['meta_store'] == 'local-file', config['meta_store'])
             else:
                 self.check('grpc', config['data_mode'] == 'grpc', config['data_mode'])
+            effective = json.loads(self.command([self.root / ('prefix/bin/afs-' + name),
+                                                 '--config', path, '--print-config']))
+            self.save(name + '-print-config.json', effective)
+            verify_config(name, config, effective)
+            self.check(name + '-effective-config', True, effective)
             self.command(['openssl', 'verify', '-CAfile', config['tls_ca_certificate'],
                           config['tls_identity_certificate']])
+            cert_public = self.command(['openssl', 'x509', '-in', config['tls_identity_certificate'],
+                                        '-noout', '-pubkey'])
+            key_public = self.command(['openssl', 'pkey', '-in', config['tls_identity_private_key'], '-pubout'])
+            self.check(name + '-TLS-keypair', bool(cert_public.strip()) and cert_public == key_public,
+                       {'certificate_public_sha256': hashlib.sha256(cert_public.encode()).hexdigest(),
+                        'private_key_public_sha256': hashlib.sha256(key_public.encode()).hexdigest()})
             shutil.copyfile(path, self.out / (name + '.toml'))
 
     def identity(self):
@@ -171,8 +228,34 @@ class Run:
             installed = self.root / ('prefix/bin/afs-' + name)
             executable = verify_executable(proc / 'exe', installed)
             self.check(name + '-installed-process', True, executable)
+            candidates = [p for p in (self.root / 'run').glob(name + '.lifecycle.*')
+                          if (p / 'child').is_file() and fields(p / 'child').get('pid') == str(pid)]
+            if len(candidates) != 1:
+                raise ValueError('missing unique live lifecycle: ' + name)
+            lifecycle = candidates[0]
+            child, ready = fields(lifecycle / 'child'), fields(lifecycle / 'ready')
+            supervisor_pid = int(child['supervisor_pid'])
+            supervisor = Path('/proc') / str(supervisor_pid)
+            supervisor_stat = (supervisor / 'stat').read_text().rsplit(')', 1)[1].split()
+            supervisor_args = (supervisor / 'cmdline').read_bytes().decode().split('\0')
+            boot_id = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+            if (child['pid'] != str(pid) or child['start_ticks'] != str(ticks)
+                    or child['exe'] != executable['path'] or child['config'] != str(self.root / 'etc' / (name + '.toml'))
+                    or child['boot_id'] != boot_id or child['lifecycle'] != str(lifecycle)
+                    or ready != {'supervisor_pid': str(supervisor_pid)}
+                    or int((proc / 'stat').read_text().rsplit(')', 1)[1].split()[1]) != supervisor_pid
+                    or '__supervise' not in supervisor_args or str(lifecycle) not in supervisor_args
+                    or executable['path'] not in supervisor_args
+                    or str(self.root / 'etc' / (name + '.toml')) not in supervisor_args):
+                raise ValueError('live supervised incarnation mismatch: ' + name)
             value[name] = {'pid': pid, 'starttick': ticks, 'sha256': digest,
-                           'executable': executable}
+                           'executable': executable, 'boot_id': boot_id,
+                           'lifecycle': {'path': str(lifecycle), 'child': child, 'ready': ready,
+                                         'supervisor': {'pid': supervisor_pid,
+                                                        'starttick': int(supervisor_stat[19]),
+                                                        'exe': os.readlink(supervisor / 'exe'),
+                                                        'sha256': sha(supervisor / 'exe'),
+                                                        'argv': supervisor_args}}}
         value['mounts'] = {}
         for name in ('ownerfs', 'dfs'):
             mounted = json.loads(self.command(['findmnt', '-J', '-o',
@@ -181,6 +264,26 @@ class Run:
             self.check(name + '-mount', mounted['filesystems'][0]['source'] == 'afs-' + name, mounted)
             value['mounts'][name] = mounted
         return value
+
+    def record_waits(self, label, captured):
+        records = {}
+        for name, observed in captured.items():
+            lifecycle = Path(observed['lifecycle']['path'])
+            if (lifecycle.parent != self.root / 'run' or not lifecycle.name.startswith(name + '.lifecycle.')
+                    or lifecycle.is_symlink()):
+                raise ValueError('foreign lifecycle: ' + name)
+            child, ready, receipt = (fields(lifecycle / filename) for filename in ('child', 'ready', 'exit'))
+            pids = [observed['pid'], observed['lifecycle']['supervisor']['pid']]
+            deadline = time.monotonic() + 30
+            while any(Path('/proc', str(pid)).exists() for pid in pids) and time.monotonic() < deadline:
+                time.sleep(0.02)
+            gone = len(set(pids)) == 2 and all(not Path('/proc', str(pid)).exists() for pid in pids)
+            verify_wait(observed, child, ready, receipt, gone)
+            records[name] = {'path': str(lifecycle), 'child': child, 'ready': ready,
+                             'exit': receipt, 'child_supervisor_gone': gone, 'pids': pids}
+        self.save(label + '-actual-waits.json', records)
+        self.check(label + '-actual-wait0', True, records)
+        return records
 
     def selfcheck(self, name, phase):
         output = self.out / (name + '-' + phase + '.json')
@@ -211,7 +314,9 @@ class Run:
                 finally:
                     os.close(fd)
             self.save('recovery-before.json', before)
-            self.ctl('restart', 'meta')
+            self.ctl('stop', 'meta')
+            self.record_waits('first-meta', {'meta': before['meta']})
+            self.ctl('start', 'meta')
             after = self.identity()
             reads = {name: self.selfcheck(name, 'read') for name in ('ownerfs', 'dfs')}
             verify_recovery(before, after, writes, reads)
@@ -229,6 +334,9 @@ class Run:
                     self.check('managed-exit0', len(statuses) == 2 and all(
                         s['state'] == 'stopped' and str(s['exit_code']) == '0' and not s['pid']
                         for s in statuses), statuses)
+                    latest = after or before
+                    if latest:
+                        self.record_waits('final', {name: latest[name] for name in ('meta', 'node')})
                     for name in ('ownerfs', 'dfs'):
                         output = self.command(['findmnt', '-J', '--mountpoint',
                                                self.root / ('mount/' + name)], allowed=(1,))

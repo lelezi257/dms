@@ -1,0 +1,14 @@
+bash: line 1: cd: /private/tmp: No such file or directory
+bash: line 1: cd: /Users/lzc: No such file or directory
+test_accepts_symlink_to_installed_file (__main__.InstalledExecutableTests.test_accepts_symlink_to_installed_file) ... ok
+test_refuses_same_bytes_in_another_file_or_hardlink_path (__main__.InstalledExecutableTests.test_refuses_same_bytes_in_another_file_or_hardlink_path) ... ok
+test_refuses_either_backend_corruption_short_read_or_failed_probe (__main__.RecoveryEvidenceTests.test_refuses_either_backend_corruption_short_read_or_failed_probe) ... ok
+test_refuses_mount_change (__main__.RecoveryEvidenceTests.test_refuses_mount_change) ... ok
+test_refuses_no_restart_wrong_binary_or_start_order (__main__.RecoveryEvidenceTests.test_refuses_no_restart_wrong_binary_or_start_order) ... ok
+test_refuses_node_restart (__main__.RecoveryEvidenceTests.test_refuses_node_restart) ... ok
+test_unchanged_node_mounts_new_meta_and_contents (__main__.RecoveryEvidenceTests.test_unchanged_node_mounts_new_meta_and_contents) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.001s
+
+OK

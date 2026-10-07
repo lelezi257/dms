@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "python3",
+    "-B",
+    "-c",
+    "import hashlib,json,tarfile\nfrom pathlib import Path\nn='afs-0.1.0-g2-main-7e6e00a-linux-aarch64.tar.gz';p=Path('/var/tmp/current-trial-7e6-package-r1')/n;q=Path('/var/tmp/current-trial-7e6-package-r2')/n;h=lambda x:hashlib.sha256(x).hexdigest();assert h(p.read_bytes())==h(q.read_bytes());t=tarfile.open(p);files={x.name:t.extractfile(x).read() for x in t.getmembers() if x.isfile()};prefix=n[:-7];manifest=json.loads(files[prefix+'/manifest.json']);sha_rows=files[prefix+'/SHA256SUMS'].decode().splitlines();assert all(h(files[prefix+'/'+name.removeprefix('./')])==digest for digest,name in (line.split('  ',1) for line in sha_rows));assert not any('/src/' in n or n.endswith(('.rs','.py','Cargo.toml','Cargo.lock')) or 'workspace-probe' in n for n in files);assert files[prefix+'/bin/afs-meta'][:4]==files[prefix+'/bin/afs-node'][:4]==b'\\x7fELF';print(json.dumps({'status':'PASS_PACKAGE_REPRODUCIBILITY','package_name':p.name,'bytes':p.stat().st_size,'sha256':h(p.read_bytes()),'second_sha256':h(q.read_bytes()),'manifest':manifest,'file_sha256':{k.removeprefix(prefix+'/'):h(v) for k,v in files.items()},'guide_sha256':h(files[prefix+'/docs/guides/trial.md']),'ordinary_probe_absent':True},indent=2))\n"
+  ],
+  "timeout": 60
+}

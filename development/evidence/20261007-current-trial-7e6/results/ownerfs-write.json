@@ -1,0 +1,50 @@
+{
+  "base_seed": "installed-off-ownerfs:base:67108864",
+  "case_id": "installed-off-ownerfs",
+  "coverage": [
+    "streaming-write",
+    "fsync",
+    "close-reopen",
+    "streaming-read",
+    "EOF",
+    "create-openflags-read-write-append-truncate-rename-unlink",
+    "chmod-mode",
+    "basic-fcntl-lock",
+    "basic-mmap-msync"
+  ],
+  "created_unix": 1791368127,
+  "data_file": "g1-stream.bin",
+  "elapsed_seconds": 0.24438,
+  "mount": "/var/tmp/afs-current-trial-7e6-20261007-r1/mount/ownerfs",
+  "mount_info": {
+    "fstype": "fuse",
+    "source": "afs-ownerfs",
+    "target": "/var/tmp/afs-current-trial-7e6-20261007-r1/mount/ownerfs"
+  },
+  "not_full_posix": true,
+  "patches": [
+    {
+      "length": 524288,
+      "offset": 5242880,
+      "seed": "installed-off-ownerfs:patch-a"
+    },
+    {
+      "length": 1048576,
+      "offset": 17825792,
+      "seed": "installed-off-ownerfs:patch-b"
+    },
+    {
+      "length": 786432,
+      "offset": 65011712,
+      "seed": "installed-off-ownerfs:patch-tail"
+    }
+  ],
+  "reference": false,
+  "schema": "afs.g1.trial.selfcheck.v1",
+  "sha256": "71fa8d9f37ac7bf47653832d57a55d3b3d0c7c1bb4314ef6c0ed14f871b96bd1",
+  "size": 67108864,
+  "status": "PASS",
+  "stream_block": 1048576,
+  "total_elapsed_seconds": 0.246397,
+  "workspace": "installed-off"
+}

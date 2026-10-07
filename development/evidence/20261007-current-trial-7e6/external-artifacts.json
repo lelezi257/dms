@@ -1,0 +1,28 @@
+{
+  "schema": "afs.external_evidence.v1",
+  "items": [
+    {
+      "host_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/current-trial-7e6-20261007-r1/runtime-text.tar",
+      "bytes": 163840,
+      "sha256": "7e197d0ceb80b38df1b07567a192ccdc6d71ecf3dc79fbe75334f040d4d46afc",
+      "disposition": "retained outside Git; immutable run identity"
+    },
+    {
+      "host_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/current-trial-7e6-20261007-r1/local-only/observer.py",
+      "bytes": 8118,
+      "sha256": "1ad2c41425199fa7cd5bfc36f01d7d7d21bef1c4670feb661e05bdc051fbeab7",
+      "disposition": "retained outside Git; immutable run identity"
+    },
+    {
+      "host_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/current-trial-7e6-20261007-r1/afs-0.1.0-g2-main-7e6e00a-linux-aarch64.tar.gz",
+      "bytes": 14429532,
+      "sha256": "c3bb5a30a1dd74a4b00d45388298e0b0628bb84d8aefbddf29ed2ec633b5f8e6",
+      "disposition": "retained outside Git; immutable run identity"
+    }
+  ],
+  "canonical_tools": [
+    "development/acceptance/installed-smoke-linux.py",
+    "development/acceptance/test_installed_smoke.py"
+  ],
+  "historical_entry_map": "entry-map-r2.json is pre-run mapping, old4e5b package is not the tested c3bb archive"
+}

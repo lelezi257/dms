@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/docs/guides/trial.md",
+    "afs-build:/workspace/dms/source/docs/guides/trial.md"
+  ],
+  "timeout": 60
+}

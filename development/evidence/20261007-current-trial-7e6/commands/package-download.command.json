@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "afs-build:/var/tmp/current-trial-7e6-package-r1/afs-0.1.0-g2-main-7e6e00a-linux-aarch64.tar.gz",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/current-trial-7e6-20261007-r1/afs-0.1.0-g2-main-7e6e00a-linux-aarch64.tar.gz"
+  ],
+  "timeout": 60
+}

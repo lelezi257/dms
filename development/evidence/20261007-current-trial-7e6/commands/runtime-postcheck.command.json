@@ -1,0 +1,18 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-g2-micro",
+    "sudo",
+    "python3",
+    "-B",
+    "/var/tmp/current-trial-7e6-observer.py",
+    "closed",
+    "--candidate",
+    "/var/tmp/current-trial-7e6-candidate.json",
+    "--initial",
+    "/var/tmp/current-trial-7e6-initial.json"
+  ],
+  "timeout": 60
+}

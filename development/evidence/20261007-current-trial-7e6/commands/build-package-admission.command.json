@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "python3",
+    "-B",
+    "-c",
+    "import hashlib,json,os,platform,shutil,subprocess\nfrom pathlib import Path\ns=Path('/workspace/dms/source');m=json.loads(Path('/var/tmp/current-trial-7e6-inputs.json').read_text());assert platform.system()=='Linux' and platform.machine()=='aarch64';assert all(hashlib.sha256((s/p).read_bytes()).hexdigest()==v for p,v in m['files'].items());b=Path('/var/tmp/afs-e2e-release-20261006-r1/target/release');expected={'afs-meta':'76a1e34c91697382cba9b3ad1e7bc5a758dd90ca8ededc823fefb9f13708cba2','afs-node':'c47be268dc894aac089a020130f7527c58fbc6ada0152ff57f99061c73997fb7'};assert all(hashlib.sha256((b/p).read_bytes()).hexdigest()==v for p,v in expected.items());tools={x:shutil.which(x) for x in ['bash','python3','ldd','tar','gzip','sha256sum','install','find','sort','xargs','touch','sed','awk']};assert all(tools.values());disk=shutil.disk_usage('/var/tmp');assert disk.free>=1073741824;roots=['/var/tmp/current-trial-7e6-package-r1','/var/tmp/current-trial-7e6-package-r2'];assert not any(Path(p).exists() for p in roots);print(json.dumps({'status':'PASS_PACKAGE_ADMISSION','map':m['map_sha256'],'compiler_files':len(m['files']),'binaries':expected,'disk':disk._asdict(),'tools':tools,'fresh_outputs':roots,'uid':os.geteuid()}))\n"
+  ],
+  "timeout": 60
+}

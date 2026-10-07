@@ -1,0 +1,22 @@
+{
+  "status": "PASS_DOC_INDEX_IDENTITY_CHECKS",
+  "environment": "Linux aarch64",
+  "checks": [
+    "new compact SHA README.md",
+    "new compact SHA audit.command.json",
+    "new compact SHA audit.json",
+    "new compact SHA moose-cache-help.command.json",
+    "new compact SHA moose-cache-help.json",
+    "protected docs/handoff.md",
+    "protected development/acceptance/acceptance.lock.json",
+    "updated links development/current-checkpoint.md",
+    "updated links development/plan.md",
+    "updated links development/trial-release-goals.md",
+    "updated links docs/status.md",
+    "updated links development/ownerfs-performance-criteria.md",
+    "updated links development/evidence/20261008-owner-remote-latency-reuse/README.md"
+  ],
+  "performance_status": "NOT_QUALIFIED",
+  "product_runtime_started": false,
+  "rust_build_needed": false
+}

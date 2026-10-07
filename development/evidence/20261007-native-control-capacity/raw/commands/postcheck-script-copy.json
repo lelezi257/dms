@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/var/tmp/afs-native-control-capacity-postcheck.py",
+    "afs-g2-micro:/var/tmp/afs-native-control-capacity-postcheck.py"
+  ],
+  "rc": 0,
+  "elapsed_seconds": 0.12877254106570035
+}

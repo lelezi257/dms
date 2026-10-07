@@ -1,0 +1,1880 @@
+{
+  "status": "PASS",
+  "checks": {
+    "driver": {
+      "status": "PASS",
+      "actual": {
+        "status": "PASS",
+        "scope": "single experimental managed OwnerFs workspace; not full G2.12/13",
+        "source_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+        "driver_sha256": "03dfb5294f93e4f3e989ef2d60b708358c35be22ebf6cc4efda26069f5ce8583",
+        "basic_payload_selected": false,
+        "source_rejection_selected": false,
+        "control_capacity_selected": true,
+        "semantic_groups": [],
+        "cleanup": "PASS"
+      }
+    },
+    "control-capacity": {
+      "status": "PASS",
+      "actual": {
+        "status": "PASS",
+        "cached_operations": 64,
+        "initial": {
+          "request": {
+            "operation": "start",
+            "id": "first",
+            "workspace": "workspace"
+          },
+          "response": {
+            "access_generation": 1,
+            "container": "afs-native-first",
+            "epoch": 1,
+            "home_node": "node-a",
+            "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+            "production_ready": false,
+            "root": "root-776f726b7370616365",
+            "scope": "single managed experimental container; not READY or revocation ACK",
+            "state": "FinalVerified"
+          }
+        },
+        "busy": [
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-00",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-01",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-02",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-03",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-04",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-05",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-06",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-07",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-08",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-09",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-10",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-11",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-12",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-13",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-14",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-15",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-16",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-17",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-18",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-19",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-20",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-21",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-22",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-23",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-24",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-25",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-26",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-27",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-28",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-29",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-30",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-31",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-32",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-33",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-34",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-35",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-36",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-37",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-38",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-39",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-40",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-41",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-42",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-43",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-44",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-45",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-46",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-47",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-48",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-49",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-50",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-51",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-52",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-53",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-54",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-55",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-56",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-57",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-58",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-59",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-60",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-61",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          },
+          {
+            "request": {
+              "operation": "start",
+              "id": "capacity-busy-62",
+              "workspace": "workspace"
+            },
+            "response": {
+              "active": {
+                "access_generation": 1,
+                "container": "afs-native-first",
+                "epoch": 1,
+                "home_node": "node-a",
+                "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+                "production_ready": false,
+                "root": "root-776f726b7370616365",
+                "scope": "single managed experimental container; not READY or revocation ACK",
+                "state": "FinalVerified"
+              },
+              "error": "Device or resource busy (os error 16)",
+              "production_ready": false,
+              "status": "ERROR"
+            }
+          }
+        ],
+        "denied_request": {
+          "operation": "exec",
+          "id": "capacity-denied-exec",
+          "argv": [
+            "/bin/sh",
+            "-ec",
+            "printf 'must-not-run\\n' > /workspace/capacity-denied-proof"
+          ]
+        },
+        "denied_response": {
+          "error": "No space left on device (os error 28)",
+          "production_ready": false,
+          "status": "ERROR"
+        },
+        "before": {
+          "status": {
+            "access_generation": 1,
+            "container": "afs-native-first",
+            "epoch": 1,
+            "home_node": "node-a",
+            "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+            "production_ready": false,
+            "root": "root-776f726b7370616365",
+            "scope": "single managed experimental container; not READY or revocation ACK",
+            "state": "FinalVerified"
+          },
+          "runtime": {
+            "id": "afs-native-first",
+            "status": "running",
+            "pid": 64009,
+            "bundle": "/opt/afs-managed-control-capacity-20261007-r1/control/bundle-afs-native-first",
+            "rootfs": "/opt/afs-managed-control-capacity-20261007-r1/rootfs"
+          },
+          "process": {
+            "pid": 64009,
+            "starttick": 6737384,
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd"
+          },
+          "namespace": {
+            "dev": 4,
+            "ino": 4026532355
+          },
+          "source": {
+            "dev": 64769,
+            "ino": 825015
+          },
+          "mount": "420 417 253:1 /opt/afs-managed-control-capacity-20261007-r1/state/node/ownerfs/root-776f726b7370616365-e1 /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "runtime_commands": {
+            "command-0001.command.json": "d4d775fe6c42e147821a6471408973826e312677cee784a3277487ebf46b93cb",
+            "command-0001.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0001.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0001.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0002.command.json": "94b73cc46b8c2fbd5850ae21516a395c3cf13100f03c27d8bcbf20072ab49cd5",
+            "command-0002.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0002.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0002.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0003.command.json": "4591cc150296f84ba8a76a7f4dfc2bf2de8028a414d011c5a0bdb6a85bd4a875",
+            "command-0003.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0003.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0003.stdout": "add77611428211b7ccb2308d5125d76d9b9bd411dca0f5cc6395f168024e7ddc",
+            "command-0004.command.json": "f4885628be0ebb916dd75e5795bf1aa848069627d4b3cbe22ed6826970a4608d",
+            "command-0004.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0004.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0004.stdout": "e50b1b8a7784a5ba477f9eb56bdbcedbd30e3cf5be2e62e2c940970cb06112ec"
+          }
+        },
+        "after_fill": {
+          "status": {
+            "access_generation": 1,
+            "container": "afs-native-first",
+            "epoch": 1,
+            "home_node": "node-a",
+            "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+            "production_ready": false,
+            "root": "root-776f726b7370616365",
+            "scope": "single managed experimental container; not READY or revocation ACK",
+            "state": "FinalVerified"
+          },
+          "runtime": {
+            "id": "afs-native-first",
+            "status": "running",
+            "pid": 64009,
+            "bundle": "/opt/afs-managed-control-capacity-20261007-r1/control/bundle-afs-native-first",
+            "rootfs": "/opt/afs-managed-control-capacity-20261007-r1/rootfs"
+          },
+          "process": {
+            "pid": 64009,
+            "starttick": 6737384,
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd"
+          },
+          "namespace": {
+            "dev": 4,
+            "ino": 4026532355
+          },
+          "source": {
+            "dev": 64769,
+            "ino": 825015
+          },
+          "mount": "420 417 253:1 /opt/afs-managed-control-capacity-20261007-r1/state/node/ownerfs/root-776f726b7370616365-e1 /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "runtime_commands": {
+            "command-0001.command.json": "d4d775fe6c42e147821a6471408973826e312677cee784a3277487ebf46b93cb",
+            "command-0001.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0001.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0001.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0002.command.json": "94b73cc46b8c2fbd5850ae21516a395c3cf13100f03c27d8bcbf20072ab49cd5",
+            "command-0002.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0002.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0002.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0003.command.json": "4591cc150296f84ba8a76a7f4dfc2bf2de8028a414d011c5a0bdb6a85bd4a875",
+            "command-0003.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0003.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0003.stdout": "add77611428211b7ccb2308d5125d76d9b9bd411dca0f5cc6395f168024e7ddc",
+            "command-0004.command.json": "f4885628be0ebb916dd75e5795bf1aa848069627d4b3cbe22ed6826970a4608d",
+            "command-0004.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0004.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0004.stdout": "e50b1b8a7784a5ba477f9eb56bdbcedbd30e3cf5be2e62e2c940970cb06112ec"
+          }
+        },
+        "after_full": {
+          "status": {
+            "access_generation": 1,
+            "container": "afs-native-first",
+            "epoch": 1,
+            "home_node": "node-a",
+            "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+            "production_ready": false,
+            "root": "root-776f726b7370616365",
+            "scope": "single managed experimental container; not READY or revocation ACK",
+            "state": "FinalVerified"
+          },
+          "runtime": {
+            "id": "afs-native-first",
+            "status": "running",
+            "pid": 64009,
+            "bundle": "/opt/afs-managed-control-capacity-20261007-r1/control/bundle-afs-native-first",
+            "rootfs": "/opt/afs-managed-control-capacity-20261007-r1/rootfs"
+          },
+          "process": {
+            "pid": 64009,
+            "starttick": 6737384,
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd"
+          },
+          "namespace": {
+            "dev": 4,
+            "ino": 4026532355
+          },
+          "source": {
+            "dev": 64769,
+            "ino": 825015
+          },
+          "mount": "420 417 253:1 /opt/afs-managed-control-capacity-20261007-r1/state/node/ownerfs/root-776f726b7370616365-e1 /workspace rw,nosuid,nodev,relatime - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "runtime_commands": {
+            "command-0001.command.json": "d4d775fe6c42e147821a6471408973826e312677cee784a3277487ebf46b93cb",
+            "command-0001.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0001.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0001.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0002.command.json": "94b73cc46b8c2fbd5850ae21516a395c3cf13100f03c27d8bcbf20072ab49cd5",
+            "command-0002.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0002.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0002.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0003.command.json": "4591cc150296f84ba8a76a7f4dfc2bf2de8028a414d011c5a0bdb6a85bd4a875",
+            "command-0003.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0003.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0003.stdout": "add77611428211b7ccb2308d5125d76d9b9bd411dca0f5cc6395f168024e7ddc",
+            "command-0004.command.json": "f4885628be0ebb916dd75e5795bf1aa848069627d4b3cbe22ed6826970a4608d",
+            "command-0004.exit.json": "c859105ff40e0bef4d5d0e8d5a01f1755a58adfe9c524aba9a750f4edd6ac713",
+            "command-0004.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "command-0004.stdout": "e50b1b8a7784a5ba477f9eb56bdbcedbd30e3cf5be2e62e2c940970cb06112ec"
+          }
+        },
+        "sentinel_before": {
+          "fuse": false,
+          "native": false
+        },
+        "sentinel_after": {
+          "fuse": false,
+          "native": false
+        },
+        "status_after_full": [
+          {
+            "access_generation": 1,
+            "container": "afs-native-first",
+            "epoch": 1,
+            "home_node": "node-a",
+            "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+            "production_ready": false,
+            "root": "root-776f726b7370616365",
+            "scope": "single managed experimental container; not READY or revocation ACK",
+            "state": "FinalVerified"
+          },
+          {
+            "access_generation": 1,
+            "container": "afs-native-first",
+            "epoch": 1,
+            "home_node": "node-a",
+            "home_session": "ddbfdc99-e95b-4c07-9f1f-dd9219ea2451",
+            "production_ready": false,
+            "root": "root-776f726b7370616365",
+            "scope": "single managed experimental container; not READY or revocation ACK",
+            "state": "FinalVerified"
+          }
+        ],
+        "scope": "capacity rejection and Status only; parent driver records public Stop/closure"
+      }
+    },
+    "container-pid-gone": {
+      "status": "PASS",
+      "actual": 64009
+    },
+    "actual-two-service-wait0": {
+      "status": "PASS",
+      "actual": [
+        {
+          "path": "/opt/afs-managed-control-capacity-20261007-r1/run/meta.lifecycle.Gu2R69/exit",
+          "exit": {
+            "pid": "63661",
+            "exe": "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-meta",
+            "config": "/opt/afs-managed-control-capacity-20261007-r1/etc/meta.toml",
+            "start_ticks": "6737341",
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+            "lifecycle": "/opt/afs-managed-control-capacity-20261007-r1/run/meta.lifecycle.Gu2R69",
+            "supervisor_pid": "63645",
+            "exit_code": "0"
+          },
+          "child": {
+            "pid": "63661",
+            "exe": "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-meta",
+            "config": "/opt/afs-managed-control-capacity-20261007-r1/etc/meta.toml",
+            "start_ticks": "6737341",
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+            "lifecycle": "/opt/afs-managed-control-capacity-20261007-r1/run/meta.lifecycle.Gu2R69",
+            "supervisor_pid": "63645"
+          },
+          "ready": {
+            "supervisor_pid": "63645"
+          },
+          "receipt_matches_child": true,
+          "child_and_supervisor_gone": true
+        },
+        {
+          "path": "/opt/afs-managed-control-capacity-20261007-r1/run/node.lifecycle.Ptpxft/exit",
+          "exit": {
+            "pid": "63845",
+            "exe": "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-node",
+            "config": "/opt/afs-managed-control-capacity-20261007-r1/etc/node.toml",
+            "start_ticks": "6737357",
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+            "lifecycle": "/opt/afs-managed-control-capacity-20261007-r1/run/node.lifecycle.Ptpxft",
+            "supervisor_pid": "63829",
+            "exit_code": "0"
+          },
+          "child": {
+            "pid": "63845",
+            "exe": "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-node",
+            "config": "/opt/afs-managed-control-capacity-20261007-r1/etc/node.toml",
+            "start_ticks": "6737357",
+            "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+            "lifecycle": "/opt/afs-managed-control-capacity-20261007-r1/run/node.lifecycle.Ptpxft",
+            "supervisor_pid": "63829"
+          },
+          "ready": {
+            "supervisor_pid": "63829"
+          },
+          "receipt_matches_child": true,
+          "child_and_supervisor_gone": true
+        }
+      ]
+    },
+    "protected-processes": {
+      "status": "PASS",
+      "actual": [
+        {
+          "before": {
+            "pid": 3554,
+            "exe": "/usr/bin/gpg-agent (deleted)",
+            "starttick": 4412560,
+            "argv": "gpg-agent --homedir /var/tmp/afs-runc-admission-20261007-r1/gnupg --use-standard-socket --daemon ",
+            "exe_sha256": "5bd7c61c431192d41478e288e6f5bba0287aa5e766b007db82d25f27c8b8cdd7"
+          },
+          "after": {
+            "pid": 3554,
+            "exe": "/usr/bin/gpg-agent (deleted)",
+            "starttick": 4412560,
+            "argv": "gpg-agent --homedir /var/tmp/afs-runc-admission-20261007-r1/gnupg --use-standard-socket --daemon ",
+            "exe_sha256": "5bd7c61c431192d41478e288e6f5bba0287aa5e766b007db82d25f27c8b8cdd7"
+          },
+          "unchanged": true
+        }
+      ]
+    },
+    "protected-mounts": {
+      "status": "PASS",
+      "actual": {
+        "before": [
+          "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+          "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+          "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4020012k,nr_inodes=1005003,mode=755,inode64",
+          "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+          "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811364k,mode=755,inode64",
+          "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+          "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+          "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+          "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+          "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+          "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+          "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+          "40 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3230",
+          "41 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:15 - mqueue mqueue rw",
+          "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:16 - debugfs debugfs rw",
+          "43 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:17 - hugetlbfs hugetlbfs rw,pagesize=2M",
+          "44 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:18 - tracefs tracefs rw",
+          "45 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+          "46 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+          "48 32 259:0 / /boot rw,relatime shared:30 - ext4 /dev/vda16 rw",
+          "50 48 253:15 / /boot/efi rw,relatime shared:47 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+          "52 40 0:37 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:49 - binfmt_misc binfmt_misc rw",
+          "56 32 0:44 / /workspace/dms ro,relatime shared:147 - virtiofs lima-a7a710dc212e898d ro",
+          "98 32 253:16 / /mnt/lima-cidata ro,relatime shared:350 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+          "58 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:99 - tmpfs tmpfs rw,size=811360k,nr_inodes=202840,mode=700,uid=501,gid=1000,inode64"
+        ],
+        "after": [
+          "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+          "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+          "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4020012k,nr_inodes=1005003,mode=755,inode64",
+          "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+          "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811364k,mode=755,inode64",
+          "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+          "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+          "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+          "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+          "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+          "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+          "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+          "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+          "40 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=3230",
+          "41 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:15 - mqueue mqueue rw",
+          "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:16 - debugfs debugfs rw",
+          "43 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:17 - hugetlbfs hugetlbfs rw,pagesize=2M",
+          "44 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:18 - tracefs tracefs rw",
+          "45 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+          "46 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+          "48 32 259:0 / /boot rw,relatime shared:30 - ext4 /dev/vda16 rw",
+          "50 48 253:15 / /boot/efi rw,relatime shared:47 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+          "52 40 0:37 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:49 - binfmt_misc binfmt_misc rw",
+          "56 32 0:44 / /workspace/dms ro,relatime shared:147 - virtiofs lima-a7a710dc212e898d ro",
+          "98 32 253:16 / /mnt/lima-cidata ro,relatime shared:350 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8",
+          "58 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:99 - tmpfs tmpfs rw,size=811360k,nr_inodes=202840,mode=700,uid=501,gid=1000,inode64"
+        ],
+        "missing": []
+      }
+    },
+    "owned-global-mounts-gone": {
+      "status": "PASS",
+      "actual": []
+    },
+    "owned-processes-gone": {
+      "status": "PASS",
+      "actual": []
+    },
+    "allocated-ceiling": {
+      "status": "PASS",
+      "actual": {
+        "roots": {
+          "runtime_root": {
+            "allocated_bytes": 90468352,
+            "apparent_bytes": 90228815,
+            "distinct_inodes": 149
+          },
+          "tools_and_raw": {
+            "allocated_bytes": 1175552,
+            "apparent_bytes": 385718,
+            "distinct_inodes": 279
+          }
+        },
+        "total_allocated_bytes": 91643904,
+        "ceiling": 268435456
+      }
+    },
+    "final-free-floor": {
+      "status": "PASS",
+      "actual": {
+        "free_bytes": 9286127616,
+        "floor": 1073741824
+      }
+    }
+  },
+  "normal_detach_evidence": "fixed6d public Stopped/Idle plus successful clone/export detach path; no independent retained-final-namespace observation; not graceful drain"
+}

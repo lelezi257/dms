@@ -1,0 +1,34 @@
+{
+  "canonical_tool_commit": "180a88ab932e8dbee021a8d70d4eca63486ef83a",
+  "files": {
+    "development/acceptance/native-workspace-linux.py": {
+      "sha256": "03dfb5294f93e4f3e989ef2d60b708358c35be22ebf6cc4efda26069f5ce8583",
+      "bytes": 19097
+    },
+    "development/acceptance/installed-smoke-linux.py": {
+      "sha256": "2e857135d05e5e7380d3dc5f4cec51a80a7045541c7f5f3fc708c6dffc9c1bea",
+      "bytes": 13639
+    },
+    "development/acceptance/probes/native_source_rejection.py": {
+      "sha256": "faae54c1e608b5505fa207228ce2b3e1550841547a5e648a7a63363e72867f84",
+      "bytes": 6765
+    },
+    "development/acceptance/probes/native_control_capacity.py": {
+      "sha256": "8462f29f4a84d9c18379a659932948f543bfbb49de7de3741ca05d569ff38a6f",
+      "bytes": 5214
+    },
+    "development/acceptance/probes/test_native_control_capacity.py": {
+      "sha256": "46894f7340ad0da7b1d14b6b23c3086d1d7a283710879757c4a3d8caa312b481",
+      "bytes": 8155
+    },
+    "scripts/ownerfs/native-workspace-control.py": {
+      "sha256": "11b32a45f5e24801260acddfc47e3a4e7e16385c3f0a2af08e0dba9a9573217b",
+      "bytes": 2603
+    }
+  },
+  "runtime_driver_sha": "03dfb5294f93e4f3e989ef2d60b708358c35be22ebf6cc4efda26069f5ce8583",
+  "runtime_probe_sha": "8462f29f4a84d9c18379a659932948f543bfbb49de7de3741ca05d569ff38a6f",
+  "product_source": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
+  "admission_reused": "preflight-r1.json",
+  "tool_addendum": "admission-tool-addendum-r2.json"
+}

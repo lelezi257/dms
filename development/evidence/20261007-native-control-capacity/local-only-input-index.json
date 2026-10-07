@@ -1,0 +1,14 @@
+[
+  {
+    "raw_path": "evidence/afs-delivery/native-control-capacity-20261007-r1/local-only-inputs/afs-native-control-capacity-tools-r1.tar",
+    "sha256": "4f577529129f51679a4aac4ae1c8db1ef196987f710cb7020c67d0a693ad8488",
+    "bytes": 71680,
+    "reason": "local-only tool transport/binary/private inputs; use canonical180a88a and tiny reverse deltas/durable tool index"
+  },
+  {
+    "raw_path": "evidence/afs-delivery/native-control-capacity-20261007-r1/local-only-inputs/afs-native-control-capacity-tools-r2.tar",
+    "sha256": "0a199dd330de67aeda2a2136508ebcbc83aa612f70782d6c1c14a34fdacff190",
+    "bytes": 71680,
+    "reason": "local-only tool transport/binary/private inputs; use canonical180a88a and tiny reverse deltas/durable tool index"
+  }
+]

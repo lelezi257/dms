@@ -1,0 +1,13 @@
+test_busy_requires_exact_EBUSY_and_current_active_grant (__main__.CapacityGuards.test_busy_requires_exact_EBUSY_and_current_active_grant) ... ok
+test_capacity_mode_rejects_other_modes_before_runtime (__main__.CapacityGuards.test_capacity_mode_rejects_other_modes_before_runtime) ... ok
+test_denied_file_must_be_absent_in_both_views_with_actual_booleans (__main__.CapacityGuards.test_denied_file_must_be_absent_in_both_views_with_actual_booleans) ... ok
+test_exact_count_and_unique_otherwise_valid_busy_starts (__main__.CapacityGuards.test_exact_count_and_unique_otherwise_valid_busy_starts) ... ok
+test_failed_initial_start_cannot_count_as_a_verified_ledger_entry (__main__.CapacityGuards.test_failed_initial_start_cannot_count_as_a_verified_ledger_entry) ... ok
+test_full_requires_exact_ENOSPC_not_success_or_unrelated_error (__main__.CapacityGuards.test_full_requires_exact_ENOSPC_not_success_or_unrelated_error) ... ok
+test_full_reuses_physical_identity_and_runtime_artifact_oracle (__main__.CapacityGuards.test_full_reuses_physical_identity_and_runtime_artifact_oracle) ... ok
+test_two_status_observations_cannot_be_missing_or_changed (__main__.CapacityGuards.test_two_status_observations_cannot_be_missing_or_changed) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.012s
+
+OK

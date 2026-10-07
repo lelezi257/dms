@@ -1,0 +1,414 @@
+[
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-T",
+      "/opt"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0016758090059738606,
+    "stdout": "000.stdout",
+    "stderr": "000.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--version"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003475420002359897,
+    "stdout": "001.stdout",
+    "stderr": "001.stderr"
+  },
+  {
+    "argv": [
+      "tar",
+      "-xzf",
+      "/var/tmp/afs-managed-package-6d51aeb.tar.gz",
+      "-C",
+      "/opt/afs-managed-control-capacity-20261007-r1/package"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.17746556601196062,
+    "stdout": "002.stdout",
+    "stderr": "002.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-control-capacity-20261007-r1/package/afs-0.1.0-g2-procfree-6d51aeb-linux-aarch64/install.sh",
+      "--prefix",
+      "/opt/afs-managed-control-capacity-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/logs",
+      "--mount-root",
+      "/opt/afs-managed-control-capacity-20261007-r1/mount"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.33232615899760276,
+    "stdout": "003.stdout",
+    "stderr": "003.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-meta"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035468830028548837,
+    "stdout": "004.stdout",
+    "stderr": "004.stderr"
+  },
+  {
+    "argv": [
+      "ldd",
+      "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-node"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0037313990032998845,
+    "stdout": "005.stdout",
+    "stderr": "005.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-trial-config",
+      "single",
+      "--backend",
+      "local-file",
+      "--config-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/etc",
+      "--state-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/state",
+      "--run-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/run",
+      "--mount-root",
+      "/opt/afs-managed-control-capacity-20261007-r1/mount",
+      "--meta-grpc-port",
+      "24400",
+      "--meta-rest-port",
+      "24401",
+      "--node-grpc-port",
+      "24500",
+      "--node-rest-port",
+      "24501",
+      "--force"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.29617443299503066,
+    "stdout": "006.stdout",
+    "stderr": "006.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-control-capacity-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/logs",
+      "start",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.3220377959951293,
+    "stdout": "007.stdout",
+    "stderr": "007.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-J",
+      "-o",
+      "TARGET,SOURCE,FSTYPE,OPTIONS,ID",
+      "--mountpoint",
+      "/opt/afs-managed-control-capacity-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0017894010088639334,
+    "stdout": "008.stdout",
+    "stderr": "008.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-control-capacity-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/control.sock",
+      "--id",
+      "initial",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0772400169953471,
+    "stdout": "009.stdout",
+    "stderr": "009.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-control-capacity-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/control.sock",
+      "--id",
+      "first",
+      "start",
+      "workspace"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.12387215900525916,
+    "stdout": "010.stdout",
+    "stderr": "010.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/runtime-state",
+      "state",
+      "afs-native-first"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0035500069934641942,
+    "stdout": "011.stdout",
+    "stderr": "011.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-control-capacity-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/control.sock",
+      "--id",
+      "capacity-before-status",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.07891382400703151,
+    "stdout": "012.stdout",
+    "stderr": "012.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/runtime-state",
+      "state",
+      "afs-native-first"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003466125999693759,
+    "stdout": "013.stdout",
+    "stderr": "013.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-control-capacity-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/control.sock",
+      "--id",
+      "capacity-after-fill-status",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.07051965099526569,
+    "stdout": "014.stdout",
+    "stderr": "014.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/runtime-state",
+      "state",
+      "afs-native-first"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0077813170064473525,
+    "stdout": "015.stdout",
+    "stderr": "015.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-control-capacity-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/control.sock",
+      "--id",
+      "capacity-full-status-0",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06802460899052676,
+    "stdout": "016.stdout",
+    "stderr": "016.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-control-capacity-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/control.sock",
+      "--id",
+      "capacity-full-status-1",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06498471800296102,
+    "stdout": "017.stdout",
+    "stderr": "017.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-control-capacity-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/control.sock",
+      "--id",
+      "capacity-after-full-status",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.06718798200017773,
+    "stdout": "018.stdout",
+    "stderr": "018.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/runtime-state",
+      "state",
+      "afs-native-first"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.003798942008870654,
+    "stdout": "019.stdout",
+    "stderr": "019.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-control-capacity-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/control.sock",
+      "--id",
+      "stop-first",
+      "stop"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.11756955999589991,
+    "stdout": "020.stdout",
+    "stderr": "020.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-control-capacity-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/control.sock",
+      "--id",
+      "after-stop",
+      "status"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.07467752299271524,
+    "stdout": "021.stdout",
+    "stderr": "021.stderr"
+  },
+  {
+    "argv": [
+      "/usr/local/sbin/runc",
+      "--root",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/runtime-state",
+      "list",
+      "--format",
+      "json"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.0034627889981493354,
+    "stdout": "022.stdout",
+    "stderr": "022.stderr"
+  },
+  {
+    "argv": [
+      "python3",
+      "/var/tmp/afs-managed-control-capacity-20261007-r1/tools/scripts/ownerfs/native-workspace-control.py",
+      "--socket",
+      "/opt/afs-managed-control-capacity-20261007-r1/control/control.sock",
+      "--id",
+      "finally-stop",
+      "stop"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.07524673698935658,
+    "stdout": "023.stdout",
+    "stderr": "023.stderr"
+  },
+  {
+    "argv": [
+      "/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-processctl",
+      "--prefix",
+      "/opt/afs-managed-control-capacity-20261007-r1/prefix",
+      "--config-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/etc",
+      "--run-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/run",
+      "--log-dir",
+      "/opt/afs-managed-control-capacity-20261007-r1/logs",
+      "stop",
+      "all"
+    ],
+    "exit": 0,
+    "timeout": false,
+    "elapsed_seconds": 0.17228816800343338,
+    "stdout": "024.stdout",
+    "stderr": "024.stderr"
+  },
+  {
+    "argv": [
+      "findmnt",
+      "-rn",
+      "--mountpoint",
+      "/opt/afs-managed-control-capacity-20261007-r1/mount/ownerfs"
+    ],
+    "exit": 1,
+    "timeout": false,
+    "elapsed_seconds": 0.0013557799975387752,
+    "stdout": "025.stdout",
+    "stderr": "025.stderr"
+  }
+]

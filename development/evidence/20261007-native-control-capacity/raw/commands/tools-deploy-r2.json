@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/var/tmp",
+    "afs-g2-micro",
+    "sudo",
+    "tar",
+    "-xf",
+    "/var/tmp/afs-native-control-capacity-tools-r2.tar",
+    "-C",
+    "/var/tmp/afs-managed-control-capacity-20261007-r1"
+  ],
+  "rc": 0
+}

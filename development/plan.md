@@ -1,6 +1,6 @@
-**当前切片（2026-10-07）：** 固定6d产品/157/map66/包与ELF未改。容器source注入拒绝新小项实际PASS：unknownfieldsource，前后grant/PIDtick/ns/mount/source及16controller制品SHA完全不变；合法exec/FUSE完整20B与既有publicstop收尾通过。NodeMeta两actualwait0/4PIDgone、container及自有mount消失，旧1proc/26mountrows不变；91,070,464B<256MiB。只此有限G2.12分项，非完整ON/graceful drain/性能。3FS资格已按用户选择留专题，原FAIL/数据不改。 [证据](evidence/20261007-native-source-rejection/README.md)。
+**当前切片（2026-10-07）：** 产品6d51aeb/157输入/map66/ELF/包及vendor未改。容器控制额度新分项实际PASS：1成功Start+63独立EBUSY填满64，新Exec准确ENOSPC且双视图无sentinel；两Status之后真实grant/PIDtick/ns/mount/source与16controller制品SHA仍完全不变。公开Stop/Idle/runtime空、NodeMeta两actualwait0/4PIDgone、旧1进程身份/26完整mountrows不变。91,643,904B<256MiB、最终9,286,127,616B>1GiB；单次执行，无修环境。独立审阅通过，仅关闭此G2.12分项；原工具r1顺序判据FAIL及恢复索引保留。 [版本、范围与原始证据](evidence/20261007-native-control-capacity/README.md)。
 
-**下一项：** 容器主线继续下一独立控制器安全小项：操作额度耗尽后仍能status/stop并清理自有容器，先核对现有覆盖再冻结最小case；不重测本次PASS、64MiB/性能/标准/append/锁/watch。既有混合语义/API缺口保留，bind默认OFF，完整G2.12/G2.13未关闭。G1历史8/8、G2 10限定完成/2性能FAIL/2bind进行中/13待验收不变；3FS资格及大规模/复杂可靠性/etcd/Redis后置。
+**下一项：** 容器workspace有序恢复小项：正常public Stop/服务有序停止后，以同state/local-file Meta重新启动，再public Start同workspace，由新容器与FUSE fresh read完整读回已确认文件/EOF。现有OFF恢复、managed host重开及source拒绝证据各自复用，尚未覆盖这个完整闭环；先冻结小case，不进入异常退出/非空runtime adoption/生产对账矩阵。3FS资格留专题，不重跑本次PASS、标准、64MiB、性能或混合语义；bind默认OFF。G1历史8/8、G2 10限定完成/2性能FAIL/2bind进行中/13待验收不变。
 
 [append偏移边界与暂缓理由](native-append-offset-boundary.md)：当前公开回复不返回实际追加位置；保留失败；经典锁也已按公开原语边界收口，不改第三方或反复重测。
 

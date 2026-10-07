@@ -1,0 +1,6 @@
+test_status_side_effect_is_observed_before_final_success (__main__.CapacityGuards.test_status_side_effect_is_observed_before_final_success) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+OK

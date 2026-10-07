@@ -1,0 +1,16 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/var/tmp",
+    "afs-g2-micro",
+    "sudo",
+    "install",
+    "-m",
+    "644",
+    "/var/tmp/afs-native-control-capacity-preflight-original.json",
+    "/var/tmp/afs-managed-control-capacity-20261007-r1/preflight-original.json"
+  ],
+  "rc": 0,
+  "elapsed_seconds": 0.03515837492886931
+}

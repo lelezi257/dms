@@ -1,0 +1,14 @@
+--- development/acceptance/probes/native_control_capacity.py@r1
++++ development/acceptance/probes/native_control_capacity.py@r2
+@@ -83,10 +83,10 @@
+     run.save('control-capacity-denied-request.json', request)
+     response = client.exchange(run.root / 'control/control.sock', request)
+     run.save('control-capacity-denied-response.json', response)
++    statuses = [run.native(f'capacity-full-status-{i}', 'status') for i in range(2)]
+     after_full = identity.snapshot(run, 'capacity-after-full', start['container'])
+     observations = {'fuse': os.path.lexists(sentinel), 'native': os.path.lexists(native_sentinel)}
+     run.save('control-capacity-sentinel-after.json', observations)
+-    statuses = [run.native(f'capacity-full-status-{i}', 'status') for i in range(2)]
+     verify_full(before, after_full, response, observations, statuses, identity)
+     run.check('control-capacity-ENOSPC-no-side-effects', True, response)
+     run.check('control-capacity-status-available', True, statuses)

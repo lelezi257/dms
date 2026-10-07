@@ -1,0 +1,10 @@
+{
+  "ociVersion": "1.3.0",
+  "id": "afs-native-first",
+  "pid": 0,
+  "status": "stopped",
+  "bundle": "/opt/afs-managed-control-capacity-20261007-r1/control/bundle-afs-native-first",
+  "rootfs": "/opt/afs-managed-control-capacity-20261007-r1/rootfs",
+  "created": "2026-10-07T01:32:36.333482049Z",
+  "owner": ""
+}

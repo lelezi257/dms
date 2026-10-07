@@ -1,0 +1,9 @@
+{
+  "operation": "exec",
+  "id": "capacity-denied-exec",
+  "argv": [
+    "/bin/sh",
+    "-ec",
+    "printf 'must-not-run\\n' > /workspace/capacity-denied-proof"
+  ]
+}

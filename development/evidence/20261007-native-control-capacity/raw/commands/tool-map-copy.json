@@ -1,0 +1,9 @@
+{
+  "argv": [
+    "limactl",
+    "copy",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/native-control-capacity-20261007-r1/tool-identity-r1.json",
+    "afs-g2-micro:/var/tmp/afs-native-control-capacity-tool-identity-r1.json"
+  ],
+  "rc": 0
+}

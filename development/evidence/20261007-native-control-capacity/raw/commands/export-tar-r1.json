@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/var/tmp",
+    "afs-g2-micro",
+    "sudo",
+    "tar",
+    "-cf",
+    "/var/tmp/afs-native-control-capacity-results-r1.tar",
+    "-C",
+    "/var/tmp/afs-managed-control-capacity-20261007-r1",
+    "results-r1"
+  ],
+  "rc": 0,
+  "elapsed_seconds": 0.035429999930784106
+}

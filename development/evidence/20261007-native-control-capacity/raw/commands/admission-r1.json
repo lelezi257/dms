@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/var/tmp",
+    "afs-g2-micro",
+    "sudo",
+    "python3",
+    "/var/tmp/afs-native-control-capacity-admission.py"
+  ],
+  "rc": 0
+}

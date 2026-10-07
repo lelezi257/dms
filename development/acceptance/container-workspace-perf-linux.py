@@ -36,6 +36,11 @@ native_base = importlib.util.module_from_spec(native_spec)
 native_spec.loader.exec_module(native_base)
 
 
+count_spec = importlib.util.spec_from_file_location("fuse_callback_counts", Path(__file__).parent / "probes/fuse_callback_counts.py")
+callback_counts = importlib.util.module_from_spec(count_spec)
+count_spec.loader.exec_module(callback_counts)
+
+
 DATA_BYTES = 64 * 1024 * 1024
 BLOCK_BYTES = 1024 * 1024
 PATTERN_BYTE = 90
@@ -581,7 +586,10 @@ class Driver(base.Run):
 
     def node_metrics(self) -> dict[str, Any]:
         text = self.run_text(["curl", "-fsS", "http://127.0.0.1:24501/metrics"], self.out / "metrics", timeout=30)
-        return {"raw": text, "parsed": parse_prometheus(text), "fuse_request_counts": "NOT_OBSERVED"}
+        result = {"raw": text, "parsed": parse_prometheus(text), "fuse_request_counts": "NOT_OBSERVED"}
+        if callback_counts.PREFIX + "{" in text:
+            result["fuse_callback_counts"] = callback_counts.parse_counts(text)
+        return result
 
     def run_sample(self, cohort: str, target: str, executor: Any, round_index: int, measured: bool) -> dict[str, Any]:
         suffix = f"{cohort}-{target}-r{round_index:02d}"

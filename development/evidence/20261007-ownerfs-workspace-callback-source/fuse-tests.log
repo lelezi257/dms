@@ -1,0 +1,22 @@
+   Compiling afs v0.1.0 (/workspace/dms/source)
+    Finished `release` profile [optimized] target(s) in 1m 00s
+     Running unittests src/lib.rs (/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2)
+
+running 14 tests
+test node::fuse::dispatch_tests::blocking_lock_pool_rejects_when_queue_is_full_without_running_inline ... ok
+test node::fuse::dispatch_tests::fuse_callback_metrics_export_zeros_for_every_implemented_operation ... ok
+test node::fuse::dispatch_tests::fuse_callback_metrics_share_registry_without_reset_or_cross_registry_leak ... ok
+test node::fuse::dispatch_tests::lock_request_conversion_preserves_flock_namespace_and_unlock ... ok
+test node::fuse::dispatch_tests::pending_lock_registry_remembers_interrupt_before_worker_registration ... ok
+test node::fuse::dispatch_tests::metadata_groups_require_matching_kernel_identity ... ok
+test node::fuse::dispatch_tests::process_start_ignores_spaces_and_parentheses_in_command_name ... ok
+test node::fuse::dispatch_tests::independent_fuse_jobs_overlap_before_either_finishes ... ok
+test node::fuse::dispatch_tests::queued_same_handle_attribute_callbacks_do_not_block_unrelated_handles ... ok
+test node::fuse::dispatch_tests::xattr_create_replace_and_invalid_flags_keep_linux_contract ... ok
+test node::fuse::dispatch_tests::sparse_file_attributes_keep_allocated_blocks_separate_from_eof ... ok
+test node::fuse::dispatch_tests::xattr_size_query_short_buffer_and_empty_value_are_distinct ... ok
+test node::fuse::dispatch_tests::same_handle_callbacks_keep_order_while_other_handles_progress ... ok
+test node::fuse::dispatch_tests::dropping_fuse_dispatch_waits_for_admitted_jobs ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 582 filtered out; finished in 0.10s
+

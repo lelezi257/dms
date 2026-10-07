@@ -909,6 +909,8 @@ async fn run_node(
 ) -> Result<(), BoxError> {
     #[cfg(feature = "ownerfs")]
     let owner_rpc_metrics = rpc::OwnerRpcMetrics::register(&obs.registry)?;
+    #[cfg(any(feature = "ownerfs", feature = "dfs"))]
+    let fuse_request_metrics = fuse::FuseRequestMetrics::register(&obs.registry)?;
     // Bind all TCP ingress before spawning services. A failed bind cannot leave a half-ready Node.
     let grpc = tokio::net::TcpListener::bind(cfg.grpc_listen).await?;
     let rest = tokio::net::TcpListener::bind(cfg.rest_listen).await?;
@@ -1221,7 +1223,11 @@ async fn run_node(
 
     #[cfg(feature = "ownerfs")]
     let mounted_ownerfs = match (&cfg.ownerfs_mount, &ownerfs_instance) {
-        (Some(path), Some(ownerfs)) => match fuse::mount_ownerfs(ownerfs.clone(), path) {
+        (Some(path), Some(ownerfs)) => match fuse::mount_ownerfs_with_metrics(
+            ownerfs.clone(),
+            path,
+            fuse_request_metrics.clone(),
+        ) {
             Ok(session) => Some(session),
             Err(error) => {
                 local.shutdown().await?;
@@ -1241,15 +1247,17 @@ async fn run_node(
 
     #[cfg(feature = "dfs")]
     let mounted_dfs = match (&cfg.dfs_mount, &dfs_instance) {
-        (Some(path), Some(dfs)) => match fuse::mount_dfs(dfs.clone(), path) {
-            Ok(session) => Some(session),
-            Err(error) => {
-                #[cfg(feature = "ownerfs")]
-                drop(mounted_ownerfs);
-                local.shutdown().await?;
-                return Err(error.into());
+        (Some(path), Some(dfs)) => {
+            match fuse::mount_dfs_with_metrics(dfs.clone(), path, fuse_request_metrics.clone()) {
+                Ok(session) => Some(session),
+                Err(error) => {
+                    #[cfg(feature = "ownerfs")]
+                    drop(mounted_ownerfs);
+                    local.shutdown().await?;
+                    return Err(error.into());
+                }
             }
-        },
+        }
         (Some(_), None) => {
             #[cfg(feature = "ownerfs")]
             drop(mounted_ownerfs);

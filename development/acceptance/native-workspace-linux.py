@@ -74,6 +74,10 @@ class Run(base.Run):
                 or self.args.source_rejection_only or self.args.control_capacity_only
                 or self.args.orderly_recovery_only):
             raise ValueError('node-shutdown-only is mutually exclusive with other modes')
+        if self.args.fuse_counters_only and (self.args.semantics_only or self.args.semantics_probe
+                or self.args.source_rejection_only or self.args.control_capacity_only
+                or self.args.orderly_recovery_only or self.args.node_shutdown_only):
+            raise ValueError('fuse-counters-only is mutually exclusive with other modes')
         self.check('Linux-root', platform.system() == 'Linux' and platform.machine() == 'aarch64'
                    and os.geteuid() == 0, [platform.system(), platform.machine(), os.geteuid()])
         self.check('new-owned-root', self.root.parent == Path('/opt') and not self.root.exists(), str(self.root))
@@ -156,7 +160,7 @@ class Run(base.Run):
             result[n] = {'pid': pid, 'starttick': int((proc / 'stat').read_text().rsplit(')', 1)[1].split()[19]),
                          'sha256': base.sha(proc / 'exe'),
                          'installed': base.verify_executable(proc / 'exe', self.root / ('prefix/bin/afs-' + n))}
-            if self.args.orderly_recovery_only or self.args.node_shutdown_only:
+            if self.args.orderly_recovery_only or self.args.node_shutdown_only or self.args.fuse_counters_only:
                 result[n]['boot_id'] = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
             self.check(n + '-live-ELF', result[n]['sha256'] == getattr(self.args, 'afs_' + n + '_sha256'), result[n])
         mounted = json.loads(self.command(['findmnt', '-J', '-o', 'TARGET,SOURCE,FSTYPE,OPTIONS,ID',
@@ -169,7 +173,7 @@ class Run(base.Run):
 
     def run(self):
         control_only = (self.args.source_rejection_only or self.args.control_capacity_only
-                        or self.args.orderly_recovery_only or self.args.node_shutdown_only)
+                        or self.args.orderly_recovery_only or self.args.node_shutdown_only or self.args.fuse_counters_only)
         result = {'status': 'BLOCKED', 'scope': 'single experimental managed OwnerFs workspace; not full G2.12/13',
                   'source_commit': self.args.source_commit, 'driver_sha256': base.sha(__file__),
                   'basic_payload_selected': not (self.args.semantics_only or control_only),
@@ -177,6 +181,7 @@ class Run(base.Run):
                   'control_capacity_selected': self.args.control_capacity_only,
                   'orderly_recovery_selected': self.args.orderly_recovery_only,
                   'node_shutdown_selected': self.args.node_shutdown_only,
+                  'fuse_counters_selected': self.args.fuse_counters_only,
                   'semantic_groups': self.args.semantics_groups if self.args.semantics_probe else []}
         process = None
         try:
@@ -202,7 +207,7 @@ class Run(base.Run):
                     f.flush()
                     os.fsync(f.fileno())
                 seed_sha = hashlib.sha256(seed).hexdigest()
-            if self.args.orderly_recovery_only or self.args.node_shutdown_only:
+            if self.args.orderly_recovery_only or self.args.node_shutdown_only or self.args.fuse_counters_only:
                 recovery_spec = importlib.util.spec_from_file_location('native_orderly_recovery',
                     Path(__file__).parent / 'probes/native_orderly_recovery.py')
                 recovery = importlib.util.module_from_spec(recovery_spec)
@@ -230,7 +235,15 @@ class Run(base.Run):
                         if p.is_dir() and (p.stat().st_dev, p.stat().st_ino) == (source.st_dev, source.st_ino)]
             self.check('real-storage-source', len(physical) == 1, physical)
             self.save('final-identity.json', {'container': state, 'observed': observed, 'storage_path': physical})
-            if self.args.node_shutdown_only:
+            if self.args.fuse_counters_only:
+                counter_spec = importlib.util.spec_from_file_location('fuse_callback_counts',
+                    Path(__file__).parent / 'probes/fuse_callback_counts.py')
+                counters = importlib.util.module_from_spec(counter_spec)
+                counter_spec.loader.exec_module(counters)
+                self.save('callback-tool.json', {'path': str(Path(counters.__file__)),
+                          'sha256': base.sha(counters.__file__)})
+                counters.execute(self, workspace, seed_sha)
+            elif self.args.node_shutdown_only:
                 response = self.native('active-read', 'exec', '--', '/bin/sh', '-ec',
                     f'test "$(/bin/busybox sha256sum /workspace/seed | /bin/busybox cut -d " " -f 1)" = {seed_sha}')
                 self.check('active-seed-read', response.get('status') == 'Executed', response)
@@ -306,7 +319,7 @@ class Run(base.Run):
                             self.check(n + '-gone', not Path(f'/proc/{process[n]["pid"]}').exists(), process[n]['pid'])
                     self.check('controller-artifacts-removed', not (self.root / 'control/control.sock').exists()
                                and not (self.root / 'control/controller.lock').exists(), 'absent')
-                    if (self.args.orderly_recovery_only or self.args.node_shutdown_only) and hasattr(self, 'recovery_probe') and process:
+                    if (self.args.orderly_recovery_only or self.args.node_shutdown_only or self.args.fuse_counters_only) and hasattr(self, 'recovery_probe') and process:
                         self.recovery_probe.record_closure(self, process, 'final')
                     result['cleanup'] = 'PASS'
                 except Exception as error:
@@ -344,13 +357,15 @@ def main():
                       help='confirm 4KiB through one container, stop/restart the same local-file services, and freshly read it')
     mode.add_argument('--node-shutdown-only', action='store_true',
                       help='stop Node while a verified workspace is active, without public workspace Stop')
+    mode.add_argument('--fuse-counters-only', action='store_true',
+                      help='observe actual FUSE callback positive control and managed native bypass, omitting timing payload')
     parser.add_argument('--semantics-probe', type=Path, help='optional short mixed-path checks before normal stop')
     parser.add_argument('--semantics-groups', nargs='+',
                         choices=('locks', 'append', 'mmap_inotify', 'permissions_errno'),
                         default=['locks', 'append', 'mmap_inotify', 'permissions_errno'],
                         help='only run affected groups; omitted groups retain their original evidence')
     args = parser.parse_args()
-    if (args.source_rejection_only or args.control_capacity_only or args.orderly_recovery_only or args.node_shutdown_only) and args.semantics_probe:
+    if (args.source_rejection_only or args.control_capacity_only or args.orderly_recovery_only or args.node_shutdown_only or args.fuse_counters_only) and args.semantics_probe:
         parser.error('control-only modes cannot be combined with --semantics-probe')
     return Run(args).run()
 

@@ -44,3 +44,7 @@ performance pass, or production native-workspace qualification.
   experiment/reference pair keeps the result out of completed performance data.
   Existing semantic failures for locks, append offset, and watch propagation
   still block native workspace acceptance.
+
+## Subsequent instrumentation
+
+[First-party callback instrumentation](evidence/20261007-ownerfs-workspace-callback-source/README.md) is source-verified on a later version. New driver scrapes can separately record fuse_callback_counts; the original6d samples and NOT_OBSERVED wire counts remain unchanged. Callback counts cover the implemented first-party entries only. Actual same-Node FUSE-positive/native-bypass witness is still pending; it will not constitute a configuration OFF/ON timing or cache-residency claim.

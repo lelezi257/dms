@@ -51,6 +51,76 @@ const DIRECT_IO: u32 = consts::FOPEN_DIRECT_IO;
 const LOCK_WORKERS: usize = 4;
 const MAX_PENDING_LOCK_INTERRUPTS: usize = 4096;
 
+/// Implemented first-party FUSE callback entries, including failed requests.
+/// This is neither kernel wire opcode accounting nor application syscall accounting.
+#[derive(Clone)]
+pub struct FuseRequestMetrics {
+    requests: afs_metrics::IntCounterVec,
+}
+
+impl FuseRequestMetrics {
+    pub fn register(
+        registry: &afs_metrics::Registry,
+    ) -> std::result::Result<Self, afs_metrics::MetricsError> {
+        registry.get_or_register(|registry| {
+            let requests = afs_metrics::IntCounterVec::new(
+                afs_metrics::Opts::new("afs_fuse_callbacks_total", "Implemented FUSE callback entries received by filesystem and operation, including failures."),
+                &["filesystem", "operation"],
+            )?;
+            afs_metrics::register_collector(registry, &requests)?;
+            for filesystem in ["ownerfs", "dfs"] {
+                for operation in FUSE_CALLBACKS {
+                    requests.with_label_values(&[filesystem, operation]);
+                }
+            }
+            Ok(Self { requests })
+        })
+    }
+
+    fn record(&self, filesystem: &'static str, operation: &'static str) {
+        self.requests
+            .with_label_values(&[filesystem, operation])
+            .inc();
+    }
+}
+
+const FUSE_CALLBACKS: &[&str] = &[
+    "init",
+    "destroy",
+    "lookup",
+    "forget",
+    "getattr",
+    "statfs",
+    "setattr",
+    "readlink",
+    "mkdir",
+    "unlink",
+    "rmdir",
+    "symlink",
+    "rename",
+    "link",
+    "open",
+    "read",
+    "write",
+    "flush",
+    "release",
+    "fsync",
+    "opendir",
+    "readdir",
+    "releasedir",
+    "fsyncdir",
+    "create",
+    "getlk_with_options",
+    "setlk_with_options",
+    "interrupt",
+    "mknod",
+    "access",
+    "getxattr",
+    "listxattr",
+    "setxattr",
+    "removexattr",
+];
+
 static NEXT_INGRESS_SESSION: AtomicU64 = AtomicU64::new(1);
 
 /// Process-owned mount with an observable backend cleanup result. Plain drop
@@ -78,8 +148,25 @@ impl MountedFuse {
 
 /// 建立真正的内核 FUSE 挂载。一个 session 只绑定一个业务 Backend。
 pub fn mount_dfs(backend: Arc<dyn Backend>, path: &Path) -> Result<MountedFuse> {
+    mount_dfs_inner(backend, path, None)
+}
+
+pub fn mount_dfs_with_metrics(
+    backend: Arc<dyn Backend>,
+    path: &Path,
+    metrics: FuseRequestMetrics,
+) -> Result<MountedFuse> {
+    mount_dfs_inner(backend, path, Some(metrics))
+}
+
+fn mount_dfs_inner(
+    backend: Arc<dyn Backend>,
+    path: &Path,
+    metrics: Option<FuseRequestMetrics>,
+) -> Result<MountedFuse> {
     reject_existing_mount(path)?;
     let mut fs = AfsFuse::new(backend);
+    fs.requests = metrics.map(|metrics| (metrics, "dfs"));
     // Cached write-through sends each syscall write to the inode owner and
     // keeps this mount's pages coherent. Do not enable writeback or KEEP_CACHE:
     // ordinary opens must refresh after another mount's close barrier.
@@ -105,8 +192,27 @@ pub fn mount_dfs(backend: Arc<dyn Backend>, path: &Path) -> Result<MountedFuse> 
 /// OwnerFs 使用相同 FUSE 实现，并额外接入其本地 Home 缓存策略与 notifier。
 #[cfg(feature = "ownerfs")]
 pub fn mount_ownerfs(ownerfs: Arc<OwnerFs>, path: &Path) -> Result<MountedFuse> {
+    mount_ownerfs_inner(ownerfs, path, None)
+}
+
+#[cfg(feature = "ownerfs")]
+pub fn mount_ownerfs_with_metrics(
+    ownerfs: Arc<OwnerFs>,
+    path: &Path,
+    metrics: FuseRequestMetrics,
+) -> Result<MountedFuse> {
+    mount_ownerfs_inner(ownerfs, path, Some(metrics))
+}
+
+#[cfg(feature = "ownerfs")]
+fn mount_ownerfs_inner(
+    ownerfs: Arc<OwnerFs>,
+    path: &Path,
+    metrics: Option<FuseRequestMetrics>,
+) -> Result<MountedFuse> {
     reject_existing_mount(path)?;
     let mut fs = AfsFuse::new(ownerfs.clone());
+    fs.requests = metrics.map(|metrics| (metrics, "ownerfs"));
     fs.ownerfs = Some(ownerfs.clone());
     let cleanup_error = fs.cleanup_error.clone();
     let session = fuser::spawn_mount2(
@@ -402,6 +508,7 @@ impl PendingLockRegistry {
 }
 
 pub struct AfsFuse {
+    requests: Option<(FuseRequestMetrics, &'static str)>,
     backend: Arc<dyn Backend>,
     cached_io: bool,
     state: Arc<Mutex<FuseState>>,
@@ -422,6 +529,7 @@ impl AfsFuse {
     fn new(backend: Arc<dyn Backend>) -> Self {
         let state = Arc::new(Mutex::new(FuseState::new(backend.root_inode())));
         Self {
+            requests: None,
             backend,
             cached_io: false,
             state,
@@ -435,6 +543,12 @@ impl AfsFuse {
             cleanup_error: Arc::new(Mutex::new(None)),
             #[cfg(feature = "ownerfs")]
             ownerfs: None,
+        }
+    }
+
+    fn record_request(&self, operation: &'static str) {
+        if let Some((metrics, filesystem)) = &self.requests {
+            metrics.record(filesystem, operation);
         }
     }
 
@@ -558,6 +672,7 @@ impl Drop for AfsFuse {
 
 impl Filesystem for AfsFuse {
     fn init(&mut self, _: &Request<'_>, config: &mut KernelConfig) -> std::result::Result<(), i32> {
+        self.record_request("init");
         let _ = config.set_max_write(1024 * 1024);
         // Linux otherwise serializes LOOKUPs in one directory even when our
         // FUSE receive thread dispatches them to independent workers.
@@ -578,10 +693,12 @@ impl Filesystem for AfsFuse {
     }
 
     fn destroy(&mut self) {
+        self.record_request("destroy");
         self.finish_callbacks();
     }
 
     fn lookup(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
+        self.record_request("lookup");
         let Ok(parent_inode) = self.backend_inode(parent) else {
             reply.error(libc::ESTALE);
             return;
@@ -636,10 +753,12 @@ impl Filesystem for AfsFuse {
     }
 
     fn forget(&mut self, _: &Request<'_>, ino: u64, nlookup: u64) {
+        self.record_request("forget");
         self.state.lock().unwrap().forget(ino, nlookup);
     }
 
     fn getattr(&mut self, req: &Request<'_>, ino: u64, fh: Option<u64>, reply: ReplyAttr) {
+        self.record_request("getattr");
         let inline_local_read = fh.is_some_and(|fh| {
             self.state
                 .lock()
@@ -694,6 +813,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn statfs(&mut self, req: &Request<'_>, ino: u64, reply: ReplyStatfs) {
+        self.record_request("statfs");
         let Ok(inode) = self.backend_inode(ino) else {
             reply.error(libc::ESTALE);
             return;
@@ -737,6 +857,7 @@ impl Filesystem for AfsFuse {
         kill_suidgid: bool,
         reply: ReplyAttr,
     ) {
+        self.record_request("setattr");
         let inline_local_read = fh.is_some_and(|fh| {
             self.state
                 .lock()
@@ -792,6 +913,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn readlink(&mut self, req: &Request<'_>, ino: u64, reply: ReplyData) {
+        self.record_request("readlink");
         let result = self.backend_inode(ino).and_then(|inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
@@ -815,6 +937,7 @@ impl Filesystem for AfsFuse {
         umask: u32,
         reply: ReplyEntry,
     ) {
+        self.record_request("mkdir");
         let result = self.backend_inode(parent).and_then(|parent_inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
@@ -832,6 +955,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn unlink(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+        self.record_request("unlink");
         let result = self.backend_inode(parent).and_then(|parent_inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
@@ -843,6 +967,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn rmdir(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+        self.record_request("rmdir");
         let result = self.backend_inode(parent).and_then(|parent_inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
@@ -861,6 +986,7 @@ impl Filesystem for AfsFuse {
         target: &Path,
         reply: ReplyEntry,
     ) {
+        self.record_request("symlink");
         let result = self.backend_inode(parent).and_then(|parent_inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
@@ -892,6 +1018,7 @@ impl Filesystem for AfsFuse {
         flags: u32,
         reply: ReplyEmpty,
     ) {
+        self.record_request("rename");
         afs_logging::debug!(
             "fuse.rename";
             "parent" => parent,
@@ -926,6 +1053,7 @@ impl Filesystem for AfsFuse {
         newname: &OsStr,
         reply: ReplyEntry,
     ) {
+        self.record_request("link");
         let result = self.backend_inode(ino).and_then(|inode| {
             let parent = self.backend_inode(newparent)?;
             Ok(self.backend.as_ref()).and_then(|backend| {
@@ -944,6 +1072,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn open(&mut self, req: &Request<'_>, ino: u64, flags: i32, open_flags: u32, reply: ReplyOpen) {
+        self.record_request("open");
         let Ok(inode) = self.backend_inode(ino) else {
             reply.error(libc::ESTALE);
             return;
@@ -1028,6 +1157,7 @@ impl Filesystem for AfsFuse {
         _lock_owner: Option<u64>,
         reply: ReplyData,
     ) {
+        self.record_request("read");
         let inline_local_read = self
             .state
             .lock()
@@ -1076,6 +1206,7 @@ impl Filesystem for AfsFuse {
         _lock_owner: Option<u64>,
         reply: ReplyWrite,
     ) {
+        self.record_request("write");
         let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
@@ -1104,6 +1235,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn flush(&mut self, req: &Request<'_>, ino: u64, fh: u64, lock_owner: u64, reply: ReplyEmpty) {
+        self.record_request("flush");
         let inline_local_read = self
             .state
             .lock()
@@ -1153,6 +1285,7 @@ impl Filesystem for AfsFuse {
         _flush: bool,
         reply: ReplyEmpty,
     ) {
+        self.record_request("release");
         let inline_local_read = self
             .state
             .lock()
@@ -1192,6 +1325,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn fsync(&mut self, req: &Request<'_>, ino: u64, fh: u64, datasync: bool, reply: ReplyEmpty) {
+        self.record_request("fsync");
         let inline_local_read = self
             .state
             .lock()
@@ -1221,6 +1355,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn opendir(&mut self, req: &Request<'_>, ino: u64, _flags: i32, reply: ReplyOpen) {
+        self.record_request("opendir");
         let node = self.state.lock().unwrap().node(ino);
         match node {
             Some(FuseNode::Root(_)) | Some(FuseNode::Backend(_)) => {
@@ -1249,6 +1384,7 @@ impl Filesystem for AfsFuse {
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
+        self.record_request("readdir");
         let node = self.state.lock().unwrap().node(ino);
         match node {
             Some(FuseNode::Root(_)) | Some(FuseNode::Backend(_)) => {
@@ -1281,6 +1417,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn releasedir(&mut self, req: &Request<'_>, ino: u64, fh: u64, _flags: i32, reply: ReplyEmpty) {
+        self.record_request("releasedir");
         let directory = self.state.lock().unwrap().remove_directory_handle(fh);
         let result = directory.ok_or(libc::ESTALE).and_then(|directory| {
             self.validate_handle_inode(ino)?;
@@ -1301,6 +1438,7 @@ impl Filesystem for AfsFuse {
         datasync: bool,
         reply: ReplyEmpty,
     ) {
+        self.record_request("fsyncdir");
         let directory = self.state.lock().unwrap().directory_handle(fh);
         let result = directory.ok_or(libc::ESTALE).and_then(|directory| {
             self.validate_handle_inode(ino)?;
@@ -1328,6 +1466,7 @@ impl Filesystem for AfsFuse {
         open_flags: u32,
         reply: ReplyCreate,
     ) {
+        self.record_request("create");
         afs_logging::info!("fuse.create"; "parent" => parent, "name" => name.to_string_lossy().into_owned());
         let options = OpenOptions {
             kill_suidgid: open_flags & consts::FUSE_OPEN_KILL_SUIDGID != 0,
@@ -1388,6 +1527,7 @@ impl Filesystem for AfsFuse {
         options: LockOptions,
         reply: ReplyLock,
     ) {
+        self.record_request("getlk_with_options");
         let backend = self.backend.clone();
         let state = self.state.clone();
         let file_handle_inodes = self.file_handle_inodes.clone();
@@ -1427,6 +1567,7 @@ impl Filesystem for AfsFuse {
         options: LockOptions,
         reply: ReplyEmpty,
     ) {
+        self.record_request("setlk_with_options");
         let owner = self.file_lock_owner(lock_owner);
         let unique = req.unique();
         let waiter = sleep.then(|| self.lock_waiter_id(unique));
@@ -1484,6 +1625,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn interrupt(&mut self, _: &Request<'_>, unique: u64, reply: ReplyEmpty) {
+        self.record_request("interrupt");
         let Some(waiter) = self.pending_locks.interrupt(unique) else {
             reply.error(libc::EAGAIN);
             return;
@@ -1504,6 +1646,7 @@ impl Filesystem for AfsFuse {
         rdev: u32,
         reply: ReplyEntry,
     ) {
+        self.record_request("mknod");
         let raw_kind = mode & libc::S_IFMT;
         let context = Self::metadata_context(req, umask);
         let permissions = mode & !libc::S_IFMT;
@@ -1574,6 +1717,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn access(&mut self, _: &Request<'_>, _: u64, _: i32, reply: ReplyEmpty) {
+        self.record_request("access");
         reply.error(libc::ENOSYS);
     }
 
@@ -1585,6 +1729,7 @@ impl Filesystem for AfsFuse {
         size: u32,
         reply: ReplyXattr,
     ) {
+        self.record_request("getxattr");
         let Ok(inode) = self.backend_inode(ino) else {
             reply.error(libc::ESTALE);
             return;
@@ -1598,6 +1743,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn listxattr(&mut self, req: &Request<'_>, ino: u64, size: u32, reply: ReplyXattr) {
+        self.record_request("listxattr");
         let Ok(inode) = self.backend_inode(ino) else {
             reply.error(libc::ESTALE);
             return;
@@ -1619,6 +1765,7 @@ impl Filesystem for AfsFuse {
         position: u32,
         reply: ReplyEmpty,
     ) {
+        self.record_request("setxattr");
         if let Err(error) = validate_xattr_set(flags, position) {
             reply.error(error);
             return;
@@ -1642,6 +1789,7 @@ impl Filesystem for AfsFuse {
     }
 
     fn removexattr(&mut self, req: &Request<'_>, ino: u64, name: &OsStr, reply: ReplyEmpty) {
+        self.record_request("removexattr");
         let Ok(inode) = self.backend_inode(ino) else {
             reply.error(libc::ESTALE);
             return;
@@ -1975,6 +2123,48 @@ fn status_groups(status: &str, uid: u32, gid: u32) -> Option<Vec<u32>> {
 
 #[cfg(test)]
 mod dispatch_tests {
+    #[test]
+    fn fuse_callback_metrics_share_registry_without_reset_or_cross_registry_leak() {
+        let registry = afs_metrics::Registry::new();
+        let first = super::FuseRequestMetrics::register(&registry).unwrap();
+        let same = super::FuseRequestMetrics::register(&registry.clone()).unwrap();
+        let other_registry = afs_metrics::Registry::new();
+        let other = super::FuseRequestMetrics::register(&other_registry).unwrap();
+        first.record("ownerfs", "read");
+        same.record("ownerfs", "read");
+        first.record("dfs", "read");
+        assert_eq!(
+            first.requests.with_label_values(&["ownerfs", "read"]).get(),
+            2
+        );
+        assert_eq!(
+            other.requests.with_label_values(&["ownerfs", "read"]).get(),
+            0
+        );
+        let text = afs_metrics::encode_text(&registry).unwrap();
+        assert!(
+            text.contains("afs_fuse_callbacks_total{filesystem=\"ownerfs\",operation=\"read\"} 2")
+        );
+        assert!(text.contains("afs_fuse_callbacks_total{filesystem=\"dfs\",operation=\"read\"} 1"));
+        assert_eq!(text, afs_metrics::encode_text(&registry).unwrap());
+        assert_eq!(
+            first.requests.with_label_values(&["ownerfs", "read"]).get(),
+            2
+        );
+    }
+
+    #[test]
+    fn fuse_callback_metrics_export_zeros_for_every_implemented_operation() {
+        let registry = afs_metrics::Registry::new();
+        super::FuseRequestMetrics::register(&registry).unwrap();
+        let text = afs_metrics::encode_text(&registry).unwrap();
+        for filesystem in ["ownerfs", "dfs"] {
+            for operation in super::FUSE_CALLBACKS {
+                assert!(text.contains(&format!("afs_fuse_callbacks_total{{filesystem=\"{filesystem}\",operation=\"{operation}\"}} 0")));
+            }
+        }
+    }
+
     #[test]
     fn metadata_groups_require_matching_kernel_identity() {
         let status = "Uid:\t1000 1000 1000 1000\nGid:\t100 100 100 100\nGroups:\t200 100 200\n";

@@ -1,0 +1,9 @@
+test_counter_mode_admission_is_not_self_excluding (test_fuse_callback_counts.CounterGuards.test_counter_mode_admission_is_not_self_excluding) ... ok
+test_delta_rejects_reset_missing_series_and_invalid_counts (test_fuse_callback_counts.CounterGuards.test_delta_rejects_reset_missing_series_and_invalid_counts) ... ok
+test_integer_counts_preserve_precision_and_label_order (test_fuse_callback_counts.CounterGuards.test_integer_counts_preserve_precision_and_label_order) ... ok
+test_missing_foreign_fraction_negative_duplicate_not_zero (test_fuse_callback_counts.CounterGuards.test_missing_foreign_fraction_negative_duplicate_not_zero) ... ok
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.007s
+
+OK

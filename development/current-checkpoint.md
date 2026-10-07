@@ -1,3 +1,5 @@
+**当前源码小项（2026-10-07，事实）：** mainea73174基底/157-map58a71572，新增第一方FUSE callback指标，34实现回调入口计数、Node共享Registry接线；不改第三方、缓存/TTL/I/O/权限/生命周期。Linux5受影响门禁含新release构建、14FUSE dispatch测试及19Python工具测试PASS，新工具自互斥首FAIL保留。尚无新ELF运行计数/性能结论，下一仅实际短请求见证；原6d性能和d82关闭证据保留自身身份。G1历史8/8、G2计数/defaultOFF不变。 [源码版本与证据](evidence/20261007-ownerfs-workspace-callback-source/README.md)。
+
 **当前运行子项通过（2026-10-07，事实）：** main产品d82cc7d/157编译输入未变，预构建ELF两次打包字节一致；现有官方runc VM里workspace仍FinalVerified时直接停止Node，无public workspace Stop。43驱动/19独立检查通过，Node/Meta实际wait0及四服务/监督PID、容器消失，FUSE/control正常闭合，旧安装/保护身份不变。21项Linux工具测试通过；没有Rust/第三方改动。G1历史8/8、G2计数/defaultOFF保持，不等同完整ON/性能达标。下一回workspace核心性能，复用已有摸底，保留宿主独立开关/通用撤权及混合语义未完成项。 [版本及证据](evidence/20261007-ownerfs-bind-active-node-stop/README.md)。
 
 **以下记录保留原时点/原版本。**

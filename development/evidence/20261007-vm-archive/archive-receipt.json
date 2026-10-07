@@ -1,0 +1,45 @@
+{
+  "status": "ARCHIVED_AND_FULL_MEMBER_CHECKED_NOT_REMOVED",
+  "vm": "afs-build",
+  "source_base": "/home/lzc.guest/afs-build",
+  "roots": [
+    "evidence",
+    "artifacts",
+    "logs"
+  ],
+  "host_archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/vm-archive-20261007-r1/afs-build-history.tar.zst",
+  "archive_bytes": 10194701840,
+  "archive_sha256": "4e90f6afb097e4dea48ec744fafa50e72f06835cf9fc3f288a8ac7119b2311ee",
+  "entries_checked": 11852,
+  "regular_files": 10661,
+  "logical_file_bytes": 46594911687,
+  "du_combined_allocated_bytes": 40430387200,
+  "duplicate_path_bytes": 8992113507,
+  "duplicate_path_warning": "Includes hardlinks; not a physical reclaimable-byte estimate",
+  "source_changed_entries": 0,
+  "archive_mismatches": 0,
+  "verified_fields": [
+    "path",
+    "kind",
+    "mode",
+    "uid",
+    "gid",
+    "mtime_ns",
+    "symlink_target",
+    "regular_file_bytes",
+    "regular_file_sha256"
+  ],
+  "metadata_not_independently_checked": [
+    "ACL",
+    "extended_attributes"
+  ],
+  "pipeline_exits": {
+    "archive": 0,
+    "decode": 0,
+    "member_verify": 0
+  },
+  "source_originals_retained": true,
+  "guest_space_freed_bytes": 0,
+  "source_manifest_sha256": "6ccfa8551f2fdd89688039c96bdf0ad1426cd34b1ae1663a9549328be4f98409",
+  "archive_manifest_sha256": "ceba306b362f4df265a53675522b556e47ce456229374386281bbfed2e6801b0"
+}

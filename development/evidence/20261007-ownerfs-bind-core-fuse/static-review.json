@@ -1,0 +1,19 @@
+{
+  "status": "APPROVE",
+  "reviewer": "native_lock_review",
+  "scope": "Independent plan and final static test review, no edits/VM/build/tests",
+  "file": "src/node/vfs/ownerfs/native_home_fuse_fixture.rs",
+  "sha256": "c9b3976473e0f4361e161ba5bc2ad5555cc18c870ff8dcd29e0be150f172e7ea",
+  "historical_prefix": {
+    "bytes": 6442,
+    "sha256": "2b7ad4414fc842d03cf15b80108d3abb6c9f5e1a83ca375eb01393dadda8e976",
+    "unchanged": true
+  },
+  "findings": [
+    "Real FUSE/Home authority/core path; retained FUSE directory produces fresh open/read/close both directions.",
+    "Child chdir success before READY; bounded readiness/release and actual wait success; owns only its child handle.",
+    "EBUSY retains claim plus independent observed mount; normal detach restores original FUSE directory and exact outer mount ID.",
+    "Drop held descriptors; explicit outer umount2 flags0 success before join and no-mount/delete; failure retains data and forgets session to avoid lazy fallback."
+  ],
+  "limitations": "Private namespace + fake test Meta; not standalone Node switch, full ON, performance or general revoke/drain."
+}

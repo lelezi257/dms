@@ -1,0 +1,9 @@
+{
+  "executable": "/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2",
+  "sha256": "0150c33698133f1f3c41bd1c8d1d729de346a320d7efdda25de7927d96e9d0c8",
+  "bytes": 27469240,
+  "ldd_returncode": 0,
+  "ldd_stdout": "\tlinux-vdso.so.1 (0x0000ed210887d000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000ed2107560000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ed2107520000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ed2107470000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ed21072b0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000ed2108840000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000ed2107200000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000ed21071b0000)\n",
+  "ldd_stderr": "",
+  "test_filter": "node::vfs::ownerfs::native_home_tests::native_home_workspace_bind_mount_core_covers_real_fuse_root_and_detaches_busy"
+}

@@ -1,0 +1,84 @@
+{
+  "status": "PASS",
+  "checks": {
+    "platform": {
+      "pass": true,
+      "value": [
+        "Linux",
+        "aarch64"
+      ]
+    },
+    "fuse_device": {
+      "pass": true,
+      "mode": "0o20666"
+    },
+    "dependencies": {
+      "sh": "/usr/bin/sh",
+      "unshare": "/usr/bin/unshare",
+      "timeout": "/usr/bin/timeout",
+      "fusermount3": "/usr/bin/fusermount3",
+      "sudo": "/usr/bin/sudo",
+      "python3": "/usr/bin/python3",
+      "sha256sum": "/usr/bin/sha256sum"
+    },
+    "cargo": {
+      "path": "/home/lzc.guest/.cargo/bin/cargo",
+      "pass": true
+    },
+    "private_namespace": {
+      "pass": true,
+      "argv": [
+        "sudo",
+        "-n",
+        "unshare",
+        "--mount",
+        "--propagation",
+        "private",
+        "true"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "storage": {
+      "pass": true,
+      "value": "ext4   /dev/vda1 /",
+      "free_bytes": 40331993088,
+      "fixture_budget_bytes": 67108864,
+      "free_floor_bytes": 1073741824
+    },
+    "build_idle": {
+      "pass": true
+    }
+  },
+  "protected_processes": {},
+  "protected_mountinfo": [
+    "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+    "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+    "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4004800k,nr_inodes=1001200,mode=755,inode64",
+    "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+    "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811360k,mode=755,inode64",
+    "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+    "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+    "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+    "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+    "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+    "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+    "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+    "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+    "39 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=4829",
+    "40 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:15 - hugetlbfs hugetlbfs rw,pagesize=2M",
+    "41 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:16 - tracefs tracefs rw",
+    "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:17 - debugfs debugfs rw",
+    "43 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:18 - mqueue mqueue rw",
+    "44 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+    "45 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+    "47 32 0:37 / /workspace/dms ro,relatime shared:30 - virtiofs lima-a7a710dc212e898d ro",
+    "49 32 259:0 / /boot rw,relatime shared:46 - ext4 /dev/vda16 rw",
+    "51 49 253:15 / /boot/efi rw,relatime shared:48 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+    "225 39 0:43 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:50 - binfmt_misc binfmt_misc rw",
+    "57 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:250 - tmpfs tmpfs rw,size=811356k,nr_inodes=202839,mode=700,uid=501,gid=1000,inode64",
+    "60 32 253:16 / /mnt/lima-cidata ro,relatime shared:184 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8"
+  ],
+  "source_base": "165d13f07b84092f5da5c3ad44bed1016b496378"
+}

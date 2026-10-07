@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "compiler_inputs": 157,
+  "map_sha256": "196a4177141fb837d3e5b155438e894ab9d632bfceb97a9ea3ab20bf2ce57c6d",
+  "mismatched_inputs": [],
+  "links_checked": 21,
+  "missing_links": [],
+  "third_party_diff_empty": true,
+  "handoff_sha256": "ad5e9ce000b662800511263b185e4fc1a2619a6539f06f335dc14c88c9f3d441"
+}

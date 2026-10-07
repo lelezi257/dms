@@ -1,0 +1,237 @@
+{
+  "Linux-arm64-root": {
+    "pass": true,
+    "value": [
+      "Linux",
+      "aarch64",
+      0
+    ]
+  },
+  "fresh-owned-root": {
+    "pass": true,
+    "value": "/opt/afs-bind-node-startup-20261007-r1"
+  },
+  "dependencies": {
+    "pass": true,
+    "value": {
+      "bash": "/usr/bin/bash",
+      "openssl": "/usr/bin/openssl",
+      "findmnt": "/usr/bin/findmnt",
+      "fusermount3": "/usr/bin/fusermount3",
+      "curl": "/usr/bin/curl"
+    }
+  },
+  "FUSE-device": {
+    "pass": true,
+    "value": "/dev/fuse"
+  },
+  "command-1": {
+    "pass": true,
+    "value": {
+      "argv": [
+        "findmnt",
+        "-J",
+        "-T",
+        "/opt"
+      ],
+      "returncode": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    }
+  },
+  "ext4": {
+    "pass": true,
+    "value": "/opt"
+  },
+  "capacity": {
+    "pass": true,
+    "value": 40320520192
+  },
+  "ports-free": {
+    "pass": true,
+    "value": [
+      24800,
+      24801,
+      24900,
+      24901
+    ]
+  },
+  "source-inputs": {
+    "pass": true,
+    "value": "196a4177141fb837d3e5b155438e894ab9d632bfceb97a9ea3ab20bf2ce57c6d"
+  },
+  "fresh-release-build": {
+    "pass": true,
+    "value": {
+      "source_base": "df56e4850a62ccca712aa495d8bba51d148f9900",
+      "map_sha256": "196a4177141fb837d3e5b155438e894ab9d632bfceb97a9ea3ab20bf2ce57c6d",
+      "status": "PASS",
+      "selected_gates": [
+        "fmt",
+        "physical-build",
+        "owner-only",
+        "dfs-only",
+        "clippy",
+        "build"
+      ],
+      "commands": [
+        {
+          "label": "fmt",
+          "returncode": 0,
+          "elapsed_seconds": 1.0019214850035496,
+          "minimum_free_bytes": 40327102464,
+          "stop_reason": null
+        },
+        {
+          "label": "physical-build",
+          "returncode": 0,
+          "elapsed_seconds": 63.093589984986465,
+          "minimum_free_bytes": 40281505792,
+          "stop_reason": null
+        },
+        {
+          "label": "owner-only",
+          "returncode": 0,
+          "elapsed_seconds": 4.009754743005033,
+          "minimum_free_bytes": 40325296128,
+          "stop_reason": null
+        },
+        {
+          "label": "dfs-only",
+          "returncode": 0,
+          "elapsed_seconds": 3.0110516409913544,
+          "minimum_free_bytes": 40325480448,
+          "stop_reason": null
+        },
+        {
+          "label": "clippy",
+          "returncode": 0,
+          "elapsed_seconds": 7.015568218994304,
+          "minimum_free_bytes": 40325341184,
+          "stop_reason": null
+        },
+        {
+          "label": "build",
+          "returncode": 0,
+          "elapsed_seconds": 71.06180496400339,
+          "minimum_free_bytes": 40306065408,
+          "stop_reason": null
+        }
+      ],
+      "inputs_unchanged": true,
+      "binaries": {
+        "afs-meta": {
+          "sha256": "f4d423fcced38cd0a6624b1104ff05c136974150d21590522a90a40e637aca0c",
+          "bytes": 15879736
+        },
+        "afs-node": {
+          "sha256": "de1d16895c062651aa9e9de375b9ac5bb5da5b52672a7d70093bebdd090bc9ee",
+          "bytes": 26022400
+        },
+        "afs-workspace-probe": {
+          "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+          "bytes": 560000
+        }
+      }
+    }
+  },
+  "meta-ELF": {
+    "pass": true,
+    "value": "f4d423fcced38cd0a6624b1104ff05c136974150d21590522a90a40e637aca0c"
+  },
+  "command-2": {
+    "pass": true,
+    "value": {
+      "argv": [
+        "ldd",
+        "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-meta"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000e6bc8b118000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000e6bc8a5e0000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000e6bc8a5a0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000e6bc8a4f0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000e6bc8a330000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000e6bc8b0d0000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000e6bc8a280000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000e6bc8a230000)\n",
+      "stderr": ""
+    }
+  },
+  "meta-libraries": {
+    "pass": true,
+    "value": "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-meta"
+  },
+  "node-ELF": {
+    "pass": true,
+    "value": "de1d16895c062651aa9e9de375b9ac5bb5da5b52672a7d70093bebdd090bc9ee"
+  },
+  "command-3": {
+    "pass": true,
+    "value": {
+      "argv": [
+        "ldd",
+        "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-node"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000fe6948f9c000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000fe6947da0000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000fe6947d60000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000fe6947cb0000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000fe6947af0000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000fe6948f50000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000fe6947a40000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000fe69479f0000)\n",
+      "stderr": ""
+    }
+  },
+  "node-libraries": {
+    "pass": true,
+    "value": "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-node"
+  },
+  "command-4": {
+    "pass": true,
+    "value": {
+      "argv": [
+        "bash",
+        "/workspace/dms/source/scripts/deploy/afs-trial-config",
+        "single",
+        "--backend",
+        "memory",
+        "--config-dir",
+        "/opt/afs-bind-node-startup-20261007-r1/etc",
+        "--state-dir",
+        "/opt/afs-bind-node-startup-20261007-r1/state",
+        "--run-dir",
+        "/opt/afs-bind-node-startup-20261007-r1/run",
+        "--mount-root",
+        "/opt/afs-bind-node-startup-20261007-r1/mount",
+        "--meta-grpc-port",
+        "24800",
+        "--meta-rest-port",
+        "24801",
+        "--node-grpc-port",
+        "24900",
+        "--node-rest-port",
+        "24901"
+      ],
+      "returncode": 0,
+      "stdout": "wrote single-node memory trial config: /opt/afs-bind-node-startup-20261007-r1/etc\nmemory backend loses namespace state when afs-meta exits\n",
+      "stderr": ""
+    }
+  },
+  "command-5": {
+    "pass": true,
+    "value": {
+      "argv": [
+        "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-node",
+        "--config",
+        "/opt/afs-bind-node-startup-20261007-r1/etc/node.toml",
+        "--print-config"
+      ],
+      "returncode": 0,
+      "stdout": "{\n  \"id\": \"node-a\",\n  \"grpc_listen\": \"127.0.0.1:24900\",\n  \"rest_listen\": \"127.0.0.1:24901\",\n  \"meta_endpoint\": \"https://127.0.0.1:24800\",\n  \"etcd_endpoint\": null,\n  \"redis_endpoint\": null,\n  \"meta_store\": \"etcd\",\n  \"allow_volatile_meta\": true,\n  \"peer_endpoint\": null,\n  \"advertise_endpoint\": \"https://127.0.0.1:24900\",\n  \"tls_ca_certificate\": \"/opt/afs-bind-node-startup-20261007-r1/etc/tls/ca.pem\",\n  \"tls_identity_certificate\": \"/opt/afs-bind-node-startup-20261007-r1/etc/tls/node-a.pem\",\n  \"tls_identity_private_key\": \"/opt/afs-bind-node-startup-20261007-r1/etc/tls/node-a-key.pem\",\n  \"tls_server_name\": \"afs-meta\",\n  \"trusted_node_certs\": {\n    \"node-a\": \"/opt/afs-bind-node-startup-20261007-r1/etc/tls/node-a.pem\"\n  },\n  \"ownerfs\": true,\n  \"dfs\": false,\n  \"data_mode\": \"grpc\",\n  \"rdma_device\": null,\n  \"data_dir\": \"/opt/afs-bind-node-startup-20261007-r1/state/node\",\n  \"uds_path\": \"/opt/afs-bind-node-startup-20261007-r1/run/node.sock\",\n  \"ownerfs_mount\": \"/opt/afs-bind-node-startup-20261007-r1/mount/ownerfs\",\n  \"experimental_native_workspace\": true,\n  \"native_workspace\": {\n    \"control_dir\": \"/opt/afs-bind-node-startup-20261007-r1/control\",\n    \"runtime\": \"/opt/afs-bind-node-startup-20261007-r1/intentionally-absent-runc\",\n    \"rootfs\": \"/opt/afs-bind-node-startup-20261007-r1/rootfs\",\n    \"workload_uid\": 501,\n    \"workload_gid\": 501\n  },\n  \"dfs_mount\": null,\n  \"dfs_desired_copies\": 1,\n  \"dfs_sync_required_copies\": 1,\n  \"dfs_min_distinct_nodes\": 1,\n  \"dfs_min_distinct_failure_domains\": 1,\n  \"dfs_local_copy\": \"required\",\n  \"dfs_read_max_ops_per_batch\": 128,\n  \"dfs_read_max_inflight_bytes\": 8388608,\n  \"dfs_read_source_cache_ttl_ms\": 500,\n  \"timeout_ms\": 5000,\n  \"log_level\": \"info\",\n  \"trace_enabled\": false,\n  \"trace_endpoint\": \"http://127.0.0.1:4317\",\n  \"trace_sample_ratio\": 0.01\n}\n",
+      "stderr": ""
+    }
+  },
+  "configuration-valid-fault": {
+    "pass": true,
+    "value": {
+      "control_dir": "/opt/afs-bind-node-startup-20261007-r1/control",
+      "runtime": "/opt/afs-bind-node-startup-20261007-r1/intentionally-absent-runc",
+      "rootfs": "/opt/afs-bind-node-startup-20261007-r1/rootfs",
+      "workload_uid": 501,
+      "workload_gid": 501
+    }
+  },
+  "Node-original-admission-failure": {
+    "pass": false,
+    "value": "{\"msg\":\"Mounting /opt/afs-bind-node-startup-20261007-r1/mount/ownerfs\",\"level\":\"INFO\",\"ts\":\"2026-10-07T04:56:36.636467713Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\"}\n{\"msg\":\"services.stopped\",\"level\":\"INFO\",\"ts\":\"2026-10-07T04:56:36.649637849Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\"}\n{\"msg\":\"node.startup_services_failed\",\"level\":\"ERRO\",\"ts\":\"2026-10-07T04:56:36.649644183Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\",\"error\":\"native workspace startup failed after node services started\"}\n{\"msg\":\"node.shutdown_failed\",\"level\":\"ERRO\",\"ts\":\"2026-10-07T04:56:36.650085269Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\",\"error\":\"No such file or directory (os error 2)\"}\nError: Custom { kind: Other, error: \"No such file or directory (os error 2)\" }\n"
+  }
+}

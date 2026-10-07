@@ -1,0 +1,4 @@
+{
+  "returncode": 0,
+  "stdout": "{\"backend_health\":\"healthy\",\"backend_persistence\":\"volatile\",\"detail\":\"volatile backend health probe passed\",\"durability\":\"volatile\",\"id\":\"meta-ctl\",\"persistent_ready\":false,\"physical_power_loss_proven\":false,\"role\":\"meta\",\"scope\":\"foundation\",\"status\":\"ready\"}"
+}

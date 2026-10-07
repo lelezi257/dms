@@ -1,0 +1,309 @@
+{
+  "Linux-arm64-root": {
+    "pass": true,
+    "value": [
+      "Linux",
+      "aarch64",
+      0
+    ]
+  },
+  "fresh-owned-root": {
+    "pass": true,
+    "value": "/opt/afs-bind-node-startup-20261007-r2"
+  },
+  "dependencies": {
+    "pass": true,
+    "value": {
+      "bash": "/usr/bin/bash",
+      "openssl": "/usr/bin/openssl",
+      "findmnt": "/usr/bin/findmnt",
+      "fusermount3": "/usr/bin/fusermount3",
+      "curl": "/usr/bin/curl"
+    }
+  },
+  "FUSE-device": {
+    "pass": true,
+    "value": "/dev/fuse"
+  },
+  "command-1": {
+    "pass": true,
+    "value": {
+      "argv": [
+        "findmnt",
+        "-J",
+        "-T",
+        "/opt"
+      ],
+      "returncode": 0,
+      "stdout": "{\n   \"filesystems\": [\n      {\n         \"target\": \"/\",\n         \"source\": \"/dev/vda1\",\n         \"fstype\": \"ext4\",\n         \"options\": \"rw,relatime,discard,errors=remount-ro,commit=30\"\n      }\n   ]\n}\n",
+      "stderr": ""
+    }
+  },
+  "ext4": {
+    "pass": true,
+    "value": "/opt"
+  },
+  "capacity": {
+    "pass": true,
+    "value": 40318910464
+  },
+  "ports-free": {
+    "pass": true,
+    "value": [
+      24800,
+      24801,
+      24900,
+      24901
+    ]
+  },
+  "source-inputs": {
+    "pass": true,
+    "value": "196a4177141fb837d3e5b155438e894ab9d632bfceb97a9ea3ab20bf2ce57c6d"
+  },
+  "fresh-release-build": {
+    "pass": true,
+    "value": {
+      "source_base": "df56e4850a62ccca712aa495d8bba51d148f9900",
+      "map_sha256": "196a4177141fb837d3e5b155438e894ab9d632bfceb97a9ea3ab20bf2ce57c6d",
+      "status": "PASS",
+      "selected_gates": [
+        "fmt",
+        "physical-build",
+        "owner-only",
+        "dfs-only",
+        "clippy",
+        "build"
+      ],
+      "commands": [
+        {
+          "label": "fmt",
+          "returncode": 0,
+          "elapsed_seconds": 1.0019214850035496,
+          "minimum_free_bytes": 40327102464,
+          "stop_reason": null
+        },
+        {
+          "label": "physical-build",
+          "returncode": 0,
+          "elapsed_seconds": 63.093589984986465,
+          "minimum_free_bytes": 40281505792,
+          "stop_reason": null
+        },
+        {
+          "label": "owner-only",
+          "returncode": 0,
+          "elapsed_seconds": 4.009754743005033,
+          "minimum_free_bytes": 40325296128,
+          "stop_reason": null
+        },
+        {
+          "label": "dfs-only",
+          "returncode": 0,
+          "elapsed_seconds": 3.0110516409913544,
+          "minimum_free_bytes": 40325480448,
+          "stop_reason": null
+        },
+        {
+          "label": "clippy",
+          "returncode": 0,
+          "elapsed_seconds": 7.015568218994304,
+          "minimum_free_bytes": 40325341184,
+          "stop_reason": null
+        },
+        {
+          "label": "build",
+          "returncode": 0,
+          "elapsed_seconds": 71.06180496400339,
+          "minimum_free_bytes": 40306065408,
+          "stop_reason": null
+        }
+      ],
+      "inputs_unchanged": true,
+      "binaries": {
+        "afs-meta": {
+          "sha256": "f4d423fcced38cd0a6624b1104ff05c136974150d21590522a90a40e637aca0c",
+          "bytes": 15879736
+        },
+        "afs-node": {
+          "sha256": "de1d16895c062651aa9e9de375b9ac5bb5da5b52672a7d70093bebdd090bc9ee",
+          "bytes": 26022400
+        },
+        "afs-workspace-probe": {
+          "sha256": "c9c9fd1a3568c872fb975add7595df43f46016c674647ef48ac2103db979ddb7",
+          "bytes": 560000
+        }
+      }
+    }
+  },
+  "meta-ELF": {
+    "pass": true,
+    "value": "f4d423fcced38cd0a6624b1104ff05c136974150d21590522a90a40e637aca0c"
+  },
+  "command-2": {
+    "pass": true,
+    "value": {
+      "argv": [
+        "ldd",
+        "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-meta"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000f952b102d000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000f952b0500000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000f952b04c0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000f952b0410000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000f952b0250000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000f952b0ff0000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000f952b01a0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000f952b0150000)\n",
+      "stderr": ""
+    }
+  },
+  "meta-libraries": {
+    "pass": true,
+    "value": "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-meta"
+  },
+  "node-ELF": {
+    "pass": true,
+    "value": "de1d16895c062651aa9e9de375b9ac5bb5da5b52672a7d70093bebdd090bc9ee"
+  },
+  "command-3": {
+    "pass": true,
+    "value": {
+      "argv": [
+        "ldd",
+        "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-node"
+      ],
+      "returncode": 0,
+      "stdout": "\tlinux-vdso.so.1 (0x0000fcb43961b000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000fcb438420000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000fcb4383e0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000fcb438330000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000fcb438170000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000fcb4395d0000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000fcb4380c0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000fcb438070000)\n",
+      "stderr": ""
+    }
+  },
+  "node-libraries": {
+    "pass": true,
+    "value": "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-node"
+  },
+  "command-4": {
+    "pass": true,
+    "value": {
+      "argv": [
+        "bash",
+        "/workspace/dms/source/scripts/deploy/afs-trial-config",
+        "single",
+        "--backend",
+        "memory",
+        "--config-dir",
+        "/opt/afs-bind-node-startup-20261007-r2/etc",
+        "--state-dir",
+        "/opt/afs-bind-node-startup-20261007-r2/state",
+        "--run-dir",
+        "/opt/afs-bind-node-startup-20261007-r2/run",
+        "--mount-root",
+        "/opt/afs-bind-node-startup-20261007-r2/mount",
+        "--meta-grpc-port",
+        "24800",
+        "--meta-rest-port",
+        "24801",
+        "--node-grpc-port",
+        "24900",
+        "--node-rest-port",
+        "24901"
+      ],
+      "returncode": 0,
+      "stdout": "wrote single-node memory trial config: /opt/afs-bind-node-startup-20261007-r2/etc\nmemory backend loses namespace state when afs-meta exits\n",
+      "stderr": ""
+    }
+  },
+  "command-5": {
+    "pass": true,
+    "value": {
+      "argv": [
+        "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-node",
+        "--config",
+        "/opt/afs-bind-node-startup-20261007-r2/etc/node.toml",
+        "--print-config"
+      ],
+      "returncode": 0,
+      "stdout": "{\n  \"id\": \"node-a\",\n  \"grpc_listen\": \"127.0.0.1:24900\",\n  \"rest_listen\": \"127.0.0.1:24901\",\n  \"meta_endpoint\": \"https://127.0.0.1:24800\",\n  \"etcd_endpoint\": null,\n  \"redis_endpoint\": null,\n  \"meta_store\": \"etcd\",\n  \"allow_volatile_meta\": true,\n  \"peer_endpoint\": null,\n  \"advertise_endpoint\": \"https://127.0.0.1:24900\",\n  \"tls_ca_certificate\": \"/opt/afs-bind-node-startup-20261007-r2/etc/tls/ca.pem\",\n  \"tls_identity_certificate\": \"/opt/afs-bind-node-startup-20261007-r2/etc/tls/node-a.pem\",\n  \"tls_identity_private_key\": \"/opt/afs-bind-node-startup-20261007-r2/etc/tls/node-a-key.pem\",\n  \"tls_server_name\": \"afs-meta\",\n  \"trusted_node_certs\": {\n    \"node-a\": \"/opt/afs-bind-node-startup-20261007-r2/etc/tls/node-a.pem\"\n  },\n  \"ownerfs\": true,\n  \"dfs\": false,\n  \"data_mode\": \"grpc\",\n  \"rdma_device\": null,\n  \"data_dir\": \"/opt/afs-bind-node-startup-20261007-r2/state/node\",\n  \"uds_path\": \"/opt/afs-bind-node-startup-20261007-r2/run/node.sock\",\n  \"ownerfs_mount\": \"/opt/afs-bind-node-startup-20261007-r2/mount/ownerfs\",\n  \"experimental_native_workspace\": true,\n  \"native_workspace\": {\n    \"control_dir\": \"/opt/afs-bind-node-startup-20261007-r2/control\",\n    \"runtime\": \"/opt/afs-bind-node-startup-20261007-r2/intentionally-absent-runc\",\n    \"rootfs\": \"/opt/afs-bind-node-startup-20261007-r2/rootfs\",\n    \"workload_uid\": 501,\n    \"workload_gid\": 501\n  },\n  \"dfs_mount\": null,\n  \"dfs_desired_copies\": 1,\n  \"dfs_sync_required_copies\": 1,\n  \"dfs_min_distinct_nodes\": 1,\n  \"dfs_min_distinct_failure_domains\": 1,\n  \"dfs_local_copy\": \"required\",\n  \"dfs_read_max_ops_per_batch\": 128,\n  \"dfs_read_max_inflight_bytes\": 8388608,\n  \"dfs_read_source_cache_ttl_ms\": 500,\n  \"timeout_ms\": 5000,\n  \"log_level\": \"info\",\n  \"trace_enabled\": false,\n  \"trace_endpoint\": \"http://127.0.0.1:4317\",\n  \"trace_sample_ratio\": 0.01\n}\n",
+      "stderr": ""
+    }
+  },
+  "configuration-valid-fault": {
+    "pass": true,
+    "value": {
+      "control_dir": "/opt/afs-bind-node-startup-20261007-r2/control",
+      "runtime": "/opt/afs-bind-node-startup-20261007-r2/intentionally-absent-runc",
+      "rootfs": "/opt/afs-bind-node-startup-20261007-r2/rootfs",
+      "workload_uid": 501,
+      "workload_gid": 501
+    }
+  },
+  "Node-original-admission-failure": {
+    "pass": true,
+    "value": "{\"msg\":\"Mounting /opt/afs-bind-node-startup-20261007-r2/mount/ownerfs\",\"level\":\"INFO\",\"ts\":\"2026-10-07T04:58:08.475501655Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\"}\n{\"msg\":\"services.stopped\",\"level\":\"INFO\",\"ts\":\"2026-10-07T04:58:08.482594332Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\"}\n{\"msg\":\"node.startup_services_failed\",\"level\":\"ERRO\",\"ts\":\"2026-10-07T04:58:08.482600415Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\",\"error\":\"native workspace startup failed after node services started\"}\n{\"msg\":\"node.shutdown_failed\",\"level\":\"ERRO\",\"ts\":\"2026-10-07T04:58:08.48347788Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\",\"error\":\"No such file or directory (os error 2)\"}\nError: Custom { kind: Other, error: \"No such file or directory (os error 2)\" }\n"
+  },
+  "no-ready": {
+    "pass": true,
+    "value": "no node.ready event"
+  },
+  "observed-shutdown-chain": {
+    "pass": true,
+    "value": [
+      "{\"msg\":\"Mounting /opt/afs-bind-node-startup-20261007-r2/mount/ownerfs\",\"level\":\"INFO\",\"ts\":\"2026-10-07T04:58:08.475501655Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\"}",
+      "{\"msg\":\"services.stopped\",\"level\":\"INFO\",\"ts\":\"2026-10-07T04:58:08.482594332Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\"}",
+      "{\"msg\":\"node.startup_services_failed\",\"level\":\"ERRO\",\"ts\":\"2026-10-07T04:58:08.482600415Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\",\"error\":\"native workspace startup failed after node services started\"}",
+      "{\"msg\":\"node.shutdown_failed\",\"level\":\"ERRO\",\"ts\":\"2026-10-07T04:58:08.48347788Z\",\"instance\":\"node-a\",\"service_name\":\"afs-node\",\"error\":\"No such file or directory (os error 2)\"}",
+      "Error: Custom { kind: Other, error: \"No such file or directory (os error 2)\" }"
+    ]
+  },
+  "Local-API-socket-removed": {
+    "pass": true,
+    "value": "/opt/afs-bind-node-startup-20261007-r2/run/node.sock"
+  },
+  "controller-not-created": {
+    "pass": true,
+    "value": "admission before controller creation"
+  },
+  "Meta-normal-exit": {
+    "pass": true,
+    "value": 0
+  },
+  "mounts-and-protected-processes-unchanged": {
+    "pass": true,
+    "value": {
+      "mountinfo": [
+        "26 32 0:24 / /sys rw,nosuid,nodev,noexec,relatime shared:7 - sysfs sysfs rw",
+        "27 32 0:25 / /proc rw,nosuid,nodev,noexec,relatime shared:13 - proc proc rw",
+        "28 32 0:5 / /dev rw,nosuid,relatime shared:2 - devtmpfs udev rw,size=4004800k,nr_inodes=1001200,mode=755,inode64",
+        "29 28 0:26 / /dev/pts rw,nosuid,noexec,relatime shared:3 - devpts devpts rw,gid=5,mode=620,ptmxmode=000",
+        "30 32 0:27 / /run rw,nosuid,nodev,noexec,relatime shared:5 - tmpfs tmpfs rw,size=811360k,mode=755,inode64",
+        "31 26 0:28 / /sys/firmware/efi/efivars rw,nosuid,nodev,noexec,relatime shared:8 - efivarfs efivarfs rw",
+        "32 1 253:1 / / rw,relatime shared:1 - ext4 /dev/vda1 rw,discard,errors=remount-ro,commit=30",
+        "33 26 0:6 / /sys/kernel/security rw,nosuid,nodev,noexec,relatime shared:9 - securityfs securityfs rw",
+        "34 28 0:29 / /dev/shm rw,nosuid,nodev shared:4 - tmpfs tmpfs rw,inode64",
+        "35 30 0:30 / /run/lock rw,nosuid,nodev,noexec,relatime shared:6 - tmpfs tmpfs rw,size=5120k,inode64",
+        "36 26 0:31 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime shared:10 - cgroup2 cgroup2 rw,nsdelegate,memory_recursiveprot",
+        "37 26 0:32 / /sys/fs/pstore rw,nosuid,nodev,noexec,relatime shared:11 - pstore pstore rw",
+        "38 26 0:33 / /sys/fs/bpf rw,nosuid,nodev,noexec,relatime shared:12 - bpf bpf rw,mode=700",
+        "39 27 0:34 / /proc/sys/fs/binfmt_misc rw,relatime shared:14 - autofs systemd-1 rw,fd=32,pgrp=1,timeout=0,minproto=5,maxproto=5,direct,pipe_ino=4829",
+        "40 28 0:35 / /dev/hugepages rw,nosuid,nodev,relatime shared:15 - hugetlbfs hugetlbfs rw,pagesize=2M",
+        "41 26 0:12 / /sys/kernel/tracing rw,nosuid,nodev,noexec,relatime shared:16 - tracefs tracefs rw",
+        "42 26 0:7 / /sys/kernel/debug rw,nosuid,nodev,noexec,relatime shared:17 - debugfs debugfs rw",
+        "43 28 0:22 / /dev/mqueue rw,nosuid,nodev,noexec,relatime shared:18 - mqueue mqueue rw",
+        "44 26 0:36 / /sys/fs/fuse/connections rw,nosuid,nodev,noexec,relatime shared:19 - fusectl fusectl rw",
+        "45 26 0:23 / /sys/kernel/config rw,nosuid,nodev,noexec,relatime shared:20 - configfs configfs rw",
+        "47 32 0:37 / /workspace/dms ro,relatime shared:30 - virtiofs lima-a7a710dc212e898d ro",
+        "49 32 259:0 / /boot rw,relatime shared:46 - ext4 /dev/vda16 rw",
+        "51 49 253:15 / /boot/efi rw,relatime shared:48 - vfat /dev/vda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro",
+        "225 39 0:43 / /proc/sys/fs/binfmt_misc rw,nosuid,nodev,noexec,relatime shared:50 - binfmt_misc binfmt_misc rw",
+        "57 30 0:49 / /run/user/501 rw,nosuid,nodev,relatime shared:250 - tmpfs tmpfs rw,size=811356k,nr_inodes=202839,mode=700,uid=501,gid=1000,inode64",
+        "60 32 253:16 / /mnt/lima-cidata ro,relatime shared:184 - iso9660 /dev/vdb ro,nojoliet,overriderockperm,check=s,map=n,blocksize=2048,uid=0,dmode=700,fmode=700,iocharset=utf8"
+      ],
+      "processes": {}
+    }
+  },
+  "source-still-fixed": {
+    "pass": true,
+    "value": "196a4177141fb837d3e5b155438e894ab9d632bfceb97a9ea3ab20bf2ce57c6d"
+  },
+  "owned-budget-and-free-floor": {
+    "pass": true,
+    "value": {
+      "allocated_bytes": 36864,
+      "budget_bytes": 268435456,
+      "free_bytes": 40318746624
+    }
+  }
+}

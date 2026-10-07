@@ -1,0 +1,10 @@
+{
+  "argv": [
+    "/var/tmp/afs-e2e-release-20261006-r1/target/release/afs-meta",
+    "--config",
+    "/opt/afs-bind-node-startup-20261007-r2/etc/meta.toml"
+  ],
+  "pid": 118791,
+  "exe_sha256": "f4d423fcced38cd0a6624b1104ff05c136974150d21590522a90a40e637aca0c",
+  "starttick": "12745379"
+}

@@ -1685,6 +1685,8 @@ async fn run_node(
         Ok(())
     });
     #[cfg(feature = "ownerfs")]
+    let mut native_workspace_startup_error = None;
+    #[cfg(feature = "ownerfs")]
     if cfg.experimental_native_workspace {
         let owner = state
             .ownerfs
@@ -1698,27 +1700,24 @@ async fn run_node(
             .native_workspace
             .clone()
             .expect("native config requires settings");
-        let worker = tokio::task::spawn_blocking(move || {
+        let startup = tokio::task::spawn_blocking(move || {
             native_workspace::NativeWorkspace::start(owner, mount, native)
         })
-        .await??;
-        let stop = services.stop.subscribe();
-        services.spawn(async move {
-            let shutdown = cancelled(stop);
-            tokio::pin!(shutdown);
-            let mut tick = tokio::time::interval(Duration::from_millis(100));
-            loop {
-                tokio::select! {
-                    _ = &mut shutdown => break,
-                    _ = tick.tick() => if worker.is_finished() { break; },
-                }
-            }
-            tokio::task::spawn_blocking(move || worker.shutdown()).await??;
-            Ok(())
-        });
+        .await;
+        native_workspace_startup_error = register_native_workspace_startup(&mut services, startup);
     }
-    afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"dfs"=>cfg.dfs);
-    let mut shutdown_error = services.run_with_shutdown(on_shutdown).await.err();
+    #[cfg(feature = "ownerfs")]
+    let mut shutdown_error = if let Some(error) = native_workspace_startup_error {
+        Some(drain_started_services(services, on_shutdown, error).await)
+    } else {
+        afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"dfs"=>cfg.dfs);
+        services.run_with_shutdown(on_shutdown).await.err()
+    };
+    #[cfg(not(feature = "ownerfs"))]
+    let mut shutdown_error = {
+        afs_logging::info!("node.ready";"grpc"=>cfg.grpc_listen.to_string(),"rest"=>cfg.rest_listen.to_string(),"uds"=>cfg.uds_path.display().to_string(),"ownerfs"=>cfg.ownerfs,"dfs"=>cfg.dfs);
+        services.run_with_shutdown(on_shutdown).await.err()
+    };
     // Stop FUSE admission and observe its thread cleanup before the final dirty drain.
     // Dropping BackgroundSession alone detaches the thread and cannot prove this boundary.
     #[cfg(feature = "dfs")]
@@ -1818,6 +1817,68 @@ async fn run_node(
     Ok(())
 }
 
+#[cfg(feature = "ownerfs")]
+fn register_native_workspace_startup(
+    services: &mut Services,
+    startup: Result<std::io::Result<native_workspace::NativeWorkspace>, tokio::task::JoinError>,
+) -> Option<BoxError> {
+    match startup {
+        Ok(Ok(worker)) => {
+            let stop = services.stop.subscribe();
+            services.spawn(async move {
+                let shutdown = cancelled(stop);
+                tokio::pin!(shutdown);
+                let mut tick = tokio::time::interval(Duration::from_millis(100));
+                loop {
+                    tokio::select! {
+                        _ = &mut shutdown => break,
+                        _ = tick.tick() => if worker.is_finished() { break; },
+                    }
+                }
+                tokio::task::spawn_blocking(move || worker.shutdown()).await??;
+                Ok(())
+            });
+            None
+        }
+        Ok(Err(error)) => {
+            services.spawn(async {
+                Err::<(), BoxError>(
+                    std::io::Error::other(
+                        "native workspace startup failed after node services started",
+                    )
+                    .into(),
+                )
+            });
+            Some(error.into())
+        }
+        Err(error) => {
+            services.spawn(async {
+                Err::<(), BoxError>(
+                    std::io::Error::other(
+                        "native workspace startup task failed after node services started",
+                    )
+                    .into(),
+                )
+            });
+            Some(error.into())
+        }
+    }
+}
+
+#[cfg(feature = "ownerfs")]
+async fn drain_started_services(
+    services: Services,
+    on_shutdown: impl FnOnce(),
+    startup_error: BoxError,
+) -> BoxError {
+    let mut shutdown_error = Some(startup_error);
+    if let Err(error) = services.run_with_shutdown(on_shutdown).await {
+        afs_logging::error!("node.startup_services_failed"; "error" => error.to_string());
+        remember_shutdown_error(&mut shutdown_error, error);
+    }
+    shutdown_error.expect("startup error is preserved")
+}
+
 fn heartbeat_error_is_retryable(error: &afs_error::Error) -> bool {
     !matches!(
         error.kind(),
@@ -1888,6 +1949,9 @@ fn dfs_rdma_startup_device(
 
 #[cfg(test)]
 mod shutdown_tests {
+    #[cfg(feature = "ownerfs")]
+    use std::time::Duration;
+
     #[test]
     fn heartbeat_retries_transport_failure_but_stops_expired_session() {
         assert!(super::heartbeat_error_is_retryable(
@@ -1919,6 +1983,109 @@ mod shutdown_tests {
             std::io::Error::other("local shutdown failed").into(),
         );
         assert_eq!(first.unwrap().to_string(), "drain failed");
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn native_workspace_startup_io_failure_drains_services_and_keeps_original_errno() {
+        let mut services = crate::runtime::Services::new();
+        let stop = services.stop.subscribe();
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (stop_seen_tx, stop_seen_rx) = tokio::sync::oneshot::channel();
+        let (cleanup_tx, cleanup_rx) = tokio::sync::oneshot::channel();
+        services.spawn(async move {
+            let _ = started_tx.send(());
+            super::cancelled(stop).await;
+            let _ = stop_seen_tx.send(());
+            let _ = cleanup_tx.send(());
+            Err::<(), crate::runtime::BoxError>(
+                std::io::Error::other("sibling cleanup failed").into(),
+            )
+        });
+        expect_signal(started_rx).await;
+
+        let startup_error = super::register_native_workspace_startup(
+            &mut services,
+            Ok(Err(std::io::Error::from_raw_os_error(13))),
+        )
+        .expect("startup error");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let final_error = tokio::time::timeout(
+            Duration::from_secs(2),
+            super::drain_started_services(
+                services,
+                move || {
+                    let _ = shutdown_tx.send(());
+                },
+                startup_error,
+            ),
+        )
+        .await
+        .expect("bounded drain");
+
+        expect_signal(shutdown_rx).await;
+        expect_signal(stop_seen_rx).await;
+        expect_signal(cleanup_rx).await;
+        let io_error = final_error
+            .downcast_ref::<std::io::Error>()
+            .expect("original io error");
+        assert_eq!(io_error.raw_os_error(), Some(13));
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn native_workspace_startup_join_error_drains_services_and_keeps_original_panic() {
+        let mut services = crate::runtime::Services::new();
+        let stop = services.stop.subscribe();
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let (stop_seen_tx, stop_seen_rx) = tokio::sync::oneshot::channel();
+        let (cleanup_tx, cleanup_rx) = tokio::sync::oneshot::channel();
+        services.spawn(async move {
+            let _ = started_tx.send(());
+            super::cancelled(stop).await;
+            let _ = stop_seen_tx.send(());
+            let _ = cleanup_tx.send(());
+            Ok(())
+        });
+        expect_signal(started_rx).await;
+
+        let startup = tokio::task::spawn_blocking(
+            || -> std::io::Result<super::native_workspace::NativeWorkspace> {
+                panic!("native workspace startup panic")
+            },
+        )
+        .await;
+        let startup_error = super::register_native_workspace_startup(&mut services, startup)
+            .expect("startup join error");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let final_error = tokio::time::timeout(
+            Duration::from_secs(2),
+            super::drain_started_services(
+                services,
+                move || {
+                    let _ = shutdown_tx.send(());
+                },
+                startup_error,
+            ),
+        )
+        .await
+        .expect("bounded drain");
+
+        expect_signal(shutdown_rx).await;
+        expect_signal(stop_seen_rx).await;
+        expect_signal(cleanup_rx).await;
+        let join_error = final_error
+            .downcast_ref::<tokio::task::JoinError>()
+            .expect("original join error");
+        assert!(join_error.is_panic());
+    }
+
+    #[cfg(feature = "ownerfs")]
+    async fn expect_signal<T>(rx: tokio::sync::oneshot::Receiver<T>) -> T {
+        tokio::time::timeout(Duration::from_secs(2), rx)
+            .await
+            .expect("bounded signal")
+            .expect("sender kept")
     }
 
     #[cfg(feature = "dfs")]

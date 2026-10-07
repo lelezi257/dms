@@ -1,0 +1,122 @@
+{
+  "build": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.guest/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "python3",
+      "development/acceptance/source-slice-linux.py",
+      "--source",
+      "/workspace/dms/source",
+      "--inputs",
+      "/workspace/dms/source/development/evidence/20261007-ownerfs-bind-node-startup/compiler-inputs.json",
+      "--target",
+      "/var/tmp/afs-e2e-release-20261006-r1/target",
+      "--out",
+      "/var/tmp/afs-ownerfs-bind-node-startup-build-20261007-r1",
+      "--labels",
+      "fmt",
+      "physical-build",
+      "owner-only",
+      "dfs-only",
+      "clippy",
+      "build"
+    ],
+    "returncode": 0
+  },
+  "unit": {
+    "argv": [
+      "timeout",
+      "60",
+      "/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2",
+      "node::shutdown_tests::",
+      "--test-threads=1",
+      "--nocapture"
+    ],
+    "returncode": 0,
+    "ELF_sha256": "b5705a479a5b01aaad879ab5f24c1bfb78b287f154d50ba3f7132a9dec72de37"
+  },
+  "runtime": {
+    "driver": "development/acceptance/node-startup-rejection-linux.py",
+    "driver_sha256": "a512458f46f696315c8c769c9c279092deed745f0b4f2e19ce8e71e0ea3a04ee",
+    "r1_status": "FAIL",
+    "r2_status": "PASS",
+    "r2_returncode": 0,
+    "source_unchanged": true,
+    "oracle_correction": {
+      "cause": "existing NativeWorkspace::start converts worker admission errors to io::Error::other(error.to_string()), so CLI emits Custom/Other preserving os error2, not Os/NotFound",
+      "source": "src/node/native_workspace.rs:64",
+      "precise_old_regex": "^Error: Os { code: 2, kind: NotFound, message: \"No such file or directory\" }$",
+      "precise_new_regex": "^Error: Custom { kind: Other, error: \"No such file or directory (os error 2)\" }$",
+      "code_and_environment_changed": false,
+      "additional_product_run_reason": "only driver oracle changed; retained first FAIL; no repeated standard/performance checks"
+    },
+    "runs": [
+      {
+        "run": "r1",
+        "argv": [
+          "limactl",
+          "shell",
+          "--workdir=/var/tmp",
+          "afs-build",
+          "--",
+          "sudo",
+          "-n",
+          "env",
+          "PYTHONDONTWRITEBYTECODE=1",
+          "python3",
+          "/workspace/dms/source/development/acceptance/node-startup-rejection-linux.py",
+          "--source",
+          "/workspace/dms/source",
+          "--inputs",
+          "/workspace/dms/source/development/evidence/20261007-ownerfs-bind-node-startup/compiler-inputs.json",
+          "--build-proof",
+          "/var/tmp/afs-ownerfs-bind-node-startup-build-20261007-r1/source-proof.json",
+          "--target",
+          "/var/tmp/afs-e2e-release-20261006-r1/target",
+          "--root",
+          "/opt/afs-bind-node-startup-20261007-r1",
+          "--out",
+          "/var/tmp/afs-bind-node-startup-runtime-20261007-r1"
+        ],
+        "returncode": 1,
+        "tool_sha256": "1afdd8dd3adbd78be646de1ea548e1be25fe93502b336c00f2753c0f1e70cb82"
+      },
+      {
+        "run": "r2",
+        "argv": [
+          "limactl",
+          "shell",
+          "--workdir=/var/tmp",
+          "afs-build",
+          "--",
+          "sudo",
+          "-n",
+          "env",
+          "PYTHONDONTWRITEBYTECODE=1",
+          "python3",
+          "/workspace/dms/source/development/acceptance/node-startup-rejection-linux.py",
+          "--source",
+          "/workspace/dms/source",
+          "--inputs",
+          "/workspace/dms/source/development/evidence/20261007-ownerfs-bind-node-startup/compiler-inputs.json",
+          "--build-proof",
+          "/var/tmp/afs-ownerfs-bind-node-startup-build-20261007-r1/source-proof.json",
+          "--target",
+          "/var/tmp/afs-e2e-release-20261006-r1/target",
+          "--root",
+          "/opt/afs-bind-node-startup-20261007-r2",
+          "--out",
+          "/var/tmp/afs-bind-node-startup-runtime-20261007-r2"
+        ],
+        "returncode": 0,
+        "tool_sha256": "a512458f46f696315c8c769c9c279092deed745f0b4f2e19ce8e71e0ea3a04ee"
+      }
+    ]
+  }
+}

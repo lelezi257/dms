@@ -1,0 +1,54 @@
+{
+  "runtime": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-accept-b",
+      "--",
+      "sudo",
+      "env",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "timeout",
+      "--signal=TERM",
+      "600",
+      "python3",
+      "/var/tmp/afs-owner-local-read-backing-hot-20261008-r1-tools/owner-local-read-run.py",
+      "--contract",
+      "/var/tmp/afs-owner-local-read-backing-hot-20261008-r1-tools/contract.json"
+    ],
+    "exit_code": 0,
+    "stdout": "driver.stdout",
+    "stderr": "driver.stderr",
+    "product_launches": 1,
+    "exit_zero_means": "Execution and normal cleanup succeeded; performance_status is FAIL independently."
+  },
+  "Linux_test": {
+    "argv": [
+      "sudo",
+      "env",
+      "PYTHONDONTWRITEBYTECODE=1",
+      "python3",
+      "/var/tmp/afs-owner-local-read-backing-hot-20261008-r1-tools/probes/test_physical_cache.py",
+      "-v"
+    ],
+    "attempts": [
+      {
+        "result": "transport failed before tests",
+        "stderr": "guards.stderr"
+      },
+      {
+        "exit_code": 1,
+        "stderr": "guards-r2.stderr"
+      },
+      {
+        "exit_code": 0,
+        "stderr": "guards-r3.stderr"
+      }
+    ]
+  },
+  "audits": [
+    "audit-runtime.py on afs-accept-b; actual data/ELF/receipts plus saved results; no new measured run",
+    "restore.py on afs-build: actual152file extraction and exact prior-tool/delta restoration"
+  ]
+}

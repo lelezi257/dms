@@ -51,3 +51,9 @@ Current f03 local read now has independently measured raw latency arrays and a f
 Current f03 local create+fdatasync write also retains independent raw latency and separate barrier times. Twelve fresh 64MiB files passed core content/EOF checks, but MooseFS strong durable-ACK and backing-cache comparability remain unqualified. The measured ratios are diagnostic, not a formal pass or an accepted relaxation. [Write evidence](evidence/20261008-owner-local-write-latency/README.md).
 
 Stage G1 remains closed at historical 8/8. Current-version regressions, ordinary OwnerFs performance under this rule, and missing latency evidence belong to G2.
+
+## Current Backend-hot / Default-buffered-client Read
+
+New prospectively frozen G2.09 case, not a relaxation or retrospective change to old client-hot/reread contracts. Both FUSE/POSIX/O_RDONLY applications use identical full client and physical-payload preload, with physical64MiB residency and stable identity required before/after each timer. Internal default client policies remain Owner OFF/private-local eligibility and Moose AUTO; observed client0/64MiB is reported, not claimed identical.
+
+Fixedf03/7bfc limited comparison **FAIL**: median throughput ratio0.345207<1.2, independently pooledp95 ratio3.046710>.8, each320raw intervals. Backing24snapshots/content/actualwaits and independentLinux audit passed. Old client-hotFAIL/repeatNOT_QUALIFIED remain. This provides a qualified failure only for the newly declared backing-hot/default-application policy; it does not cover all cache regimes. [Exact contract, raw data and scope](evidence/20261008-owner-local-read-backing-hot/README.md). No target/caching change after results, no immediate tuning or unchanged repeat.

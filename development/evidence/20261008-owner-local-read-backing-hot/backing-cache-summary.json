@@ -1,0 +1,247 @@
+{
+  "identity": {
+    "paths": {
+      "owner": "/mnt/lima-afsbdata/afs-delivery/owner-local-read-backing-hot-f03-20261008-r1/state/node/ownerfs/root-67322d6f776e65722d6c6f63616c2d726561642d663033-e1/read.bin",
+      "moose": "/mnt/lima-afsbdata/afs-delivery/owner-local-read-backing-hot-f03-20261008-r1/state/moose/chunks/00/chunk_0000000000000001_00000001.mfs"
+    },
+    "offsets": {
+      "owner": 0,
+      "moose": 8192
+    },
+    "identities": {
+      "owner": {
+        "device": 64785,
+        "inode": 1324842,
+        "size": 67108864,
+        "mtime_ns": 1791406380457365949,
+        "ctime_ns": 1791406380457365949
+      },
+      "moose": {
+        "device": 64785,
+        "inode": 1324843,
+        "size": 67117056,
+        "mtime_ns": 1791406383659364696,
+        "ctime_ns": 1791406383659364696
+      }
+    },
+    "payload_sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5"
+  },
+  "observations": [
+    {
+      "round": 0,
+      "label": "owner",
+      "phase": "before",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 0,
+      "label": "owner",
+      "phase": "after",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 0,
+      "label": "moose",
+      "phase": "before",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 0,
+      "label": "moose",
+      "phase": "after",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 1,
+      "label": "moose",
+      "phase": "before",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 1,
+      "label": "moose",
+      "phase": "after",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 1,
+      "label": "owner",
+      "phase": "before",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 1,
+      "label": "owner",
+      "phase": "after",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 2,
+      "label": "owner",
+      "phase": "before",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 2,
+      "label": "owner",
+      "phase": "after",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 2,
+      "label": "moose",
+      "phase": "before",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 2,
+      "label": "moose",
+      "phase": "after",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 3,
+      "label": "moose",
+      "phase": "before",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 3,
+      "label": "moose",
+      "phase": "after",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 3,
+      "label": "owner",
+      "phase": "before",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 3,
+      "label": "owner",
+      "phase": "after",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 4,
+      "label": "owner",
+      "phase": "before",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 4,
+      "label": "owner",
+      "phase": "after",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 4,
+      "label": "moose",
+      "phase": "before",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 4,
+      "label": "moose",
+      "phase": "after",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 5,
+      "label": "moose",
+      "phase": "before",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 5,
+      "label": "moose",
+      "phase": "after",
+      "offset": 8192,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 5,
+      "label": "owner",
+      "phase": "before",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    },
+    {
+      "round": 5,
+      "label": "owner",
+      "phase": "after",
+      "offset": 0,
+      "length": 67108864,
+      "resident_bytes": 67108864,
+      "identity_matches": true
+    }
+  ]
+}

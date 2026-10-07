@@ -1,0 +1,82 @@
+{
+  "bytes": 8303,
+  "counts": {
+    "ERRO": 3,
+    "WARN": 9
+  },
+  "groups": [
+    {
+      "level": "ERRO",
+      "msg": "FUSE request failed",
+      "message": "OwnerFs root is not registered in Meta",
+      "count": 1
+    },
+    {
+      "level": "ERRO",
+      "msg": "FUSE request failed",
+      "message": "No such file or directory (os error 2)",
+      "count": 1
+    },
+    {
+      "level": "WARN",
+      "msg": "[Not Implemented] ioctl(ino: 0x3, fh: 1, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)",
+      "message": "",
+      "count": 1
+    },
+    {
+      "level": "ERRO",
+      "msg": "FUSE request failed",
+      "message": "OwnerFs currently supports only user.* xattrs",
+      "count": 1
+    },
+    {
+      "level": "WARN",
+      "msg": "[Not Implemented] ioctl(ino: 0x3, fh: 3, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)",
+      "message": "",
+      "count": 1
+    },
+    {
+      "level": "WARN",
+      "msg": "[Not Implemented] ioctl(ino: 0x3, fh: 4, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)",
+      "message": "",
+      "count": 1
+    },
+    {
+      "level": "WARN",
+      "msg": "[Not Implemented] ioctl(ino: 0x3, fh: 8, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)",
+      "message": "",
+      "count": 1
+    },
+    {
+      "level": "WARN",
+      "msg": "[Not Implemented] ioctl(ino: 0x3, fh: 12, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)",
+      "message": "",
+      "count": 1
+    },
+    {
+      "level": "WARN",
+      "msg": "[Not Implemented] ioctl(ino: 0x3, fh: 16, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)",
+      "message": "",
+      "count": 1
+    },
+    {
+      "level": "WARN",
+      "msg": "[Not Implemented] ioctl(ino: 0x3, fh: 20, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)",
+      "message": "",
+      "count": 1
+    },
+    {
+      "level": "WARN",
+      "msg": "[Not Implemented] ioctl(ino: 0x3, fh: 24, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)",
+      "message": "",
+      "count": 1
+    },
+    {
+      "level": "WARN",
+      "msg": "[Not Implemented] ioctl(ino: 0x3, fh: 28, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)",
+      "message": "",
+      "count": 1
+    }
+  ],
+  "scope": "Raw logs retained without filtering. Observed categories: root-not-yet-registered and missing path during creation, unsupported non-user xattr, ioctl21505 not implemented. Read content/EOF and normal shutdown independently verified; not full POSIX/xattr/ioctl qualification."
+}

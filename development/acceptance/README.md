@@ -95,3 +95,7 @@ Never promote a smoke profile to full coverage. Never use memory Meta success as
 ## Current DFS R3 normal recovery
 
 `dfs_r3_small.py writer/check --candidate /absolute/expected-candidate.json` explicitly binds the current source/map/Meta/Node/probe identities; omitted candidate retains the historical931 default. `check` performs one fresh-open content/EOF read with no performance claim. `probes/dfs_r3_fixture.py --fixture-name NAME --meta-sha256 SHA --node-sha256 SHA` selects a fresh fixture while retaining exact generatedR2-to-finalR3 admission and initialized-state refusal. [Plan](../dfs-r3-current-recovery.md) / [current7e6 runtime evidence](../evidence/20261007-dfs-r3-current-recovery/README.md).
+
+### No-touch physical backing-cache observation
+
+`probes/physical_cache.py` observes a fixed regular-file range with read-only mmap/mincore, no payload access; validate with Linux `PYTHONDONTWRITEBYTECODE=1 python3 development/acceptance/probes/test_physical_cache.py -v`. Bounds/header exclusion, identity drift, symlinks, cleanup and cold no-prefault coverage are tested. Client FUSE cache and physical backing residency are separate layers; snapshots do not pin pages or prove disk/host cache. [Frozen local64MiB backing-hot/default-client FAIL and reproducible recipe](../evidence/20261008-owner-local-read-backing-hot/README.md) preserves old client-hotFAIL and independently measured p95. No default product/test binary or dependency changes.

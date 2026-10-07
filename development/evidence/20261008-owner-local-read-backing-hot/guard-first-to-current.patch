@@ -1,0 +1,14 @@
+--- test_physical_cache.py
++++ test_physical_cache.py
+@@ -28,8 +28,9 @@
+ 
+     def test_reject_changed_file_identity(self):
+         before = physical_cache.identity(self.path.stat())
+-        self.path.unlink()
+-        self.path.write_bytes(b"Y" * self.page * 3)
++        replacement = self.path.with_name("replacement")
++        replacement.write_bytes(b"Y" * self.page * 3)
++        replacement.replace(self.path)
+         with self.assertRaisesRegex(ValueError, "identity changed"):
+             physical_cache.observe(self.path, 0, self.page, before)
+ 

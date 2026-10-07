@@ -1,0 +1,58 @@
+--- runner-r2.py
++++ runner.py
+@@ -28,7 +28,7 @@
+     ident=f.fingerprint(int(d.name));ident.pop('state');v[d.name]={'identity':ident,'sha256':sha(d/'exe'),'cmdline':(d/'cmdline').read_bytes().hex()}
+   except FileNotFoundError:pass
+  return v
+-protected=inventory();params=argparse.Namespace(root=ROOT,out=OUT,package=Path(c['package']),package_sha256=c['candidate']['package_sha256'],source_commit=c['candidate']['source_commit'],afs_meta_sha256=c['candidate']['binaries']['afs-meta'],afs_node_sha256=c['candidate']['binaries']['afs-node']);r=s.Run(params);procs={};logs=[];captured=None;result={'execution_status':'BLOCKED','performance_status':'PENDING','scope':'G2.09 ordinary local 64MiB/C1 observed-hot read','candidate':c,'protected_before':protected};cfg_hashes={}
++protected=inventory();params=argparse.Namespace(root=ROOT,out=OUT,package=Path(c['package']),package_sha256=c['candidate']['package_sha256'],source_commit=c['candidate']['source_commit'],afs_meta_sha256=c['candidate']['binaries']['afs-meta'],afs_node_sha256=c['candidate']['binaries']['afs-node']);r=s.Run(params);procs={};logs=[];captured=None;result={'execution_status':'BLOCKED','performance_status':'PENDING','scope':'G2.09 ordinary local64MiB/C1 backend-hot/default-buffered-client; distinct from old client-hot case','candidate':c,'protected_before':protected};cfg_hashes={}
+ def saved(n,v):r.save(n,v)
+ def cmd(v,timeout=30):return r.command(v,timeout=timeout)
+ def budget():
+@@ -54,7 +54,7 @@
+   time.sleep(.1)
+  raise RuntimeError('Moose readiness deadline '+label)
+ def validate_payload(v):
+- for k,w in {'operation':'seq-read','file_bytes':SIZE,'io_bytes':SIZE,'block_bytes':BLOCK,'concurrency':1,'barrier':'close','pattern_byte':BYTE,'operations':64,'residency_observed':True,'resident_before_bytes':SIZE,'cache_requested':'hot','content_ok':True,'latency_interval':'pread+count+content-check','latency_order':'sorted'}.items():need(type(v.get(k)) is type(w) and v[k]==w,'IO payload '+k)
++ for k,w in {'operation':'seq-read','file_bytes':SIZE,'io_bytes':SIZE,'block_bytes':BLOCK,'concurrency':1,'barrier':'close','pattern_byte':BYTE,'operations':64,'residency_observed':True,'cache_requested':'repeat','content_ok':True,'latency_interval':'pread+count+content-check','latency_order':'sorted'}.items():need(type(v.get(k)) is type(w) and v[k]==w,'IO payload '+k)
+  values=v['latency_samples_ns'];need(len(values)==64 and values==sorted(values) and all(type(x)is int and x>0 for x in values),'raw sample array')
+  for percent in [50,95,99]:need(v[f'p{percent}_ns']==values[len(values)*percent//100],'raw percentile mismatch')
+  need(type(v['wall_ns'])is int and v['wall_ns']>0,'task wall time')
+@@ -84,12 +84,36 @@
+   need(sha(path)==expected,'prepared content '+n)
+  home=json.loads(cmd(['curl','--noproxy','*','-fsS',f'http://127.0.0.1:22401/v1/roots/root-{workspace.encode().hex()}']));need(home['home_node_id']=='node-a' and home['home_serving'] is True and home['status']=='serving' and home['home_grpc_addr']=='https://127.0.0.1:22500','local Home identity');saved('owner-home.json',home)
+  topology=json.loads(cmd([f.tool('bin/mfscli'),'-H',IP,'-P','24842','-SCS','-j']));saved('moose-topology.json',topology);info=cmd([f.tool('bin/mfsfileinfo'),'-p',files['moose']]);saved('moose-fileinfo.json',{'raw':info});need(f'{IP}:24843' in info and 'VALID' in info,'local valid copy');physical=list((ROOT/'state/moose/chunks').rglob('chunk_*.mfs'));need(len(physical)==1,'one local physical64MiB chunk');saved('physical-copy.json',{'path':str(physical[0]),'sha256':sha(physical[0]),'bytes':physical[0].stat().st_size})
++ cache=loadmod('physical_cache',TOOLS/'probes/physical_cache.py')
++ backing={'owner': ROOT/'state/node/ownerfs'/('root-'+workspace.encode().hex()+'-e1')/'read.bin', 'moose':physical[0]}
++ offsets={'owner':0,'moose':8192}
++ def payload_sha(path,offset):
++  fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW)
++  try:
++   digest=hashlib.sha256()
++   for pos in range(0,SIZE,BLOCK):
++    data=os.pread(fd,BLOCK,offset+pos);need(len(data)==BLOCK,'complete backing payload');digest.update(data)
++   return digest.hexdigest()
++  finally:os.close(fd)
++ backing_id={}
++ for n,path in backing.items():
++  need(path.stat().st_size==SIZE+offsets[n], 'exact physical extent '+n)
++  need(payload_sha(path,offsets[n])==expected,'physical payload identity '+n)
++  backing_id[n]=cache.identity(path.stat())
++ saved('backing-identity.json', {'paths':{n:str(path) for n,path in backing.items()},'offsets':offsets,'identities':backing_id,'payload_sha256':expected})
++ saved('mount-options.json', {n:json.loads(cmd(['findmnt','-J','--mountpoint',ROOT/'mount'/mount])) for n,mount in [('owner','ownerfs'),('moose','moose')]})
+  rounds=[];capacities=[]
+  for index in range(6):
+   order=['owner','moose'] if index%2==0 else ['moose','owner'];samples=[]
+   for n in order:
+    need(sha(files[n])==expected,'pre-read full SHA '+n)
+-   argv=[c['io'],files[n],'seq-read',str(SIZE),str(BLOCK),'1','close',str(SIZE),str(BYTE),'existing','hot','samples'];v=json.loads(cmd(argv,60));validate_payload(v);sample={'label':n,'result':v};samples.append(sample);saved(f'round-{index:02d}-{n}.json',sample)
++   need(payload_sha(backing[n],offsets[n])==expected,'backing preload full SHA '+n)
++   pre=cache.observe(backing[n],offsets[n],SIZE,backing_id[n]);saved(f'round-{index:02d}-{n}-backing-before.json',pre)
++   need(pre['fully_resident'] is True and pre['resident_bytes']==SIZE,'backing-hot prerequisite '+n)
++   argv=[c['io'],files[n],'seq-read',str(SIZE),str(BLOCK),'1','close',str(SIZE),str(BYTE),'existing','repeat','samples'];v=json.loads(cmd(argv,60));validate_payload(v)
++   post=cache.observe(backing[n],offsets[n],SIZE,backing_id[n]);saved(f'round-{index:02d}-{n}-backing-after.json',post)
++   need(post['fully_resident'] is True and post['resident_bytes']==SIZE,'backing-hot postcondition '+n)
++   sample={'label':n,'result':v,'backing_before':pre,'backing_after':post};samples.append(sample);saved(f'round-{index:02d}-{n}.json',sample)
+   rounds.append({'round':index,'measured':index>0,'order':order,'samples':samples});saved('rounds.json',rounds);capacities.append(budget());saved('capacity.json',capacities)
+  for n,path in files.items():need(sha(path)==expected,'post-read SHA '+n)
+  aggregates={}

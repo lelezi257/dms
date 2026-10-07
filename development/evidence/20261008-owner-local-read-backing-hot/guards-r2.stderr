@@ -1,0 +1,18 @@
+test_failed_observations_do_not_leak_descriptors_or_change_content (__main__.PhysicalCache.test_failed_observations_do_not_leak_descriptors_or_change_content) ... ok
+test_hot_unaligned_payload_excludes_header_and_tail (__main__.PhysicalCache.test_hot_unaligned_payload_excludes_header_and_tail) ... ok
+test_observing_evicted_pages_does_not_prefault_them (__main__.PhysicalCache.test_observing_evicted_pages_does_not_prefault_them) ... ok
+test_reject_changed_file_identity (__main__.PhysicalCache.test_reject_changed_file_identity) ... FAIL
+test_reject_symlink_directory_relative_and_invalid_ranges (__main__.PhysicalCache.test_reject_symlink_directory_relative_and_invalid_ranges) ... ok
+
+======================================================================
+FAIL: test_reject_changed_file_identity (__main__.PhysicalCache.test_reject_changed_file_identity)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/var/tmp/afs-owner-local-read-backing-hot-20261008-r1-tools/probes/test_physical_cache.py", line 33, in test_reject_changed_file_identity
+    with self.assertRaisesRegex(ValueError, "identity changed"):
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.008s
+
+FAILED (failures=1)

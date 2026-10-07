@@ -1,0 +1,92 @@
+{
+  "chains": [
+    {
+      "file_version_id": "7c620e1b-3781-411e-babf-8d1b590d6b45-version-10",
+      "generation": 1,
+      "index": 0,
+      "observer_correction_different_fields": [
+        "manifest_sha256",
+        "meta",
+        "meta_elf_sha256",
+        "node_catalogs",
+        "node_elf_sha256",
+        "observer_sha256",
+        "selection"
+      ],
+      "observer_correction_time": "R2_after_service_stop_not_original_read_time",
+      "ordering": "C_then_B_not_simultaneous",
+      "path": "r3-current-counter/round-00.bin",
+      "physical_copies": 48,
+      "readers": [
+        {
+          "c_wall_ns": 1329396298,
+          "done_ns": 635164028216837,
+          "reader": "C",
+          "start_ns": 635162678188743
+        },
+        {
+          "c_wall_ns": 1329785215,
+          "done_ns": 635169114421962,
+          "reader": "B",
+          "start_ns": 635167779664165
+        }
+      ],
+      "sha256": "46a900685d530d9438b3c3236964bf20210b7e612255f368e36d67b919646167"
+    },
+    {
+      "file_version_id": "7c620e1b-3781-411e-babf-8d1b590d6b45-version-20",
+      "generation": 4,
+      "index": 3,
+      "observer_correction_different_fields": [
+        "manifest_sha256",
+        "meta",
+        "meta_elf_sha256",
+        "node_elf_sha256",
+        "observer_sha256"
+      ],
+      "observer_correction_time": "R2_after_service_stop_not_original_read_time",
+      "ordering": "C_then_B_not_simultaneous",
+      "path": "r3-current-counter/round-03.bin",
+      "physical_copies": 48,
+      "readers": [
+        {
+          "c_wall_ns": 1328480292,
+          "done_ns": 635184874087740,
+          "reader": "C",
+          "start_ns": 635183523394182
+        },
+        {
+          "c_wall_ns": 1315832107,
+          "done_ns": 635189933785953,
+          "reader": "B",
+          "start_ns": 635188600341275
+        }
+      ],
+      "sha256": "757ac87574fd59cecc3016b2ab40c783496f915ee77d23c8b894db8fffc5208c"
+    }
+  ],
+  "checks": 6378,
+  "claims": {
+    "A_durable_then_independent_B_C_read": true,
+    "f03_recovery_inherited_from_7e6": false,
+    "new_runtime_or_service_launch": false,
+    "operation_percentile_evidence": false,
+    "simultaneous_same_file_readers": false,
+    "threefs_parity": false
+  },
+  "execution": {
+    "platform": "Linux",
+    "python": "3.12.3"
+  },
+  "identity": {
+    "afs_meta_sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+    "afs_node_sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+    "compiler_input_map": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
+    "io_sha256": "8ac3ccedabf5f648723c4048eba1f5d11416224a4dd55b4baacd1b3d2e2490ed",
+    "product_source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c"
+  },
+  "original_archive_sha256": "4ff33303f581703c62636b33b38d4b6762e945c412f904ca0ce364aeff04b0ef",
+  "original_member_index_sha256": "1f9b1e8f9d9b9db9ad9573ce38649f1715f228f6f6673bb287e5f0cc2caca4ef",
+  "original_package_sha256": "e622fdef35ca3857edfa39aba931f050a27b15c1ceb740e1108c9be1e8bebdf3",
+  "status": "PASS_LIMITED_FUNCTIONAL_REUSE"
+}

@@ -1,0 +1,8 @@
+{
+  "status": "PASS_LINUX_ACTUAL_RESTORE",
+  "archive_sha256": "067740c0f1a39340ab52eeeaca41b0966ca92bfd9f1be6201317caee063df3bc",
+  "members": 7,
+  "first_failed_recipe_reconstructed_sha256": "aa6f92c481985d4dece5b709e65cf5dddac6641ac484cc3f3d10a90cb5bc3768",
+  "source_binary_or_payload_rebuilt": false,
+  "guest_temporary_restore_removed": true
+}

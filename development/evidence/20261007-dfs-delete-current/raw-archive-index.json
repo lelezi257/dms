@@ -1,0 +1,16 @@
+{
+  "archive_path": "evidence/afs-delivery/dfs-delete-f03-20261007-r1/raw-delete-records.tar.gz",
+  "archive_sha256": "3113447e7542470471129ad8bd354cd16df643413088f643b2201641eeedcfa2",
+  "archive_bytes": 1493745,
+  "member_count": 908,
+  "member_index_path": "evidence/afs-delivery/dfs-delete-f03-20261007-r1/raw-member-index.json",
+  "member_index_sha256": "53293dbf6df7e88ea3e30aef95978bd61d249c62884cf8842207baafa6d0cb12",
+  "decoded_member_hashes_verified": true,
+  "guest_roots_retained": {
+    "ctl": "/mnt/lima-afsctlstate/afs-delivery/dfs-delete-f03-20261007-r1",
+    "a": "/mnt/lima-afsadata/afs-delivery/dfs-delete-f03-20261007-r1",
+    "b": "/mnt/lima-afsbdata/afs-delivery/dfs-delete-f03-20261007-r1",
+    "c": "/mnt/lima-afscdata/afs-delivery/dfs-delete-f03-20261007-r1"
+  },
+  "not_deleted": "No current case guest data removed; full cleanup requires independent complete archive and actual restoration."
+}

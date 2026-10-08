@@ -2323,7 +2323,7 @@ impl OwnerFilesHandler for OwnerFsPeerHandler {
         )?;
         out.truncate(read);
         Ok(OwnerReadReply {
-            data: out,
+            data: out.into(),
             read: read as u32,
             eof: read < request.length as usize,
             data_checksum: Vec::new(),
@@ -3134,7 +3134,7 @@ async fn owner_rdma_session(
 #[cfg(all(feature = "ownerfs", feature = "rdma"))]
 async fn owner_rdma_write_to_client(
     session: Arc<super::control::RdmaSession>,
-    data: Vec<u8>,
+    data: prost::bytes::Bytes,
 ) -> Result<(), Status> {
     let worker = session.clone();
     let result = tokio::task::spawn_blocking(move || {
@@ -3198,7 +3198,7 @@ async fn owner_rdma_capacity(_session: Arc<super::control::RdmaSession>) -> Resu
 #[cfg(all(feature = "ownerfs", not(feature = "rdma")))]
 async fn owner_rdma_write_to_client(
     _session: Arc<super::control::RdmaSession>,
-    _data: Vec<u8>,
+    _data: prost::bytes::Bytes,
 ) -> Result<(), Status> {
     Err(coded_status(
         afs_error::NODE_TRANSFER_UNSUPPORTED,
@@ -3557,7 +3557,7 @@ impl OwnerFiles for OwnerFilesService {
             }
             rpc_guard.disarm();
             return Ok(Response::new(OwnerReadReply {
-                data: Vec::new(),
+                data: prost::bytes::Bytes::new(),
                 read: reply.read,
                 eof: reply.eof,
                 data_checksum: checksum,
@@ -4263,7 +4263,7 @@ mod tests {
         fn reply(data: &[u8], read: u32, eof: bool) -> Arc<Self> {
             Arc::new(Self {
                 result: std::sync::Mutex::new(Some(OwnerReadFixture::Reply(OwnerReadReply {
-                    data: data.to_vec(),
+                    data: data.to_vec().into(),
                     read,
                     eof,
                     data_checksum: b"must-be-cleared".to_vec(),
@@ -4337,7 +4337,7 @@ mod tests {
             .unwrap()
             .into_inner();
 
-        assert_eq!(reply.data, b"abc");
+        assert_eq!(&reply.data[..], b"abc");
         assert_eq!(reply.read, 3);
         assert!(reply.eof);
         assert!(reply.data_checksum.is_empty());
@@ -4356,7 +4356,7 @@ mod tests {
             .unwrap()
             .into_inner();
 
-        assert_eq!(reply.data, b"abc");
+        assert_eq!(&reply.data[..], b"abc");
         assert_ne!(handler.seen_thread(), caller_thread);
     }
 

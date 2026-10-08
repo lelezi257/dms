@@ -1,0 +1,12 @@
+{
+  "status": "DOCUMENTED_BOUNDARY_MISMATCH",
+  "original_contract_sha256": "d9347eaf21f1dd45a9643b04c582531e67b1b08ab8dbeeb7f1a91457b1e92d33",
+  "original_plan_sha256": "3e2de639646f54181b4550d2b891c11002572ed4d2cb32ca38105e481a74e770",
+  "original_prose": "full_read_1MiB excluding content oracle",
+  "actual_fixed_probe_interval": "pread+count+content-check",
+  "source": "development/acceptance/probes/ownerfs_native_closeout_io.c:36-45",
+  "same_binary_and_boundaries_both_phases": true,
+  "original_pure_read_latency_gate": "NOT_PROVEN",
+  "no_change_to_samples_percentile_order_or_threshold": true,
+  "product_decision": "Retain independently demonstrated throughput improvement and tested correctness. Actual wider-interval p95 is diagnostic only; do not claim the original pure-read retention gate or final MooseFS latency/dual target passed. No rerun."
+}

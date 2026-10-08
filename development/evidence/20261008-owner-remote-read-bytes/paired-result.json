@@ -1,0 +1,26 @@
+{
+  "status": "PASS_SAVED_DATA_AUDIT",
+  "metrics": {
+    "baseline": {
+      "throughput_median_mib_s": 277.0050407169926,
+      "p50_ns": 3821283,
+      "p95_ns": 6012909,
+      "p99_ns": 7187724
+    },
+    "candidate": {
+      "throughput_median_mib_s": 365.2152472526626,
+      "p50_ns": 2426548,
+      "p95_ns": 4969932,
+      "p99_ns": 5933076
+    }
+  },
+  "throughput_ratio": 1.3184426041755377,
+  "actual_interval_p95_ratio": 0.8265436912482793,
+  "function": "LIMITED_PASS",
+  "measurement": "COMPLETE_DIAGNOSTIC_WITH_BOUNDARY_CORRECTION",
+  "product_decision": "RETAIN_THROUGHPUT_IMPROVEMENT",
+  "original_pure_read_latency_gate": "NOT_PROVEN",
+  "final_moose_dual_target": "PENDING",
+  "original_raw_harness_numeric_retention": "PASS_NUMERIC_ONLY; the frozen prose excluded content oracle incorrectly, so this is not original pure-read gate PASS",
+  "raw_path": "evidence/afs-delivery/owner-remote-read-bytes-20261008-r1/performance/paired-result.json"
+}

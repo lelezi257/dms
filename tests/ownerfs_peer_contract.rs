@@ -674,7 +674,7 @@ impl OwnerFilesHandler for PrefetchDespiteDisableHandler {
         assert_eq!(authenticated_peer_node_id, "node-b");
         *self.read_calls.lock().unwrap() += 1;
         Ok(OwnerReadReply {
-            data: b"cached".to_vec(),
+            data: b"cached".to_vec().into(),
             read: 6,
             eof: true,
             data_checksum: blake3::hash(b"cached").as_bytes().to_vec(),

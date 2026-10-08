@@ -1,0 +1,60 @@
+{
+  "original_frozen_contract": {
+    "baseline": {
+      "compiler_map": "a3fac3b2ee9fabaf73d0842f2caf862e96c77556c42a8c5fb9bbd82d5360fd52",
+      "node_sha256": "c8bb82afef20f88918521eaeda4dadcc03a99862828835f767fc43bcd14cccfb",
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-read-version-cache-20261008-r1/candidate-node",
+      "source": "a734091cb866869e6ead0cde553e6129be88250b"
+    },
+    "cache": "default mount cache; physical SHA and mincore hot before every round, same inode; not equal end-to-end network caching",
+    "candidate": {
+      "afs_meta_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+      "afs_node_sha256": "8e1216f4075deb48bc05c921dbfca1337a2180c78d693f5d9923736d83382a30",
+      "compiler_input_map": "3a22539290f20f24e3c6373f00c34eb78ab94245f90b6d436c42e9d7a001df36",
+      "compiler_inputs": 159,
+      "meta_source": "b80dab66e9d819cad821c9b30edbf97c795c0c3e",
+      "node_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-read-bytes-20261008-r1/candidate-node",
+      "product_patch_sha256": "951e9c760e9bef1b3a0f723f260dfa1c4a0f8f692566b5dadf0be6aae10bf368",
+      "scope": "one Owner READ owned Bytes decode candidate; no performance verdict",
+      "source_base": "a734091cb866869e6ead0cde553e6129be88250b",
+      "source_identity": "a734091cb866869e6ead0cde553e6129be88250b+patch:951e9c760e9bef1b3a0f723f260dfa1c4a0f8f692566b5dadf0be6aae10bf368"
+    },
+    "ceilings_mib": {
+      "b": 256,
+      "c": 256,
+      "ctl": 128
+    },
+    "concurrency": 1,
+    "data_bytes": 67108864,
+    "floors_mib": {
+      "b": 4096,
+      "c": 4096,
+      "ctl": 512
+    },
+    "formal_moose": "PENDING",
+    "formal_rounds": 5,
+    "latency": "independent full_read_1MiB CLOCK_MONOTONIC intervals excluding oracle; pooled nearest-rank p50/p95/p99; judge p95",
+    "meta": {
+      "sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+      "source": "b80dab66e9d819cad821c9b30edbf97c795c0c3e"
+    },
+    "no_retry": true,
+    "order": [
+      "baseline-a734",
+      "candidate-bytes"
+    ],
+    "predeclared_retention": {
+      "correctness_and_closure_required": true,
+      "p95_ratio_at_most": 1.0,
+      "throughput_ratio_at_least": 1.05
+    },
+    "read_bytes": 1048576,
+    "task": "G2.14",
+    "throughput": "median open/read/close wall throughput",
+    "topology": "ctl local-file Meta/B Home workspace bind ON/C remote Owner FUSE uid501",
+    "warmup": 1
+  },
+  "contract_sha256": "d9347eaf21f1dd45a9643b04c582531e67b1b08ab8dbeeb7f1a91457b1e92d33",
+  "correction": "timing-boundary-correction.json; original pure-read gate NOT_PROVEN; retain actual measured throughput and tested correctness without claiming the pure-read retention line passed",
+  "source_plan_sha256": "3e2de639646f54181b4550d2b891c11002572ed4d2cb32ca38105e481a74e770"
+}

@@ -40,6 +40,8 @@ Each ordinary OwnerFs performance case must freeze these fields before it starts
 
 Every run records throughput plus p50, p95 and p99 for the measured operation-latency sample array. Read file-transaction timing covers `open -> reads -> close` after the file is prepared and verified. Write file-transaction timing covers `open/create -> writes -> selected barrier -> close` and ends only after the chosen visibility/durability condition matches the comparator. Existing C aggregate wall-time divided across a task summary is throughput diagnostic evidence, not syscall or per-operation latency evidence.
 
+Current bounded optimization: [G2.14 Owner READ Bytes pair](evidence/20261008-owner-remote-read-bytes/README.md), bind ON/B Home/C remote64MiB/C1, throughput277.005→365.215MiB/s (+31.84%). Actual fixed-probe `pread+count+content-check` pooled p95 is6.013→4.970ms. The frozen prose incorrectly excluded content checking: original pure-read latency gate remains NOT_PROVEN, and final qualified MooseFS dual target remains PENDING. Keep the measured throughput improvement and tested correctness; do not reuse this diagnostic interval as pure-read acceptance or select a different metric after results. No rerun or full comparator matrix; next G2.15 remote WRITE cost. Historical results below retain their versions and conclusions.
+
 ## Existing Evidence Audit
 
 | G2 item | Existing evidence | New-criterion status |

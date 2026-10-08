@@ -1,0 +1,58 @@
+{
+  "timing_boundary": "original prose excluded content oracle incorrectly; unchanged probe includes it. Original pure-read gate NOT_PROVEN, no post-result percentile/sample/order/threshold change, no rerun",
+  "retention_decision": "Keep measured +31.844% throughput improvement and tested correctness; wider-interval p95 diagnostic, not full predeclared pure-read gate PASS",
+  "preserved_first_failures": [
+    "expected prechange payload-sharing regression",
+    "old Bytes-versus-byte-array test assertions did not compile; corrected to slice equality",
+    "cargo fmt write attempted read-only shared mount; Linux stdout formatting then fmt --check",
+    "saved-data auditor attempted read-only shared mount after all46 checks; corrected stdout-only"
+  ],
+  "logs": {
+    "logs": [
+      {
+        "role": "ctl",
+        "path": "logs/meta.log",
+        "bytes": 296,
+        "sha256": "c60e0ab01f578b7eafb3211f88dd2f5ad95063cf832e60def21ea7d4bca3375d",
+        "errors": 0,
+        "warnings": 0,
+        "trace": 0
+      },
+      {
+        "role": "b",
+        "path": "logs/node.log",
+        "bytes": 2441,
+        "sha256": "159cef6277616d0a324112a3d6412f30e975f25bb901dc3121e725d95fdd78b6",
+        "errors": 1,
+        "warnings": 2,
+        "trace": 0
+      },
+      {
+        "role": "c",
+        "path": "logs/node.log",
+        "bytes": 5362,
+        "sha256": "18773adaa7a6a8185e3e126025eb83102b38c332ac0b4aea764dfe3fed1b1de6",
+        "errors": 2,
+        "warnings": 18,
+        "trace": 0
+      }
+    ],
+    "total_bytes": 8099,
+    "errors": 3,
+    "warnings": 20,
+    "trace": 0
+  },
+  "no_environment_change": true,
+  "no_product_rerun": true,
+  "g1": "historical8/8 CLOSED",
+  "g2": "original27:12 limited complete/0 bind in progress/15 pending; original G2.14 NOT_CLOSED",
+  "deferred": [
+    "full POSIX",
+    "formal MooseFS comparison",
+    "pure-pread latency gate",
+    "full RDMA runtime/device performance",
+    "new trial package",
+    "Meta recovery rerun",
+    "large/complex matrices"
+  ]
+}

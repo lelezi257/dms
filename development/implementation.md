@@ -16,6 +16,8 @@ The [three-stage goal table](trial-release-goals.md) is authoritative. The finit
 
 OwnerFs workspace bind mount functionality and performance remain independent existing G2 tasks. Ordinary distribution config defaults OFF; the identified current trial provides explicit host ON steps. Never enable stale remote caching, weaken authority/permissions/errors/persistence or call a FUSE-self bind a bypass. No full POSIX or deferred combinations are inferred from finite ON success.
 
+Current bounded product exit: [G2.14 Owner READ decode-copy reduction](evidence/20261008-owner-remote-read-bytes/README.md), +31.84% measured throughput under bind ON. The probe includes content checks; pure-read latency and final MooseFS dual target remain pending. Next independent slice is G2.15 remote WRITE, without retrying the rejected owned-buffer-copy direction.
+
 ## Architecture boundaries
 
 OwnerFs and DFS remain separate mounts with separate backend state machines. OwnerFs is the small workspace path with a Home node and remote forwarding. DFS is the general distributed filesystem path with immutable chunks, file versions, placement and repair. They may share FUSE and transport infrastructure, but they must not share inode/handle/cache authority in ways that blur semantics.

@@ -4839,13 +4839,13 @@ mod tests {
             assert_eq!(peer, "node-b");
             match self.mode {
                 PayloadMetricsMode::Success => Ok(OwnerReadReply {
-                    data: b"abc".to_vec(),
+                    data: b"abc".to_vec().into(),
                     read: 3,
                     eof: true,
                     data_checksum: Vec::new(),
                 }),
                 PayloadMetricsMode::Malformed => Ok(OwnerReadReply {
-                    data: b"abc".to_vec(),
+                    data: b"abc".to_vec().into(),
                     read: 4,
                     eof: false,
                     data_checksum: Vec::new(),

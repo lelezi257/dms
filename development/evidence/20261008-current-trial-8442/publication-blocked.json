@@ -1,0 +1,14 @@
+{
+  "status": "BLOCKED_RELEASE_PUBLICATION",
+  "reason": "gh release create exceeded fixed120s; writes stopped",
+  "source_evidence_main": "637394e93808d426485fc48633f21831c6d7bb86",
+  "readback_rc": 1,
+  "product_runtime_pass_retained": true,
+  "retry_upload": false,
+  "resume_requires_remote_readback": true,
+  "timeout_output_gap": true,
+  "readback_verdict": "HTTP404_RELEASE_NOT_FOUND_AT_READBACK",
+  "reconcile_stderr": "gh: Not Found (HTTP 404)",
+  "human_question_pending": true,
+  "independent_standard_audit_continues": true
+}

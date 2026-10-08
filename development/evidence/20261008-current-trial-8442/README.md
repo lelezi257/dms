@@ -20,6 +20,8 @@
 
 ## 交付及下一项
 
+**固定发布BLOCKED：** `gh release create`在固定120s后超时，随后只读GET为HTTP404，无可核验的新Release；已停止发布写操作；[用户已决定](release-decision.json)等待GitHub恢复并继续独立标准核对，不重复上传。初wrapper未留TimeoutExpired的stdout/stderr，证据缺口明确，不伪称完整错误流；命令、超时身份、后续404及其他回执见[阻塞](publication-blocked.json)及[发布原始索引](publication-raw-index.json)。代码/运行证据已正常推送[main637394e9](https://github.com/lelezi257/dms/commit/637394e93808d426485fc48633f21831c6d7bb86)，Git远端HEAD核对；首次API EOF保存，独立Git读成功。本地四个交付文件已齐；新包安装/恢复仍限定PASS，不因GitHub发布阻塞否定。
+
 固定prerelease目标为[afs-trial-8442b55](https://github.com/lelezi257/dms/releases/tag/afs-trial-8442b55)；仅在 `publication.json` 标记远端发布和每附件digest核对PASS后，才能称已交付。包、SHA256SUMS、GUIDE.md和TRIAL_MANIFEST.json为四附件，历史f03/7e6/6d资产不覆盖。
 
 [普通使用指南](../../../docs/guides/trial.md)提供Linux安装与正常Meta恢复步骤。G1历史8/8关闭，G2完成计数不因补验增加；普通Owner Moose吞吐1.2倍/独立时延.8倍、bind native ext4、DFS三同步持久副本3FS判据不变。新包没有性能对照或操作时延，所以性能仍待验。下一独立小项是8442 default-OFF标准测试的代码路径影响映射：只复用身份/判据未变范围，仅补受影响路径，不盲跑全套；历史通过不冒称新版本实跑。普通点优化、3FS资格、生产issuer/ACK、大规模及复杂可靠性后置。

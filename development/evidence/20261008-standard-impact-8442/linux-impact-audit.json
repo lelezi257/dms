@@ -1,0 +1,81 @@
+{
+  "status": "PASS_READONLY_BLOB_AND_INPUT_VERIFICATION",
+  "recorded_at": "2026-10-08T02:16:42.630028+00:00",
+  "base": "f03dc2b3679c31daa51caee275fb2087413e949c",
+  "target": "8442b55ec25b018aad0898bd0f8679232e393f09",
+  "compiler_inputs": 158,
+  "compiler_map": "d053a333988e9fa7fc11efc51b94a7272e841f26f3aca7351f64a015f160a16a",
+  "changed_or_added_paths": [
+    "Cargo.toml",
+    "src/config.rs",
+    "src/node.rs",
+    "src/node/rpc/meta.rs",
+    "src/node/vfs/ownerfs/native_home_fuse_fixture.rs",
+    "src/node/vfs/ownerfs/root.rs",
+    "tests/support/root_command_meta.rs"
+  ],
+  "unchanged_blob_checks": [
+    {
+      "path": "src/node/vfs/ownerfs.rs",
+      "unchanged_blob": "ccc28172886461b1116bdd6994052039fe5262c9"
+    },
+    {
+      "path": "src/node/fuse.rs",
+      "unchanged_blob": "39615e83cc5818b72c2f11fc8d26ef442d1f68ac"
+    },
+    {
+      "path": "src/node/fuse/state.rs",
+      "unchanged_blob": "86a8747be1a2be83e68b89fad4d1ba80659a60f6"
+    },
+    {
+      "path": "src/node/vfs/locks.rs",
+      "unchanged_blob": "f50eca48c53cf23998a11ddd000d1bf33f598c3f"
+    },
+    {
+      "path": "src/dfs.rs",
+      "unchanged_blob": "3fa8b1e6070bebe48819892a29fa54522100f09a"
+    },
+    {
+      "path": "src/meta/store/local_file.rs",
+      "unchanged_blob": "e7b72a92328ec67404bae2d431c40ce07398901d"
+    },
+    {
+      "path": "src/meta/dfs.rs",
+      "unchanged_blob": "648d38037619431791dda63e9493a6ffea21913c"
+    },
+    {
+      "path": "src/node/vfs/dfs.rs",
+      "unchanged_blob": "9ee0cb3989e59d6fe1b532a7719796a082015134"
+    },
+    {
+      "path": "src/node/vfs/ownerfs/bind_mount.rs",
+      "unchanged_blob": "339a658d206bff1c739e9b6bab93cb08b413c2c4"
+    },
+    {
+      "path": "src/node/vfs/ownerfs/files.rs",
+      "unchanged_blob": "099c9a0c0591a5d14f4f4c533351d854d87d5f18"
+    },
+    {
+      "path": "src/node/vfs/ownerfs/catalog.rs",
+      "unchanged_blob": "1762f338f825ec8ee1ede974012cb0e4311c459e"
+    },
+    {
+      "path": "src/node/vfs/ownerfs/remote.rs",
+      "unchanged_blob": "e445cf36cf384305a90abc25d651018d8e7ac34a"
+    },
+    {
+      "path": "src/meta/owner_roots.rs",
+      "unchanged_blob": "e15a60a214bcff6ff2e42a22b1821abe6d7a91f8"
+    },
+    {
+      "path": "common/protocol/proto/meta.proto",
+      "unchanged_blob": "25f449aec020c47716011f4b053cf717716c2aca"
+    }
+  ],
+  "review_sha256": "f9a4be2c2ed17ed7cebd812937acd0d31ea445f6c39b101e4c9f5ea29fd994c0",
+  "limitations": [
+    "No new Cargo or product/standard execution in this audit.",
+    "RootManager common admission changes also affect OFF; ordinary methods unchanged is not all-path equivalence.",
+    "Child report created_at is a date placeholder, not actual execution time; this recorded_at is the Linux audit time."
+  ]
+}

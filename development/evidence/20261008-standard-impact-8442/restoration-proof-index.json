@@ -1,0 +1,47 @@
+{
+  "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/standard-impact-8442-20261008-r1/restoration-proof.tar.gz",
+  "sha256": "c4c6cd6fa41d4b8cf30cbe8b20185c23fa1d79df4e171476af62756b0fea0553",
+  "bytes": 2179,
+  "members": {
+    "restore-audit.json": {
+      "sha256": "75268deeb63ca968b33a09607f0d4ad23afa2942c2d780379a5f88ce400839d0",
+      "bytes": 2571
+    },
+    "audit-correction.json": {
+      "sha256": "e068d154732b6cacdc69659887e22e99673b4f1d73efe81aa6f8355451d6362a",
+      "bytes": 787
+    },
+    "commands/actual-restore-audit-r2.command.json": {
+      "sha256": "b01f3d9fe66465c2580b5c42c4a48d913c88f21dccbb05983e614db7fc8addcb",
+      "bytes": 276
+    },
+    "commands/actual-restore-audit-r2.result.json": {
+      "sha256": "3e42a2ad3dbeab9d1167d20261ad6305bdea31103ffc09c30f25558345966de2",
+      "bytes": 16
+    },
+    "commands/actual-restore-audit-r2.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "commands/actual-restore-audit-r2.stdout": {
+      "sha256": "75268deeb63ca968b33a09607f0d4ad23afa2942c2d780379a5f88ce400839d0",
+      "bytes": 2571
+    },
+    "commands/actual-restore-audit.command.json": {
+      "sha256": "a9833a2570ebeb457a87b2bcb943683a5e25400a6e655ca033521338c670aa68",
+      "bytes": 273
+    },
+    "commands/actual-restore-audit.result.json": {
+      "sha256": "331dd85020eaf7c911e3417ee78f7ff17a0d1257e2a5c310696fc702d1c3f16f",
+      "bytes": 16
+    },
+    "commands/actual-restore-audit.stderr": {
+      "sha256": "f7ee78a93ea9ab58fab02bf3d6f61c1fce18d211df7a79d93380e84fe4017f24",
+      "bytes": 262
+    },
+    "commands/actual-restore-audit.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  }
+}

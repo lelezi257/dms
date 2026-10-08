@@ -79,6 +79,40 @@ class FixtureGuards(unittest.TestCase):
                             with self.assertRaisesRegex(RuntimeError, 'allocation/reserve'):
                                 fixture.budget()
 
+    def test_peak_admission_counts_new_payload_before_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture('b', ceiling_bytes=256*2**20, floor_bytes=4*2**30)
+            fixture.root = fixture.volume = Path(directory)
+            row = {'target': directory, 'fstype': 'ext4'}
+            with patch.object(fixture, 'command', return_value=json.dumps({'filesystems': [row]})), \
+                    patch('dfs_r3_fixture.allocated', return_value=214503424), \
+                    patch('dfs_r3_fixture.os.statvfs', return_value=SimpleNamespace(f_bavail=20*2**30, f_frsize=1)):
+                fixture.budget()
+                with self.assertRaisesRegex(RuntimeError, 'allocation/reserve'):
+                    fixture.budget(additional_bytes=64*2**20)
+                fixture.ceiling = 512*2**20
+                result = fixture.budget(additional_bytes=64*2**20 + 64*2**20)
+                self.assertEqual(result['projected_bytes'], 214503424 + 128*2**20)
+                self.assertEqual(result['additional_bytes'], 128*2**20)
+
+    def test_peak_admission_keeps_full_free_space_reserve(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Fixture('b', ceiling_bytes=512*2**20, floor_bytes=4*2**30)
+            fixture.root = fixture.volume = Path(directory)
+            row = {'target': directory, 'fstype': 'ext4'}
+            with patch.object(fixture, 'command', return_value=json.dumps({'filesystems': [row]})), \
+                    patch('dfs_r3_fixture.allocated', return_value=256*2**20):
+                # The original full-ceiling reserve remains binding, even for a small addition.
+                with patch('dfs_r3_fixture.os.statvfs', return_value=SimpleNamespace(f_bavail=4*2**30 + 256*2**20 - 1, f_frsize=1)), \
+                        self.assertRaisesRegex(RuntimeError, 'allocation/reserve'):
+                    fixture.budget(additional_bytes=1)
+
+    def test_peak_admission_rejects_invalid_or_boolean_additions(self):
+        fixture = Fixture('b')
+        for value in (-1, True, 1.5, '64'):
+            with self.subTest(value=value), self.assertRaisesRegex(RuntimeError, 'additional bytes'):
+                fixture.budget(additional_bytes=value)
+
     def test_desired_three_sync_one_and_other_weakened_policies_rejected(self):
         for key in POLICY:
             cfg = copy.deepcopy(POLICY)

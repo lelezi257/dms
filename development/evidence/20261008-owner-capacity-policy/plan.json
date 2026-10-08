@@ -1,0 +1,12 @@
+{
+  "scope": "One environment-budget correction for future64MiB Owner remote pair; no VM changes or product rewrite",
+  "steps": [
+    "Reuse existing maintained fixture and add pre-staging peak-growth admission",
+    "Lock next run B/C512MiB and ctl256MiB; retain B/C4GiB and ctl512MiB free floors",
+    "Reuse old64MiB payload and existing fixed ELF, serial baseline/candidate; preserve all failed runs",
+    "Linux affected guards and real capacity-only observation; sync current entry, Lore normal main push"
+  ],
+  "coverage": "Existing budget/free-reserve/alias/mount guards plus three regressions for omitted payload, backing floor and invalid growth",
+  "baseline_main": "1e0aec27ca73366aaf560f0ca1540db8b191aed0",
+  "no_retrospective_waiver": true
+}

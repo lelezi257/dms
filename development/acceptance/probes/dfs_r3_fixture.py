@@ -211,16 +211,23 @@ class Fixture:
             safe(self.root / relative, self.root, exists=False).mkdir(parents=True, exist_ok=True)
         return {'status': 'PATCHED_NOT_ADMITTED', 'config_sha256': digest(self.config), 'original_sha256': digest(backup)}
 
-    def budget(self):
+    def budget(self, *, additional_bytes=0):
+        require(type(additional_bytes) is int and additional_bytes >= 0,
+                'nonnegative integer additional bytes required')
         row = json.loads(self.command(['findmnt', '-J', '--mountpoint', self.volume]))['filesystems']
         require(len(row) == 1 and row[0]['target'] == str(self.volume) and row[0]['fstype'] == 'ext4', 'backing ext4 required')
         require(self.root.stat().st_dev == self.volume.stat().st_dev, 'fixture not on declared volume')
         used = allocated(self.root)
         info = os.statvfs(self.volume)
         free = info.f_bavail * info.f_frsize
-        require(used <= self.ceiling and free >= self.floor and free + used >= self.floor + self.ceiling,
-                'allocation/reserve limit failed')
+        projected = used + additional_bytes
+        require(projected <= self.ceiling and free - additional_bytes >= self.floor
+                and free + used >= self.floor + self.ceiling,
+                f'allocation/reserve limit failed: directory_allocated={used} '
+                f'additional={additional_bytes} directory_peak={projected} directory_ceiling={self.ceiling} '
+                f'backing_free={free} backing_floor={self.floor}')
         return {'allocated_bytes': used, 'free_bytes': free, 'volume': row[0], 'ceiling_bytes': self.ceiling,
+                'additional_bytes': additional_bytes, 'projected_bytes': projected,
                 'floor_bytes': self.floor, 'excluded': str(self.root / 'mount'),
                 'scope': 'one role only; parent must enforce its predeclared aggregate ceiling'}
 
@@ -288,14 +295,19 @@ def main():
                         help='predeclared per-role capacity ceiling; historical default remains1GiB')
     parser.add_argument('--floor-bytes', type=int, default=FLOOR,
                         help='predeclared backing free-space reserve; historical default remains1GiB')
+    parser.add_argument('--additional-bytes', type=int, default=0,
+                        help='prospective peak growth for budget action, including staging, payload, logs and state')
     parser.add_argument('action', choices=('patch', 'preflight', 'budget'))
     args = parser.parse_args()
+    if args.additional_bytes and args.action != 'budget':
+        parser.error('--additional-bytes applies only to budget; run peak admission before preflight or staging')
     fixture = None
     try:
         fixture = Fixture(args.role, args.fixture_name, {'meta': args.meta_sha256, 'node': args.node_sha256},
                           ceiling_bytes=args.ceiling_bytes, floor_bytes=args.floor_bytes)
         fixture.guest()
-        result = getattr(fixture, args.action)()
+        result = (fixture.budget(additional_bytes=args.additional_bytes)
+                  if args.action == 'budget' else getattr(fixture, args.action)())
         code = 0
     except (RuntimeError, OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
         result, code = {'status': 'BLOCKED', 'error': str(exc)}, 1

@@ -1,6 +1,6 @@
 # AFS
 
-**当前交付：bind ON有限场景试用已发布。** [b80 ON试用](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6)保持原身份，G2.12有限出口关闭。[READ一次改善](development/evidence/20261008-owner-remote-read-frames/README.md)吞吐+14.21%、独立pread p95-4.29%已保留。[最新WRITE摸底](development/evidence/20261008-owner-remote-write-rpc-cost/README.md)数据已保存，目录预算漏算导致本轮FAIL_BUDGET；内容及三正常退出分别核对，不计性能通过。[纯Owner节点入站帧候选](development/evidence/20261008-owner-remote-write-server-frames/README.md)源码检查通过并外置保留，生产已恢复；正式写对照待夹具空间选择；Moose双目标仍待验，不重包。DFS写按用户决定暂缓；G1历史8/8关闭，原G2 12/0/15不变，普通本地及复杂可靠性后置。
+**当前交付：bind ON有限场景试用已发布。** [b80 ON试用](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6)保持原身份，G2.12有限出口关闭。[READ一次改善](development/evidence/20261008-owner-remote-read-frames/README.md)吞吐+14.21%、独立pread p95-4.29%已保留。[最新WRITE摸底](development/evidence/20261008-owner-remote-write-rpc-cost/README.md)数据已保存，目录预算漏算导致本轮FAIL_BUDGET；内容及三正常退出分别核对，不计性能通过。[纯Owner节点入站帧候选](development/evidence/20261008-owner-remote-write-server-frames/README.md)源码检查通过并外置保留，生产已恢复；后续小用例容量规则已集中修正并实测准入，复用原64MiB文件；下一项一次正式写对照；Moose双目标仍待验，不重包。DFS写按用户决定暂缓；G1历史8/8关闭，原G2 12/0/15不变，普通本地及复杂可靠性后置。
 
 AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [same-mount visibility and close-to-open consistency](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
 

@@ -1,0 +1,20 @@
+{
+  "source_commit": "b80dab66e9d819cad821c9b30edbf97c795c0c3e",
+  "package_sha256": "5b51249d37e12afe21e1721b43735db31de83e19794bb80eb06373bc494718c5",
+  "package_name": "afs-0.1.0-g2-bind-b80dab6-linux-aarch64.tar.gz",
+  "binaries": {
+    "afs-meta": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+    "afs-node": "b3335fb29212802798e81a0bf8bd8f1c1421d5a0dcf605e8a7e3b59969050a86"
+  },
+  "compiler_input_map": "ea809fa74a7735a587d6018f57a5456d809dfc80d4169585503c4f98e888d72d",
+  "driver_sha256": "f66050a9173ebe101fb9aa2c94fd239db51cfc7156c4b5f45a3b519a4bf00fd9",
+  "observer_sha256": "afb42364dcedda25c8fbf9b643a77b9309b1b3084800226e10ffde4a882a3207",
+  "helper_hashes": {
+    "driver": "f66050a9173ebe101fb9aa2c94fd239db51cfc7156c4b5f45a3b519a4bf00fd9",
+    "observer": "afb42364dcedda25c8fbf9b643a77b9309b1b3084800226e10ffde4a882a3207",
+    "inventory": "dc85fbd9a96d5f7079004d89c3f192e3bd4ea30ace6a6d8a3c55cad7627dba8b",
+    "common": "d19937cac0146045eacd750c8a4465095ed76bc095e7d451b3e37fe329fa8153",
+    "probe": "ba9d8a1b24eb06ca688f040d20029b7a49dfb7807da41431d6d1a3ef4154c70a"
+  },
+  "packaging_inputs_sha256": "5a3d6b2933185ede2446f6082489bbb58dceeda7f02c2d541282f10f92fbf08a"
+}

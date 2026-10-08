@@ -1,0 +1,8 @@
+{
+  "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/archives/20261008-workspace-bind-on-trial/records.tar.gz",
+  "archive_sha256": "a95878d4a4af154b5497c543548b527e9a0106c4774c864de24da11d3e9d6879",
+  "archive_bytes": 60801,
+  "regular_files": 85,
+  "uncompressed_bytes": 123248,
+  "package_excluded_from_evidence_archive": true
+}

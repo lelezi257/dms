@@ -1,0 +1,12 @@
+{
+  "status": "FAIL_OBSERVER_BEFORE_COLLECTION",
+  "command": [
+    "python3",
+    "-B",
+    "evidence/afs-delivery/workspace-bind-on-trial-b80-20261008-r1/collect.py"
+  ],
+  "error": "IndexError: list index out of range",
+  "cause": "Importing CLI host.py without a mode argument",
+  "original_collect_sha256": "844014f41b6b321e657b08cedc70bbbb4568b6485a844686ec259ec4aa17740f",
+  "resolution": "Call with explicit collect mode; product execution and source unchanged; no service rerun"
+}

@@ -1,30 +1,27 @@
-# AFS 默认 OFF 试用候选 8442
+# OwnerFs workspace bind ON 试用：b80
 
-Linux ARM64 候选版本为 `0.1.0-g2-main-8442b55`，产品源码
-`8442b55ec25b018aad0898bd0f8679232e393f09`。`manifest.json` 标明版本、编译特性和
-两个产品 ELF 的 SHA256；打包用的文档提交可比编译锚点更新，
-必须核对编译输入逐文件相同，并另记打包输入SHA。包内及下载侧 `SHA256SUMS` 分别校验文件和归档。
-运行机器无需 Cargo、Rust/C 编译器或 Git。包仅含普通产品二进制、安装、配置、
-生命周期、自检和说明，不含测试探针、源码、容器 rootfs 或私钥。
+当前 Linux ARM64 包版本 `0.1.0-g2-bind-b80dab6`，产品源码
+`b80dab66e9d819cad821c9b30edbf97c795c0c3e`。`manifest.json` 固定产品版本、
+编译特性及 Meta/Node ELF SHA256；本指南和打包工具的提交、SHA另行记录，必须与编译输入映射核对。
+普通生成配置仍默认 OFF；本次场景按下列步骤明确打开 **OwnerFs workspace bind mount**。
+容器/runc只是可选使用者，启用宿主bind不依赖容器或测试探针。
 
-本指南提供复现步骤，新候选安装/恢复结论以独立证据为准，不继承f03。
-[历史f03交付](https://github.com/lelezi257/dms/releases/tag/afs-trial-f03dc2b)及
-[原指南](https://github.com/lelezi257/dms/blob/8442b55ec25b018aad0898bd0f8679232e393f09/docs/guides/trial.md)保留原身份。
-试用包安装/恢复与标准、性能验收分别记录；完整阶段二性能仍待验。
-[当前验收主表](https://github.com/lelezi257/dms/blob/main/development/trial-release-goals.md)
-是状态入口。[历史7e6交付](https://github.com/lelezi257/dms/releases/tag/afs-trial-7e6e00a)
-及[原指南](https://github.com/lelezi257/dms/blob/7eedd7eca3c1fb810663b3a491b35b18b9650f03/docs/guides/trial.md)
-保留原包、判据和结论，不使用新候选结果追溯升级。
+[当前验收表](https://github.com/lelezi257/dms/blob/main/development/trial-release-goals.md)和
+[b80真实B-Home宿主ON/C远端FUSE及正常恢复证据](https://github.com/lelezi257/dms/blob/149e8725e4fbb420f28b50452be57fb4ac562dd6/development/evidence/20261008-workspace-bind-remote/README.md)
+分别记录功能、测量、性能、交付。该证据不是本包的独立安装证明；包的验证状态以其随附证据索引为准。
+[8442 OFF原指南](https://github.com/lelezi257/dms/blob/149e8725e4fbb420f28b50452be57fb4ac562dd6/docs/guides/trial.md)、
+[历史f03包](https://github.com/lelezi257/dms/releases/tag/afs-trial-f03dc2b)保留原版本/范围/判据，不能作为当前ON包安装结论。
 
-## 环境和校验
+## 环境与校验
 
-使用 Linux ARM64、FUSE3及 `/dev/fuse`，测试数据放本机 ext4。
-依赖按 `DEPENDENCIES.md` 和 `ldd.txt` 核对；至少预留1GiB可用空间，确认四个端口和
-新根目录。必要条件不足时停止受影响步骤并保留输出。
+Linux ARM64、FUSE3与`/dev/fuse`、本地ext4，管理员具备正常FUSE及bind mount权限。
+依赖按包内`DEPENDENCIES.md`/`ldd.txt`检查，至少预留1GiB空闲及512MiB本项预算；
+四端口22400/22401/22500/22501、新根目录和挂载须未占用。缺依赖、身份不符或容量不足即停止该项，保留记录。
+目标机器无需Git、Cargo或编译器。包不含源码、测试探针、rootfs、私钥；TLS在配置生成时本地创建。
 
 ```sh
 sha256sum -c SHA256SUMS
-package_dir=afs-0.1.0-g2-main-8442b55-linux-aarch64
+package_dir=afs-0.1.0-g2-bind-b80dab6-linux-aarch64
 tar -xzf "$package_dir.tar.gz"
 cd "$package_dir"
 sha256sum -c SHA256SUMS
@@ -33,17 +30,16 @@ ldd bin/afs-meta
 ldd bin/afs-node
 ```
 
-第一条使用下载侧校验文件，第二次使用包内校验文件。共享库缺失时先停止，
-不要把安装成功当作服务运行或性能验收通过。
+第一条核对下载侧校验文件；第二次核对包内文件。安装成功不等于功能或性能通过。
 
-## 单节点安装及中心正常重启恢复
+## 单个固定Home的明确ON配置与启动
 
-根目录必须是新目录，22400/22401/22500/22501端口必须空闲。
-OwnerFs与DFS使用两个独立挂载；本步骤使用local-file Meta、gRPC和DFS R1。
-OwnerFs workspace bind的宿主入口与实验适配器均默认 OFF。
+先以默认OFF创建一级workspace，令中心记录Home；正常停止Node后启用宿主bind。
+首次启动前没有已确认的Home时，不应绕过授权去直接覆盖目录。
+示例使用管理员预先分配的uid/gid501，实际部署须替换为工作负载的合法身份。
 
 ```sh
-trial_root=/var/tmp/afs-trial-8442
+trial_root=/var/tmp/afs-trial-bind-b80
 test ! -e "$trial_root" || exit 1
 sudo ./install.sh --prefix "$trial_root/prefix" --config-dir "$trial_root/etc" \
   --state-dir "$trial_root/state" --run-dir "$trial_root/run" \
@@ -59,51 +55,65 @@ ctl() {
     --log-dir "$trial_root/logs" --timeout 30 "$@"
 }
 ctl start all
-for fs in ownerfs dfs; do
-  sudo "$trial_root/prefix/bin/afs-selfcheck" --mount "$trial_root/mount/$fs" \
-    --workspace trial-8442 --size 64MiB --phase write --case-id "trial-8442-$fs" \
-    --deadline 180 --output "$trial_root/$fs-write.json"
-  sudo sync -f "$trial_root/mount/$fs/trial-8442"
-done
-ctl restart meta
-for fs in ownerfs dfs; do
-  sudo "$trial_root/prefix/bin/afs-selfcheck" --mount "$trial_root/mount/$fs" \
-    --workspace trial-8442 --size 64MiB --phase read --case-id "trial-8442-$fs" \
-    --deadline 180 --input "$trial_root/$fs-write.json" \
-    --output "$trial_root/$fs-read.json"
-done
+sudo mkdir -m 0700 "$trial_root/mount/ownerfs/workspace"
+sudo chown 501:501 "$trial_root/mount/ownerfs/workspace"
+sudo sync -f "$trial_root/mount/ownerfs"
+ctl stop node
+sudo python3 - "$trial_root/etc/node.toml" <<'PYCONFIG'
+from pathlib import Path
+import sys,tomllib
+p=Path(sys.argv[1]);s=p.read_text();c=tomllib.loads(s)
+assert not c.get('experimental_native_workspace',False)
+assert 'experimental_ownerfs_workspace_bind' not in c and 'ownerfs_workspace_bind' not in c
+# Generated flat TOML only. Existing customized configs must be edited explicitly.
+assert not any(line.lstrip().startswith('[') for line in s.splitlines())
+p.write_text(s+'\nexperimental_ownerfs_workspace_bind = true\nownerfs_workspace_bind = { workspace = "workspace" }\n')
+PYCONFIG
+sudo "$trial_root/prefix/bin/afs-node" --config "$trial_root/etc/node.toml" --print-config
+ctl start node
+sudo findmnt --mountpoint "$trial_root/mount/ownerfs/workspace"
 ctl status all
-ctl stop all
 ```
 
-写入包含同步和关闭，读回核对完整内容与EOF。中心正常重启后已确认数据应可读；本步骤
-不重启Node，也不证明断电、崩溃或多节点恢复。`stop`成功要求监督进程的实际退出回执；
-保留配置、数据、日志、pid/identity/launch和退出记录，不靠删挂载或杀进程宣布通过。
+有效配置必须显示`experimental_ownerfs_workspace_bind=true`、workspace名`workspace`，
+实验容器适配器`experimental_native_workspace=false`。核心只支持配置指定的一级workspace。
+Home底层真实`state/node/ownerfs/root-…-e…`覆盖本Home的FUSE一级目录，覆盖挂载为ext4，
+不是将FUSE目录本身bind后宣称绕过FUSE。可以按证据中的dev/inode及mountinfo方法核验，不能只检查目录存在。
 
-自检覆盖小规模基本操作，是标准POSIX套件的补充。普通用户试用时由管理员仅在每个
-挂载内创建并chown独立workspace，再以普通用户自检；不要开放整个挂载根。
+应用以授权uid访问`$trial_root/mount/ownerfs/workspace`，关闭并完成所需同步后，
+其他Node在自己的普通OwnerFs FUSE挂载上新打开同一文件。权限由实际uid/gid/mode决定。
+现有打开FD/mmap不保证即时刷新或即时撤权；应用应使用close-to-open。
 
-## memory演示与多节点
+## 两节点使用与远端范围
 
-一次性演示可将配置命令改为 `--backend memory`。Meta退出后namespace及幂等状态丢失；
-生成器明确设置 `allow_volatile_meta=true`。需要恢复时使用local-file。
-多节点使用包内 `afs-trial-config cluster`，先启动Meta再启动Node；默认R2演示不代表
-三同步持久副本或3FS性能。参数与拓扑见
-[操作指南](https://github.com/lelezi257/dms/blob/main/docs/guides/operations.md)。
+多节点用包内`afs-trial-config cluster --help`和[部署操作说明](https://github.com/lelezi257/dms/blob/main/docs/guides/operations.md)
+生成同一TLS信任集并按主机分发配置；数据路径位于各自guest ext4，不使用宿主共享目录替代数据盘。
+先启动Meta，再启动Home B及远端C；在B创建workspace后，仅B正常停Node并按上述方式ON。
+C保持宿主bind与实验容器开关OFF，通过C的OwnerFs FUSE访问B的workspace。
+不要在非Home C给同一workspace开启bind，授权失败必须保留其真实错误。
 
-## 当前范围和已知限制
+已验证当前固定Home场景：4/64KiB双向写-close/新open的SHA/长度/EOF、native rename后的
+新名字与旧ENOENT、远端删除/native ENOENT、chmod000/0600、uid502拒绝及EEXIST不破坏内容。
+这是小规模功能范围，不是完整POSIX、远端性能达标或任意多workspace拓扑。
 
-- 8442包含f03同父目录独立创建的时间戳竞争修复和宿主bind限定RootCommand安全关闭；
-  新RootCommand消费者仅在host bind ON启动，普通默认OFF安装路径仍需要新候选回归。
-- f03修复同父目录独立创建的时间戳竞争；同名、权限/属性变化和真实冲突仍保留错误。
-- 同f03的[小规模三节点读写](https://github.com/lelezi257/dms/blob/main/development/evidence/20261007-dfs-r3-multinode-current/README.md)
-  和[删除](https://github.com/lelezi257/dms/blob/main/development/evidence/20261007-dfs-delete-current/README.md)
-  已有独立功能与计时数据。缓存未观察，正式3FS比较和独立时延证据仍待验。
-- 普通OwnerFs读写要求同条件MooseFS吞吐≥1.2倍且独立操作时延≤0.8倍；现有历史或摸底
-  结果不足以宣布新判据通过。删除只要求正确性和性能对照报告。
-- workspace bind将物理Home目录覆盖OwnerFs FUSE一级目录，宿主入口独立于runc；
-  两入口默认OFF，历史限定性能不自动升级新候选，完整ON/混合append、锁、watch仍待验。
-- remote shared mmap需要内核协商 `FUSE_DIRECT_IO_ALLOW_MMAP`；普通远端读写使用direct I/O。
-- 当前fuser保留历史私有差异，官方迁移的公开API缺口尚未解决，第三方原版整改未完成。
-- gRPC为本试用默认通道；RDMA、大规模/长时、复杂可靠性、etcd和Redis按后续独立项推进。
-- G1历史8/8保持关闭。新候选回归、历史标准、各性能小项按版本和范围记录。
+## 正常停止、排空和local-file恢复
+
+停止前让应用关闭FD/mmap、停止写入并完成所需文件及父目录持久屏障，然后`ctl stop all`。
+保留状态、配置、日志和processctl退出回执，不靠杀进程、删挂载或删状态宣布关闭。
+确认监督者实际wait0、bind/FUSE与UDS消失，再用同一配置`ctl start all`，新打开确认数据。
+当前证据覆盖Meta与两Node全服务正常停止后重启；不等于在线Meta-only重启或崩溃恢复。
+ON控制面失联/授权失败按现有策略fail-closed，须等待引用排空；不要绕过Home/root/epoch核验。
+需要关闭该功能时，先排空并正常停Node，将宿主开关显式改false后再启动。
+
+## 支持边界与性能状态
+
+- 当前Home/一级workspace宿主bind与普通远端FUSE协同；管理员安装，应用非特权uid。
+  默认配置OFF，本文明确ON，不支持把非Home、FUSE自身或任意外部目录冒充合法源。
+- 一般混合native/FUSE同时append的偏移、混合经典锁和watch传播仍有历史FAIL，当前不支持；
+  依赖这些操作的工作负载不能按本次小闭环宣布可用。生产撤权issuer/durable ACK、即时既有FD撤权、扩展命名空间及拓扑后置。
+- RootCommand精确接收/拒绝、源身份/epoch变更与FD/mmap排空分别保留原版本证据。
+  direct-I/O mmap仍必须经过真实内核能力协商，不能通过配置冒充能力。
+- 八项历史bind小核心case以>=0.90 native ext4限定复用；当前名字缓存修复不重标那些版本的性能。
+  普通远端读写仍须吞吐>=1.2同条件MooseFS且独立时延<=0.8；本地同判据但后置。
+  DFS一写多读在同接口/三份同步持久副本下持平3FS，当前合格对照仍待验；删除只报告正确性与性能。
+- gRPC为本次通道；大规模、长时、复杂可靠性、多Meta、etcd、Redis后置。阶段一历史8/8关闭，当前回归属于阶段二。

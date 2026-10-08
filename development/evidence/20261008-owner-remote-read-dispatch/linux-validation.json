@@ -1,0 +1,80 @@
+{
+  "candidate": {
+    "afs_meta_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+    "afs_node_sha256": "6e2a85216f7ef923373d574e09205a175e212212d69d3771b754cb40462cbf33",
+    "compiler_input_map": "163d1c4af4fecc70b2d9219a3982d12e47c1d5dbd66f622f6c28ac6e9704db02",
+    "compiler_inputs": 158,
+    "meta_source": "b80dab66e9d819cad821c9b30edbf97c795c0c3e",
+    "node_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/candidate-node",
+    "product_patch_sha256": "c29a3cc71bfff40457632b50218bc0d9b9036e6502ade33768e89256f2b95b49",
+    "scope": "One GrpcInline READ scheduling candidate; no performance verdict",
+    "source_base": "35ae8943125fb0a59625cf736934d7aae7b162a3",
+    "source_identity": "35ae8943125fb0a59625cf736934d7aae7b162a3+patch:c29a3cc71bfff40457632b50218bc0d9b9036e6502ade33768e89256f2b95b49"
+  },
+  "checks": [
+    {
+      "name": "parent-linux-compiler-inputs",
+      "result": {
+        "rc": 0
+      },
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "6182e7f456a0d601a3026db9ce2e78e7448d69aefd6ca26d4b294abe59986ad6"
+    },
+    {
+      "name": "parent-grpc-payload-contract",
+      "result": {
+        "rc": 0
+      },
+      "stderr_sha256": "1c294c49a6a371deae32d86947da1fac3c4032e8de858550631568fcf4c02be2",
+      "stdout_sha256": "5eac91fce394b8ddb10ae6217de34d60e9bbe929da653ea17f611074ea181bc7"
+    },
+    {
+      "name": "parent-home-handle-scope",
+      "result": {
+        "rc": 0
+      },
+      "stderr_sha256": "ba60371d7e576efb6762226639ff13fed63a049cf49e8d5780dec89be95c21a2",
+      "stdout_sha256": "68745c2474b53d68541e08f2d39590f518c93c79758bf7093f671840bf419250"
+    },
+    {
+      "name": "parent-expired-peer-scope",
+      "result": {
+        "rc": 0
+      },
+      "stderr_sha256": "0c3ffb4f606d9bc9ea5202d50913a267dd1e1e2e94f50826c8898ea80dd10744",
+      "stdout_sha256": "9ecc8bd000b99166164ef3675a7fd80995f79353e0d3757d05d5ecb74a9fd5a0"
+    },
+    {
+      "name": "parent-release-node",
+      "result": {
+        "rc": 0
+      },
+      "stderr_sha256": "9975abd649a7e78441695e52c296f5fa72cc820d800bd2b371729122dab4697a",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "final_source": {
+    "checks": [
+      "Linux fmt --check",
+      "cargo check -p afs --features ownerfs",
+      "cargo clippy -p afs --features ownerfs --lib --bins"
+    ],
+    "evidence": {
+      "100-revert-product-keep-tests.patch": "e0f47ac755462c82cae6322e50ab3f0815a8ab5a0689ab7ff814c16b5ed60863",
+      "103-linux-owner-read-5-tests.log": "bb4323c336d0a0a7e60f77107929c5663784080f7802f37814be94372f1166d5",
+      "104-linux-fmt-check-clippy-lib-bins.log": "c042b6d07a74cecc0674ec58e2ea71733bb29eaffc324cd870dfc213e153ff4f",
+      "105-no-production-diff-proof.log": "ab4d49a4fd3cd4fa9ee5f28c083366ea937ea0dc742d49cf1fcb743bad7470c5"
+    },
+    "failed": 0,
+    "new_tests": 5,
+    "no_release_rebuild_after_rejection": true,
+    "passed": 5,
+    "production_dispatch": "restored exact main production prefix",
+    "warnings": "two pre-existing peer.rs fallback dead_code"
+  },
+  "limitations": [
+    "Strict lib/tests Clippy -D warnings fails unchanged peer.rs dead_code and items_after_test_module. Default affected lib/bins Clippy passes with two existing warnings.",
+    "Early compile/test/pipeline failures remain in raw commands; only pipefail 061 and later are final checks."
+  ],
+  "scope": "G2.14 one GrpcInline read scheduling trial, no performance verdict yet"
+}

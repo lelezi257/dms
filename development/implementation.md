@@ -6,13 +6,15 @@ Architecture documents describe the accepted target design. Implementation progr
 
 ## Current priorities
 
-1. Preserve the completed G1/g1.5 colleague trial: installable OwnerFs/DFS, memory demo and central local-file Meta restart recovery. New candidate regression is G2 work; it does not reopen the historical G1 exit.
-2. Stabilize the current source snapshot and documentation so code, goals, known limits and evidence boundaries agree on GitHub.
-3. Run Owner-first standard fallback and necessary recovery checks on the current candidate: OwnerFs pjdfstest, Owner-relevant fixed LTP subset, short FSx, and the affected Owner/basic local-file recovery combination. Run DFS standard entry before DFS performance claims.
-4. Performance first: implement and qualify the Issue42/PR43 OwnerFs workspace bind mount path (explicit experimental switch, default OFF), then paired core ON/OFF/ext4 measurements for that bind path. Ordinary OwnerFs local/remote read/write cases may baseline and preserve data; defer targeted tuning. Their active target is now [throughput >=1.2x same-condition MooseFS and operation latency <=0.8x MooseFS](ownerfs-performance-criteria.md), judged independently.
-5. Enter DFS performance with one-writer/many-readers first, then single read/write, multi-node read/write, delete and larger sizes. DFS comparisons use matched POSIX/FUSE and three synchronous durable copies against 3FS.
-6. Keep bind/native as two independent G2 tasks: functional qualification and performance qualification. The switch must be explicit and default OFF. Public ON production use is not qualified until lifecycle, permissions, namespace/root ownership, mmap/watch/lock/append/seek and drain requirements pass.
-7. Keep etcd and Redis near the end. etcd memory/resource work may use the user-authorized 2 GiB topic lane. Redis is last/TODO unless an earlier correctness defect makes it urgent.
+The [three-stage goal table](trial-release-goals.md) is authoritative. The finite current-scenario G2.12 function and explicit ON trial delivery is closed with [version-scoped runtime, install and publication proof](evidence/20261008-workspace-bind-on-trial/README.md); this is not unrestricted production bind support or a new performance verdict.
+
+1. Preserve historical G1/g1.5 8/8. Reuse unaffected version-scoped standard, local-file recovery and eight bind >=0.90 ext4 core performance results; current regression belongs to G2, not reopened G1.
+2. G2.14–16: required Home workspace bind ON and remote FUSE cooperation/performance. Read/write require >=1.2x same-condition MooseFS throughput **and** <=0.8x independently measured operation latency. Delete requires correctness and comparison reporting. Optimize one actual product issue per round with frozen conditions, correct bytes/errors/freshness and before/after data; do not keep expanding measurement qualification or repeat packaging for every change.
+3. G2.21 DFS one-writer/many-readers first. The one missing per-read measurement is closed; qualified three-synchronous-durable-copy 3FS parity remains pending. Other DFS core cases follow independently.
+4. G2.09–11 ordinary local FUSE optimization follows remote and DFS; keep the same MooseFS dual targets.
+5. Complex mixed append/offset/locks/watch, production command issuer/durable ACK, expanded topologies, live Meta-only availability/crash reliability, large/long matrices, multi-Meta, etcd and Redis remain later scopes. Original failures and explicit unsupported scope remain; any defect needed by the current supported flow must still be fixed. etcd resource work may use the user-authorized 2GiB topic; Redis is last/TODO.
+
+OwnerFs workspace bind mount functionality and performance remain independent existing G2 tasks. Ordinary distribution config defaults OFF; the identified current trial provides explicit host ON steps. Never enable stale remote caching, weaken authority/permissions/errors/persistence or call a FUSE-self bind a bypass. No full POSIX or deferred combinations are inferred from finite ON success.
 
 ## Architecture boundaries
 

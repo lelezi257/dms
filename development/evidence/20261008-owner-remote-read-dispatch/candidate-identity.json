@@ -1,0 +1,12 @@
+{
+  "afs_meta_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+  "afs_node_sha256": "6e2a85216f7ef923373d574e09205a175e212212d69d3771b754cb40462cbf33",
+  "compiler_input_map": "163d1c4af4fecc70b2d9219a3982d12e47c1d5dbd66f622f6c28ac6e9704db02",
+  "compiler_inputs": 158,
+  "meta_source": "b80dab66e9d819cad821c9b30edbf97c795c0c3e",
+  "node_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/candidate-node",
+  "product_patch_sha256": "c29a3cc71bfff40457632b50218bc0d9b9036e6502ade33768e89256f2b95b49",
+  "scope": "One GrpcInline READ scheduling candidate; no performance verdict",
+  "source_base": "35ae8943125fb0a59625cf736934d7aae7b162a3",
+  "source_identity": "35ae8943125fb0a59625cf736934d7aae7b162a3+patch:c29a3cc71bfff40457632b50218bc0d9b9036e6502ade33768e89256f2b95b49"
+}

@@ -1,4 +1,4 @@
-**当前出口（2026-10-08，G2.12）：** 当前b80必要场景功能与ON试用交付 **限定完成**：B宿主bind ON/C远程FUSE双向4/64KiB、rename/delete、权限/errno、正常退出及local-file全服务正常停机后重启恢复通过；授权失效/排空等未变路径按原版本限定复用。[ON包、无编译器安装、4附件远端SHA与固定tag](../development/evidence/20261008-workspace-bind-on-trial/README.md)，[真实运行/恢复及0bd、bc8原失败](../development/evidence/20261008-workspace-bind-remote/README.md)。原27项现 **12限定完成／0bind进行中／15待验收**，仅关闭原G2.12，不按工具/检查/提交加数；G1历史8/8关闭。本轮无新性能测量或达标宣称；八bind性能仅历史限定复用。下一 **G2.14–16远端一问题一轮产品优化 → DFS一写多读 → 普通本地FUSE**，读写保持Moose吞吐>=1.2且独立时延<=0.8。G2.21单次逐read补测已收口、3FS性能PENDING；复杂append/lock/watch原FAIL和不支持范围、在线Meta-only/crash、多Meta/etcd/Redis后置。普通配置默认OFF，试用场景明确ON；不反复打包。
+**当前出口（2026-10-08，G2.14）：** bind ON/B-Home/C远程FUSE同一64MiB/C1夹具的一轮READ调度试改已收口：吞吐298.373605→305.725474MiB/s（+2.464%），独立p95 5772631→5393811ns；吞吐未到测前>=5%保留线，**撤回生产试改，保留语义回归与所有数据，不重测刷分**。[版本、原始指标、正确性及关闭](../development/evidence/20261008-owner-remote-read-dispatch/README.md)。本轮功能限定PASS／测量COMPLETE／优化方向REJECTED／Moose最终双目标PENDING；不加算原任务完成数。G2.12 b80有限ON功能与已发布试用交付保持关闭，原27项仍12限定完成/0bind进行中/15待验收，G1历史8/8不重开。下一G2.15远端写一个实际产品问题，复用已过删除及必要功能，随后DFS一写多读→普通本地；不反复打包或扩资格矩阵。
 
 以下日期记录保留原版本与结论。
 

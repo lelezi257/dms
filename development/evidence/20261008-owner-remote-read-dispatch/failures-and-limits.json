@@ -1,0 +1,50 @@
+{
+  "failures": [
+    {
+      "command": "performance/commands/b-candidate-node-transfer",
+      "rc": 3,
+      "reason": "stage absent before bootstrap",
+      "services_started": false
+    },
+    {
+      "command": "performance/commands/ctl-package-transfer",
+      "rc": 3,
+      "reason": "ordinary Lima copy could not write root-owned stage",
+      "services_started": false
+    }
+  ],
+  "logs": [
+    {
+      "ERRO": 2,
+      "TRACE": 0,
+      "WARN": 18,
+      "bundle": "c-guest-artifacts.tar.gz",
+      "bytes": 5382,
+      "path": "logs/node.log",
+      "sha256": "1c0dadcfc294c711693943b2a7b8f68d9857d1f9469894e963fc15827886deb8"
+    },
+    {
+      "ERRO": 1,
+      "TRACE": 0,
+      "WARN": 2,
+      "bundle": "b-guest-artifacts.tar.gz",
+      "bytes": 2469,
+      "path": "logs/node.log",
+      "sha256": "e2b057f0a8ee4309a109adda677efd948f9b532929dc5ee0fac76cb9a3bc3b3f"
+    },
+    {
+      "ERRO": 0,
+      "TRACE": 0,
+      "WARN": 0,
+      "bundle": "ctl-guest-artifacts.tar.gz",
+      "bytes": 296,
+      "path": "logs/meta.log",
+      "sha256": "1f0b033426cf4d6dda1c139bd0e68329cad384fbe1c040e05decdf19147d9eb6"
+    }
+  ],
+  "raw_tmp_cleanup_sha256": "177586b031624d9b1fc91dc220eb33410f29c41504ae43b400f98e11be2cdb08",
+  "scope": "Two pre-service harness failures; no formal measurement retry",
+  "source_label_correction": "Raw candidate closure source_commit kept legacy b80 helper constant. Actual prototype is live Node SHA6e2a8521 + input map163d1c4a + patchc29a3cc7, not b80 source. Original receipts unchanged.",
+  "superseded_failure_summary": "run-pair-failure.json was overwritten by second preparation failure; both per-command originals retained",
+  "tmp_upload_bytes_removed": 94346968
+}

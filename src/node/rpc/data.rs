@@ -3978,9 +3978,9 @@ mod tests {
     #[cfg(feature = "ownerfs")]
     use afs_protocol::node_data::{
         FileIdentity as PbFileIdentity, OwnerCaller, OwnerDirectoryHandle, OwnerFsyncRequest,
-        OwnerGetAttrRequest, OwnerHandle, OwnerLinkRequest, OwnerOpenRequest, OwnerReaddirRequest,
-        OwnerReadlinkRequest, OwnerSymlinkRequest, RootAccess,
-        owner_files_client::OwnerFilesClient,
+        OwnerGetAttrRequest, OwnerHandle, OwnerLinkRequest, OwnerOpenRequest, OwnerReadReply,
+        OwnerReadRequest, OwnerReaddirRequest, OwnerReadlinkRequest, OwnerSymlinkRequest,
+        RootAccess, owner_files_client::OwnerFilesClient,
     };
     #[cfg(feature = "ownerfs")]
     use afs_transport::grpc::error_status::status_to_error;
@@ -4243,6 +4243,172 @@ mod tests {
                 owner_session_id: "node-a-session-9".into(),
             })
         }
+    }
+
+    #[cfg(feature = "ownerfs")]
+    enum OwnerReadFixture {
+        Reply(OwnerReadReply),
+        Error(afs_error::Error),
+        Panic,
+    }
+
+    #[cfg(feature = "ownerfs")]
+    struct OwnerReadFixtureHandler {
+        result: std::sync::Mutex<Option<OwnerReadFixture>>,
+        seen_thread: std::sync::Mutex<Option<std::thread::ThreadId>>,
+    }
+
+    #[cfg(feature = "ownerfs")]
+    impl OwnerReadFixtureHandler {
+        fn reply(data: &[u8], read: u32, eof: bool) -> Arc<Self> {
+            Arc::new(Self {
+                result: std::sync::Mutex::new(Some(OwnerReadFixture::Reply(OwnerReadReply {
+                    data: data.to_vec(),
+                    read,
+                    eof,
+                    data_checksum: b"must-be-cleared".to_vec(),
+                }))),
+                seen_thread: std::sync::Mutex::new(None),
+            })
+        }
+
+        fn error(code: afs_error::ErrorCode) -> Arc<Self> {
+            Arc::new(Self {
+                result: std::sync::Mutex::new(Some(OwnerReadFixture::Error(
+                    afs_error::Error::coded(code, "fixture application error"),
+                ))),
+                seen_thread: std::sync::Mutex::new(None),
+            })
+        }
+
+        fn panic() -> Arc<Self> {
+            Arc::new(Self {
+                result: std::sync::Mutex::new(Some(OwnerReadFixture::Panic)),
+                seen_thread: std::sync::Mutex::new(None),
+            })
+        }
+
+        fn seen_thread(&self) -> std::thread::ThreadId {
+            self.seen_thread.lock().unwrap().unwrap()
+        }
+    }
+
+    #[cfg(feature = "ownerfs")]
+    impl OwnerFilesHandler for OwnerReadFixtureHandler {
+        fn read(&self, peer: &str, request: OwnerReadRequest) -> afs_error::Result<OwnerReadReply> {
+            assert_eq!(peer, "node-b");
+            assert_eq!(request.access.unwrap().root_id, "workspace-1");
+            assert_eq!(request.handle.unwrap().opaque, b"file-handle".to_vec());
+            *self.seen_thread.lock().unwrap() = Some(std::thread::current().id());
+            match self.result.lock().unwrap().take().unwrap() {
+                OwnerReadFixture::Reply(reply) => Ok(reply),
+                OwnerReadFixture::Error(error) => Err(error),
+                OwnerReadFixture::Panic => panic!("fixture owner read panic"),
+            }
+        }
+    }
+
+    #[cfg(feature = "ownerfs")]
+    fn owner_read_request(length: u32) -> OwnerReadRequest {
+        OwnerReadRequest {
+            access: Some(root_access()),
+            handle: Some(OwnerHandle {
+                opaque: b"file-handle".to_vec(),
+            }),
+            offset: 0,
+            length,
+            plane: Some(DataPlane {
+                transfer: DataTransfer::GrpcInline.into(),
+                rdma_session_id: 0,
+                buffer_offset: 0,
+            }),
+        }
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn owner_read_grpc_inline_keeps_short_read_and_eof_contract() {
+        let handler = OwnerReadFixtureHandler::reply(b"abc", 3, true);
+        let service = OwnerFilesService::new(handler.clone(), Arc::new(AllowOwnerTestPeer));
+
+        let reply = service
+            .read(Request::new(owner_read_request(8)))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(reply.data, b"abc");
+        assert_eq!(reply.read, 3);
+        assert!(reply.eof);
+        assert!(reply.data_checksum.is_empty());
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test]
+    async fn owner_read_grpc_inline_current_thread_keeps_spawn_blocking_fallback() {
+        let handler = OwnerReadFixtureHandler::reply(b"abc", 3, true);
+        let caller_thread = std::thread::current().id();
+        let service = OwnerFilesService::new(handler.clone(), Arc::new(AllowOwnerTestPeer));
+
+        let reply = service
+            .read(Request::new(owner_read_request(8)))
+            .await
+            .unwrap()
+            .into_inner();
+
+        assert_eq!(reply.data, b"abc");
+        assert_ne!(handler.seen_thread(), caller_thread);
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn owner_read_grpc_inline_rejects_malformed_reply_length() {
+        let handler = OwnerReadFixtureHandler::reply(b"abc", 4, false);
+        let service = OwnerFilesService::new(handler, Arc::new(AllowOwnerTestPeer));
+
+        let error = service
+            .read(Request::new(owner_read_request(8)))
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            status_to_error(error).code(),
+            afs_error::NODE_TRANSFER_INVALID
+        );
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn owner_read_grpc_inline_preserves_application_errors() {
+        let handler = OwnerReadFixtureHandler::error(afs_error::IO_PERMISSION_DENIED);
+        let service = OwnerFilesService::new(handler, Arc::new(AllowOwnerTestPeer));
+
+        let error = service
+            .read(Request::new(owner_read_request(8)))
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            status_to_error(error).code(),
+            afs_error::IO_PERMISSION_DENIED
+        );
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn owner_read_grpc_inline_maps_handler_panic_to_worker_failure() {
+        let handler = OwnerReadFixtureHandler::panic();
+        let service = OwnerFilesService::new(handler, Arc::new(AllowOwnerTestPeer));
+
+        let error = service
+            .read(Request::new(owner_read_request(8)))
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            status_to_error(error).code(),
+            afs_error::CLIENT_WORKER_FAILED
+        );
     }
 
     #[cfg(feature = "ownerfs")]

@@ -1,0 +1,27 @@
+{
+  "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/archives/20261008-owner-remote-read-dispatch/records.tar.gz",
+  "bytes": 217854,
+  "files": 1219,
+  "manifest_sha256": "76cfa1c0d8f737a82620dd90f423d79c0591e33596ed13462f90436d1f93c6a6",
+  "raw_scope": "Commands including all first failures, candidate patch/input map, exact test adaptations, two phase timing arrays, lifecycle/config/log bundles; no private TLS or full Rust source snapshot.",
+  "restore": {
+    "archive_sha256": "9775990f04cffffc2a20354e77d763b76461a0002214f8d056b4e6aec554dce9",
+    "files": 1219,
+    "nested_guest_files": 33,
+    "root": "/var/tmp/afs-read-dispatch-restore-xn573yhp",
+    "status": "PASS_ACTUAL_LINUX_RESTORE"
+  },
+  "retained_binary_inputs": {
+    "candidate-node": {
+      "bytes": 25246544,
+      "retained_at": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/candidate-node",
+      "sha256": "6e2a85216f7ef923373d574e09205a175e212212d69d3771b754cb40462cbf33"
+    },
+    "performance/tools/io": {
+      "bytes": 72360,
+      "retained_at": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/performance/tools/io",
+      "sha256": "0d4346c99ad5ed3a7af0306c7db965eb1d6ea57595a89d639216a2be15c9fa8e"
+    }
+  },
+  "sha256": "9775990f04cffffc2a20354e77d763b76461a0002214f8d056b4e6aec554dce9"
+}

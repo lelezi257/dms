@@ -1,0 +1,20 @@
+{
+  "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/archives/20261008-owner-remote-read-frames/records.tar.gz",
+  "bytes": 191817,
+  "sha256": "9a0768ad5ccbe87ceb5b4933e4a7d82cdd865f9aac2aaba67970c6af11ba7030",
+  "files": 1319,
+  "manifest_sha256": "3fb0d6694402c6b84debaf46a2c305b33bfe32b41b70b5422ab12991fe671001",
+  "restore": {
+    "status": "PASS_ACTUAL_LINUX_RESTORE",
+    "root": "/var/tmp/afs-owner-read-frames-restore-0r8kqa6_",
+    "files": 1319,
+    "nested_guest_files": 27,
+    "archive_sha256": "9a0768ad5ccbe87ceb5b4933e4a7d82cdd865f9aac2aaba67970c6af11ba7030"
+  },
+  "retained_binary_inputs": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/afs-delivery/owner-remote-read-frames-20261008-r1/candidate-node",
+    "bytes": 25120640,
+    "sha256": "839e14d93e7fb50099988a739eaeba1fafbdce83860c0328b8c0b91f7b4e6063"
+  },
+  "scope": "Raw commands/failures, frozen contract, candidate patch/input map, case deltas, timings, physical proof, closure and raw guest records. No ELF/private TLS/full source copies in Git or this archive."
+}

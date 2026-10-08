@@ -1,0 +1,9 @@
+{
+  "raw_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-read-rpc-cost-20261008-r1",
+  "frozen_plan_sha256": "8e8653d11bc8cde74463ae3f655e715b2b4a4591cf83628953402a3531866200",
+  "audit_script_sha256": "9adfb65e7a1fce3a97b2344d42cd4479cccb918f6609428547aedf60341b202d",
+  "audit_sha256": "6623dd45933674bd820147d96dfbd4764ef9e047fad630c87c1b1277528a15a8",
+  "audit_after_archive": "audit.py/audit.json generated after immutable289-record archive; raw archived records independently audited on Linux; original archive unchanged",
+  "reused": "stopped prior fixture and existing probe/metrics, no product change/build/new tool snapshot",
+  "scope": "diagnostic count/sum means; no formal comparator or percentile subtraction"
+}

@@ -1,0 +1,64 @@
+{
+  "baseline": {
+    "afs_meta_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+    "compiler_input_map": "3a22539290f20f24e3c6373f00c34eb78ab94245f90b6d436c42e9d7a001df36",
+    "label": "baseline-68dc",
+    "mismatches": {},
+    "node_sha256": "8e1216f4075deb48bc05c921dbfca1337a2180c78d693f5d9923736d83382a30",
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-read-bytes-20261008-r1/candidate-node",
+    "source_base": "a734091cb866869e6ead0cde553e6129be88250b",
+    "source_identity": "a734091cb866869e6ead0cde553e6129be88250b+patch:951e9c760e9bef1b3a0f723f260dfa1c4a0f8f692566b5dadf0be6aae10bf368",
+    "status": "PASS"
+  },
+  "candidate": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/afs-delivery/owner-remote-read-frames-20261008-r1/candidate.json",
+    "status": "PRESENT"
+  },
+  "case": "owner-remote-read-frames-20261008-r1",
+  "ceilings_mib": {
+    "b": 256,
+    "c": 256,
+    "ctl": 128
+  },
+  "floors_mib": {
+    "b": 4096,
+    "c": 4096,
+    "ctl": 512
+  },
+  "gate": {
+    "correctness_and_closure_required": true,
+    "formal_moose": "PENDING",
+    "p95_ratio_at_most": 1.0,
+    "throughput_ratio_at_least": 1.05
+  },
+  "labels": [
+    "baseline-68dc",
+    "candidate-frames"
+  ],
+  "latency": "pread+count-check before memcmp; CLOCK_MONOTONIC; pooled nearest rank p50/p95/p99, judge p95",
+  "no_retry": true,
+  "old_harness": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/performance/paired_remote_read.py",
+  "probe": {
+    "io_sha256": "c87a5fd84384871a69379b572ab512b69b1f0c8a6632aca4a44c72ac3d91e3ee",
+    "old_io_sha_before_override": "c87a5fd84384871a69379b572ab512b69b1f0c8a6632aca4a44c72ac3d91e3ee",
+    "status": "PRESENT"
+  },
+  "require_candidate_patch_source_identity": "accepted: old harness only requires non-empty compile map and carries candidate_source_commit as a string",
+  "shape": {
+    "block": 1048576,
+    "bytes": 67108864,
+    "concurrency": 1,
+    "formal_rounds": 5,
+    "rounds": 6,
+    "warmup": 1
+  },
+  "side_effects_when_static_checked": {
+    "a_side_io_acquisition": false,
+    "build_started": false,
+    "services_started": false,
+    "vm_operations": false
+  },
+  "status": "PASS_STATIC_CONTRACT",
+  "timing": "independent p95 from corrected probe pread+count-check before memcmp; whole-wall throughput includes oracle/open/thread/close",
+  "topology": "ctl local-file Meta / B Home bind ON / C remote Owner FUSE uid501"
+}

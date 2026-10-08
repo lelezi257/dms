@@ -1,0 +1,201 @@
+{
+  "archive": {
+    "bytes": 78647,
+    "files": 289,
+    "manifest_sha256": "97088e03b1bfc68b88bc9fe53a8e38414efbf3639c235b4d5e10abc6c4540380",
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/archives/20261008-owner-remote-read-rpc-cost/records.tar.gz",
+    "restore": {
+      "archive_sha256": "92dcbd8c1caf11e654472a71a749ab895e9edf278f549e495718cc9fec7497d9",
+      "files": 289,
+      "nested_guest_files": 27,
+      "root": "/var/tmp/afs-owner-rpc-restore-zj8bjet9",
+      "status": "PASS_ACTUAL_LINUX_RESTORE"
+    },
+    "sha256": "92dcbd8c1caf11e654472a71a749ab895e9edf278f549e495718cc9fec7497d9"
+  },
+  "bind_and_cache": {
+    "bind_mountinfo": "228 55 253:17 /afs-delivery/owner-remote-read-payload-20261008-r1/state/node/ownerfs/root-776f726b7370616365-e1 /mnt/lima-afsbdata/afs-delivery/owner-remote-read-payload-20261008-r1/mount/ownerfs/workspace rw,nosuid,nodev,relatime shared:349 - ext4 /dev/vdb1 rw",
+    "bind_source": "/mnt/lima-afsbdata/afs-delivery/owner-remote-read-payload-20261008-r1/state/node/ownerfs/root-776f726b7370616365-e1",
+    "bind_target": "/mnt/lima-afsbdata/afs-delivery/owner-remote-read-payload-20261008-r1/mount/ownerfs/workspace",
+    "cache_identity": {
+      "ctime_ns": 1791453154474496443,
+      "device": 64785,
+      "inode": 1326387,
+      "mtime_ns": 1791453154474496443,
+      "size": 67108864
+    },
+    "post_cache_resident_bytes": 67108864,
+    "pre_cache_resident_bytes": 67108864
+  },
+  "checks": {
+    "archive_restore_recorded": true,
+    "bind_is_ext4_source_under_ownerfs_workspace": true,
+    "command_results_rc0": true,
+    "content_and_full_sha_match": true,
+    "diagnostic_run_result": true,
+    "first_tool_failure_preserved": true,
+    "physical_cache_pre_post_fully_resident": true,
+    "raw_prometheus_matched": true,
+    "rpc_cost_result_matches_raw": true,
+    "three_diag_services_closed_wait0": true
+  },
+  "closures": {
+    "b_diag_home": {
+      "all_initial_rows_present": true,
+      "exact_final_rows": true,
+      "executable_sha256": "8e1216f4075deb48bc05c921dbfca1337a2180c78d693f5d9923736d83382a30",
+      "exit_code": "0",
+      "path": "performance/b-diag-home-closed.json",
+      "pids_gone_count": 2,
+      "role": "b",
+      "source_commit": "a734091cb866869e6ead0cde553e6129be88250b+patch:951e9c760e9bef1b3a0f723f260dfa1c4a0f8f692566b5dadf0be6aae10bf368",
+      "status": "PASS"
+    },
+    "c_diag_remote": {
+      "all_initial_rows_present": true,
+      "exact_final_rows": true,
+      "executable_sha256": "8e1216f4075deb48bc05c921dbfca1337a2180c78d693f5d9923736d83382a30",
+      "exit_code": "0",
+      "path": "performance/c-diag-remote-closed.json",
+      "pids_gone_count": 2,
+      "role": "c",
+      "source_commit": "a734091cb866869e6ead0cde553e6129be88250b+patch:951e9c760e9bef1b3a0f723f260dfa1c4a0f8f692566b5dadf0be6aae10bf368",
+      "status": "PASS"
+    },
+    "ctl_diag_meta": {
+      "all_initial_rows_present": true,
+      "exact_final_rows": true,
+      "executable_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+      "exit_code": "0",
+      "path": "performance/ctl-diag-meta-closed.json",
+      "pids_gone_count": 2,
+      "role": "ctl",
+      "source_commit": "b80dab66e9d819cad821c9b30edbf97c795c0c3e",
+      "status": "PASS"
+    }
+  },
+  "command_records": {
+    "bind_source_target": {
+      "rc": 0,
+      "result": "performance/commands/b-rpc-diagnostic-actual-bind-source-target.result.json",
+      "stdout": "performance/commands/b-rpc-diagnostic-actual-bind-source-target.stdout",
+      "stdout_sha256": "b23efe8902c5b9bc7550b3c2e669e1933b09cfa406388e18af0784c2ad05b66e"
+    },
+    "post_physical_cache": {
+      "rc": 0,
+      "result": "performance/commands/b-rpc-diagnostic-post-read-physical-cache.result.json",
+      "stdout": "performance/commands/b-rpc-diagnostic-post-read-physical-cache.stdout",
+      "stdout_sha256": "b99c4404b285aac79f4f2eb316f52bdc4cf7acf98bdf3edf0284b4eb9262faa9"
+    },
+    "post_remote_sha": {
+      "rc": 0,
+      "result": "performance/commands/c-rpc-diagnostic-post-read-remote-full-sha.result.json",
+      "stdout": "performance/commands/c-rpc-diagnostic-post-read-remote-full-sha.stdout",
+      "stdout_sha256": "96a4fb0898d2090096f12f9485a70f743d5527e7e83ce71ebec5e5c3b95cf68a"
+    },
+    "pre_physical_cache": {
+      "rc": 0,
+      "result": "performance/commands/b-rpc-diagnostic-pre-read-physical-cache.result.json",
+      "stdout": "performance/commands/b-rpc-diagnostic-pre-read-physical-cache.stdout",
+      "stdout_sha256": "b99c4404b285aac79f4f2eb316f52bdc4cf7acf98bdf3edf0284b4eb9262faa9"
+    },
+    "pre_remote_sha": {
+      "rc": 0,
+      "result": "performance/commands/c-rpc-diagnostic-pre-read-remote-full-sha.result.json",
+      "stdout": "performance/commands/c-rpc-diagnostic-pre-read-remote-full-sha.stdout",
+      "stdout_sha256": "96a4fb0898d2090096f12f9485a70f743d5527e7e83ce71ebec5e5c3b95cf68a"
+    },
+    "read_round": {
+      "rc": 0,
+      "result": "performance/commands/c-rpc-diagnostic-read-round-00.result.json",
+      "stdout": "performance/commands/c-rpc-diagnostic-read-round-00.stdout",
+      "stdout_sha256": "5f849ab0f00a707bb8d1b8fbeae685d492dfc4a0671433abd8a54f4fa1c2b988"
+    }
+  },
+  "content": {
+    "bytes": 67108864,
+    "latency_interval": "pread+count-check",
+    "operations": 64,
+    "p50_ns": 2401699,
+    "p95_ns": 5277557,
+    "p99_ns": 7338440,
+    "read_path": "performance/read.json",
+    "remote_uid": 501,
+    "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5"
+  },
+  "identity": {
+    "main": "d79bf7c4d1071c17f4a5054bdff20f0ca743346c",
+    "meta_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+    "probe_sha256": "c87a5fd84384871a69379b572ab512b69b1f0c8a6632aca4a44c72ac3d91e3ee",
+    "product_node_sha256": "8e1216f4075deb48bc05c921dbfca1337a2180c78d693f5d9923736d83382a30",
+    "reused_roots": {
+      "b": "/mnt/lima-afsbdata/afs-delivery/owner-remote-read-payload-20261008-r1",
+      "c": "/mnt/lima-afscdata/afs-delivery/owner-remote-read-payload-20261008-r1",
+      "ctl": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-read-payload-20261008-r1"
+    },
+    "scope": "one diagnostic64MiB, not a new formal performance pair"
+  },
+  "limits": [
+    "RPC means are matched count/sum deltas only; percentiles are not subtracted across client and Home histograms.",
+    "The diagnostic uses one 64MiB/C1 read and existing RPC counters; it is not a MooseFS comparator or formal performance gate.",
+    "The result supports focusing away from Home handler/pread as the dominant cost for this run, but does not by itself identify the next product fix."
+  ],
+  "metrics": {
+    "client_minus_home_mean_seconds": 0.0011838614218749998,
+    "client_remote_read": {
+      "buckets": {
+        "+Inf": 128.0,
+        "0.00005": 0.0,
+        "0.0001": 0.0,
+        "0.0002": 19.0,
+        "0.0004": 62.0,
+        "0.0008": 64.0,
+        "0.0016": 89.0,
+        "0.0032": 120.0,
+        "0.0064": 126.0,
+        "0.0128": 128.0
+      },
+      "count": 128.0,
+      "mean_seconds": 0.0012528145624999998,
+      "method": "read",
+      "payload_bytes": 67108864.0,
+      "side": "client",
+      "total_seconds": 0.16036026399999997
+    },
+    "home_fraction_of_client_mean": 0.05503858487037664,
+    "matched_payload_bytes": 67108864,
+    "server_home_read": {
+      "buckets": {
+        "+Inf": 128.0,
+        "0.00005": 64.0,
+        "0.0001": 103.0,
+        "0.0002": 128.0,
+        "0.0004": 128.0,
+        "0.0008": 128.0,
+        "0.0016": 128.0,
+        "0.0032": 128.0,
+        "0.0064": 128.0,
+        "0.0128": 128.0
+      },
+      "count": 128.0,
+      "mean_seconds": 6.895314062500002e-05,
+      "method": "OwnerFiles.Read",
+      "payload_bytes": 67108864.0,
+      "side": "server",
+      "total_seconds": 0.008826002000000003
+    }
+  },
+  "preserved_failure": {
+    "error": "ModuleNotFoundError dfs_r3_fixture",
+    "path": "first-tool-failure.json",
+    "services_started": false,
+    "status": "PRESTART_TOOL_FAILURE",
+    "vm_environment_changed": false
+  },
+  "scope": "saved evidence audit only; no service start, no build, no product-source edit, not formal performance acceptance",
+  "source_files": {
+    "script": "audit.py",
+    "script_sha256": "9adfb65e7a1fce3a97b2344d42cd4479cccb918f6609428547aedf60341b202d"
+  },
+  "status": "PASS_DIAGNOSTIC_AUDIT"
+}

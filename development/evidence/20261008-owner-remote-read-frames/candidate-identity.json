@@ -1,0 +1,12 @@
+{
+  "source_base": "d79bf7c4d1071c17f4a5054bdff20f0ca743346c",
+  "source_identity": "d79bf7c4d1071c17f4a5054bdff20f0ca743346c+patch:7bb394a3b0bc2b515c4609af706aae052b590838cd4b780bb1fb20a803a721e0",
+  "compiler_input_map": "81c30c952df0da3d9411fa94839a3d6ed217dcada7ea15b541933b096c51c215",
+  "compiler_inputs": 160,
+  "product_patch_sha256": "7bb394a3b0bc2b515c4609af706aae052b590838cd4b780bb1fb20a803a721e0",
+  "node_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/afs-delivery/owner-remote-read-frames-20261008-r1/candidate-node",
+  "afs_node_sha256": "839e14d93e7fb50099988a739eaeba1fafbdce83860c0328b8c0b91f7b4e6063",
+  "afs_meta_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+  "meta_source": "b80dab66e9d819cad821c9b30edbf97c795c0c3e",
+  "scope": "one OwnerFiles HTTP/2 receive-frame candidate; no performance verdict"
+}

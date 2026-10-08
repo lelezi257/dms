@@ -69,9 +69,11 @@ impl vfs::ownerfs::RemoteFilesFactory for OwnerFilesFactory {
         home_node_id: &str,
     ) -> afs_error::Result<Arc<dyn vfs::ownerfs::remote::RemoteFiles>> {
         let (uri, node_epoch) = self.meta.lookup_node_location(home_node_id)?;
-        let channel = self
-            .runtime
-            .block_on(self.peers.channel(home_node_id, node_epoch, &uri))?;
+        let channel = self.runtime.block_on(self.peers.owner_files_channel(
+            home_node_id,
+            node_epoch,
+            &uri,
+        ))?;
         let long_wait_channel =
             self.runtime
                 .block_on(self.peers.long_wait_channel(home_node_id, node_epoch, &uri))?;

@@ -1839,25 +1839,31 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
             .expect("owner files server");
     });
 
-    let client_tls = ClientTlsConfig::new()
-        .ca_certificate(Certificate::from_pem(CA_PEM))
-        .identity(Identity::from_pem(CLIENT_CERT_PEM, CLIENT_KEY_PEM))
-        .domain_name("localhost");
-    let long_wait_channel: Channel = Endpoint::from_shared(endpoint.clone())
-        .expect("long wait endpoint")
-        .tls_config(client_tls.clone())
-        .expect("long wait TLS")
-        .connect()
+    let ca = temp.path().join("ca.pem");
+    let cert = temp.path().join("client.pem");
+    let key = temp.path().join("client-key.pem");
+    std::fs::write(&ca, CA_PEM).unwrap();
+    std::fs::write(&cert, CLIENT_CERT_PEM).unwrap();
+    std::fs::write(&key, CLIENT_KEY_PEM).unwrap();
+    let peers = afs::node::rpc::peer::PeerConnectionPool::new(
+        afs_transport::GrpcConfig::default(),
+        afs_transport::TlsConfig::MutualTls {
+            ca_certificate: ca,
+            identity_certificate: cert,
+            identity_private_key: key,
+            server_name: "localhost".into(),
+        },
+        4,
+    )
+    .unwrap();
+    let channel = peers
+        .owner_files_channel("node-a", 1, &endpoint)
         .await
-        .expect("long wait connect");
-    let channel: Channel = Endpoint::from_shared(endpoint)
-        .expect("endpoint")
-        .timeout(Duration::from_secs(5))
-        .tls_config(client_tls)
-        .expect("client tls")
-        .connect()
+        .unwrap();
+    let long_wait_channel = peers
+        .long_wait_channel("node-a", 1, &endpoint)
         .await
-        .expect("connect");
+        .unwrap();
     let missing_parent_status = OwnerFilesClient::new(channel.clone())
         .lookup(OwnerLookupRequest {
             access: Some(root_access_for(&grant)),
@@ -1957,6 +1963,18 @@ async fn mtls_ownerfiles_grpc_roundtrip_uses_real_ownerfs_backend() {
             0o644,
             &root_parent,
         )?;
+        // Exercise a full-size payload across the production pool's mTLS profile.
+        let payload = vec![0x9d; 1024 * 1024];
+        assert_eq!(
+            client.write(&grant, &created.file, 0, &payload)?,
+            payload.len()
+        );
+        let mut readback = vec![0; payload.len()];
+        assert_eq!(
+            client.read(&grant, &created.file, 0, &mut readback)?,
+            payload.len()
+        );
+        assert_eq!(readback, payload);
         let client = Arc::new(client);
         let held = owner_test_lock(
             "remote-mount",

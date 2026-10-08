@@ -1,4 +1,4 @@
-**当前出口（2026-10-08，G2.14）：** bind ON远端READ输出所有权单次64MiB/C1试改，吞吐366.844→360.850MiB/s（-1.63%），独立pread p95 5.630→5.339ms（-5.16%），未过测前双保留线；限定功能PASS/测量COMPLETE/优化REJECTED，四产品文件恢复main原160输入，补丁/tests/ELF及负面数据可恢复。不重跑此方向。仅合入独立时延探针边界修正及对应维护工具/测试；历史含oracle时延不重标。DFS容量项按用户选择暂缓，G1历史8/8关闭、原G2仍12/0/15，b80 ON交付及既有READ/DFS读改善保持原身份，正式Moose/3FS仍待验。下一定位远端请求/服务处理主要成本，不重复复制微调。[版本、测量和恢复证据](evidence/20261008-owner-remote-read-payload/README.md)。
+**当前出口（2026-10-08，G2.14）：** bind ON/B Home/C远端64MiB/C1一次HTTP/2接收帧优化，吞吐389.559→444.927MiB/s（+14.21%），独立pread p95 4.565→4.369ms（-4.29%），达到测前>=1.05吞吐/<=1.0 p95保留线；限定功能PASS/测量COMPLETE/改善RETAINED，正式Moose1.2/.8双目标仍待验。仅OwnerFiles通道允许256KiB接收帧，DFS/长锁等待通道不变，双profile共享有界池及epoch失效；mTLS/权限/校验/新鲜度/持久语义不变。Linux8个受影响tests、default/RDMA检查、Clippy/release、46保存数据核验及六actualwait0通过。前置现有RPC指标确认Home只占客户端均值5.50%；2MiB窗口本来已配置，没有小窗口假设。先前输出copy/inline拒绝不重跑；历史边界/结论保留，b80 ON包未重标/未重包。DFS容量项按用户选择暂缓，G1历史8/8关闭、原G2仍12/0/15。下一G2.15远端WRITE/屏障主要成本，普通本地/复杂专题后置。[版本、原始测量和恢复索引](evidence/20261008-owner-remote-read-frames/README.md)。
 
 以下日期记录保留原版本与结论。
 

@@ -814,6 +814,8 @@ pub fn make_replica_data_plane(
 /// Node-owned connection resources shared by file reads, owner forwarding and
 /// replica commands. Epoch changes invalidate cached channels; grant/handle
 /// validity remains with the business operation, never with this pool.
+type PeerChannelKey = (String, u64, String, bool);
+
 pub struct PeerConnectionPool {
     config: afs_transport::GrpcConfig,
     security: afs_transport::SecurityManager,
@@ -823,7 +825,7 @@ pub struct PeerConnectionPool {
 
 #[derive(Default)]
 struct PeerPoolState {
-    channels: std::collections::HashMap<(String, u64, String), CachedPeerChannel>,
+    channels: std::collections::HashMap<PeerChannelKey, CachedPeerChannel>,
     // A channel eviction does not erase the highest authority generation seen.
     high_water_epochs: std::collections::HashMap<String, u64>,
 }
@@ -862,7 +864,20 @@ impl PeerConnectionPool {
         node_epoch: u64,
         endpoint: &str,
     ) -> afs_error::Result<Channel> {
-        self.channel_with_timeout(node_id, node_epoch, endpoint, true)
+        self.channel_with_timeout(node_id, node_epoch, endpoint, true, false)
+            .await
+    }
+
+    /// OwnerFiles receive frames may carry large replies. Keep this profile
+    /// separate from DFS channels while sharing epoch fencing and pool bounds.
+    #[cfg(feature = "ownerfs")]
+    pub async fn owner_files_channel(
+        &self,
+        node_id: &str,
+        node_epoch: u64,
+        endpoint: &str,
+    ) -> afs_error::Result<Channel> {
+        self.channel_with_timeout(node_id, node_epoch, endpoint, true, true)
             .await
     }
 
@@ -873,7 +888,7 @@ impl PeerConnectionPool {
         node_epoch: u64,
         endpoint: &str,
     ) -> afs_error::Result<Channel> {
-        self.channel_with_timeout(node_id, node_epoch, endpoint, false)
+        self.channel_with_timeout(node_id, node_epoch, endpoint, false, false)
             .await
     }
 
@@ -883,6 +898,7 @@ impl PeerConnectionPool {
         node_epoch: u64,
         endpoint: &str,
         request_timeout: bool,
+        owner_files: bool,
     ) -> afs_error::Result<Channel> {
         if node_id.is_empty() || node_epoch == 0 || endpoint.is_empty() {
             return Err(afs_error::Error::coded(
@@ -890,7 +906,12 @@ impl PeerConnectionPool {
                 "peer identity or endpoint is incomplete",
             ));
         }
-        let key = (node_id.to_owned(), node_epoch, endpoint.to_owned());
+        let key = (
+            node_id.to_owned(),
+            node_epoch,
+            endpoint.to_owned(),
+            owner_files,
+        );
         let mut state = self.state.lock().await;
         if state
             .high_water_epochs
@@ -914,6 +935,13 @@ impl PeerConnectionPool {
         } else {
             self.config.configure_long_wait_client(endpoint)
         };
+        // This bounds each incoming frame, not the message/flow-control window.
+        // Smaller frames remain valid; TLS, deadlines and message limits remain.
+        let endpoint = if owner_files {
+            endpoint.max_frame_size(256 * 1024)
+        } else {
+            endpoint
+        };
         let endpoint = self.security.configure_client(endpoint).map_err(|error| {
             afs_error::Error::coded(afs_error::CLIENT_ARGUMENT_INVALID, error.to_string())
         })?;
@@ -932,16 +960,11 @@ impl PeerConnectionPool {
             .insert(node_id.to_owned(), node_epoch);
         state
             .channels
-            .retain(|(id, epoch, _), _| id != node_id || *epoch == node_epoch);
+            .retain(|(id, epoch, _, _), _| id != node_id || *epoch == node_epoch);
     }
 
-    fn publish_channel(
-        &self,
-        state: &mut PeerPoolState,
-        key: (String, u64, String),
-        channel: Channel,
-    ) {
-        let (node_id, node_epoch, _) = &key;
+    fn publish_channel(&self, state: &mut PeerPoolState, key: PeerChannelKey, channel: Channel) {
+        let (node_id, node_epoch, _, _) = &key;
         // No await occurs from the epoch check through publication. Lazy
         // connection completion cannot reinsert a stale channel after an epoch
         // advance; both the channel and its high-water mark publish under lock.
@@ -5206,6 +5229,42 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test]
+    async fn peer_pool_owner_profile_is_separate_but_shares_epoch_fencing() {
+        let pool = PeerConnectionPool::new(
+            afs_transport::GrpcConfig::default(),
+            afs_transport::TlsConfig::Disabled,
+            4,
+        )
+        .unwrap();
+        let endpoint = "http://127.0.0.1:9";
+        pool.channel("peer", 1, endpoint).await.unwrap();
+        pool.owner_files_channel("peer", 1, endpoint).await.unwrap();
+        pool.owner_files_channel("peer", 1, endpoint).await.unwrap();
+        {
+            let state = pool.state.lock().await;
+            assert_eq!(state.channels.len(), 2);
+            assert!(
+                state
+                    .channels
+                    .contains_key(&("peer".into(), 1, endpoint.into(), false))
+            );
+            assert!(
+                state
+                    .channels
+                    .contains_key(&("peer".into(), 1, endpoint.into(), true))
+            );
+        }
+        pool.owner_files_channel("peer", 2, endpoint).await.unwrap();
+        assert_eq!(pool.state.lock().await.channels.len(), 1);
+        assert!(pool.channel("peer", 1, endpoint).await.is_err());
+        assert!(pool.long_wait_channel("peer", 1, endpoint).await.is_err());
+        pool.channel("peer", 3, endpoint).await.unwrap();
+        assert_eq!(pool.state.lock().await.channels.len(), 1);
+        assert!(pool.owner_files_channel("peer", 2, endpoint).await.is_err());
+    }
+
     #[tokio::test]
     async fn peer_pool_never_regresses_epoch_even_after_channel_eviction() {
         let pool = Arc::new(
@@ -5235,7 +5294,7 @@ mod tests {
                 state
                     .channels
                     .keys()
-                    .all(|(node, epoch, _)| node != "peer" || *epoch == 2)
+                    .all(|(node, epoch, _, _)| node != "peer" || *epoch == 2)
             );
         }
         pool.channel("other", 1, endpoint).await.unwrap(); // evicts peer's channel, not its epoch

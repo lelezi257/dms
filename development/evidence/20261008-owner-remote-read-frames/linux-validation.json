@@ -1,0 +1,82 @@
+{
+  "status": "PASS_AFFECTED_GATES",
+  "distinct_tests": 8,
+  "gates": [
+    {
+      "name": "check-default",
+      "rc": 0,
+      "passed_tests": 0,
+      "summaries": []
+    },
+    {
+      "name": "check-rdma",
+      "rc": 0,
+      "passed_tests": 0,
+      "summaries": []
+    },
+    {
+      "name": "clippy",
+      "rc": 0,
+      "passed_tests": 0,
+      "summaries": []
+    },
+    {
+      "name": "fmt",
+      "rc": 0,
+      "passed_tests": 0,
+      "summaries": []
+    },
+    {
+      "name": "linux-compiler-inputs",
+      "rc": 0,
+      "passed_tests": 0,
+      "summaries": []
+    },
+    {
+      "name": "peer-payload",
+      "rc": 0,
+      "passed_tests": 3,
+      "summaries": [
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 619 filtered out; finished in 0.01s"
+      ]
+    },
+    {
+      "name": "pool",
+      "rc": 0,
+      "passed_tests": 2,
+      "summaries": [
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 620 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "real-home-contract",
+      "rc": 0,
+      "passed_tests": 3,
+      "summaries": [
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.60s"
+      ]
+    },
+    {
+      "name": "release-node",
+      "rc": 0,
+      "passed_tests": 0,
+      "summaries": []
+    }
+  ],
+  "coverage": [
+    "separate cached Owner profile",
+    "cross-profile epoch invalidation including long wait",
+    "existing cache eviction high-water fencing",
+    "real Home mTLS full1MiB read/write and permissions/forged/released handles",
+    "long lock wait beyond normal5s deadline",
+    "malformed read reply/write count/killpriv handling"
+  ],
+  "warnings": "two unchanged fallback dead_code and existing unused fixture ctor; not zero-warning strict all-target Clippy",
+  "not_run": [
+    "full POSIX",
+    "full RDMA device runtime",
+    "formal MooseFS comparison",
+    "new trial delivery",
+    "crash and large matrices"
+  ]
+}

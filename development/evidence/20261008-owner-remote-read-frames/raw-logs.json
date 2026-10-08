@@ -1,0 +1,32 @@
+{
+  "logs": [
+    {
+      "role": "b",
+      "path": "logs/node.log",
+      "bytes": 2445,
+      "sha256": "fc29922344d3327d288d87f6997ca004adbfdbe117514d01612cae61539302b6",
+      "ERRO": 1,
+      "WARN": 2
+    },
+    {
+      "role": "c",
+      "path": "logs/node.log",
+      "bytes": 5364,
+      "sha256": "96027830be2ac66a669a38781d2a000f6ec492724923d40668a9233ac53088e2",
+      "ERRO": 2,
+      "WARN": 18
+    },
+    {
+      "role": "ctl",
+      "path": "logs/meta.log",
+      "bytes": 296,
+      "sha256": "498fe5107107990059129fc1773fae1c3506a4d95b97b24a447b49e188bea65a",
+      "ERRO": 0,
+      "WARN": 0
+    }
+  ],
+  "total_bytes": 8105,
+  "ERRO": 3,
+  "WARN": 20,
+  "scope": "raw logs preserved; semantic assertions and actual lifecycle checked separately; not a zero-errors claim"
+}

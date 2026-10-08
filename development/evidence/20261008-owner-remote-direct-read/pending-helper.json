@@ -1,0 +1,12 @@
+{
+  "archive": "pending-helper.tar.gz",
+  "files": {
+    "moose_direct_read_fixture.py": "fc507731037f41a4a66f20d2affef096823310754aac9c136576d222730d04d6",
+    "test_moose_direct_read_fixture.py": "97e0d42abc050d83d5c9a185519bb1bd7b472dd103271fd5352d3124a3249fce"
+  },
+  "sha256": "07a6b216b8083e2971ccec764d81e1893668cc8fc9902d61e987e2773c957fef",
+  "status": "PARTIAL_PREPARATION_ONLY_NOT_PRODUCT_OR_LIFECYCLE_PASS",
+  "unchanged_base_commit": "cc262fbb4887ff2e23a0d4f860d67f06186ae59e",
+  "unchanged_base_path": "development/acceptance/probes/owner_remote_fixture.py",
+  "unchanged_base_sha256": "5f620b5f87ef991cf1b836c1f2a8ac22e4781447bac588cd1419904b036261db"
+}

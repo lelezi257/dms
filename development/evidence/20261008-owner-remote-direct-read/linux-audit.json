@@ -1,0 +1,59 @@
+{
+  "status": "PASS_SAVED_DATA_AND_ACTUAL_LINUX_RESTORE",
+  "raw_members": 864,
+  "nested_guest_records": 32,
+  "saved_assertions_at_least": 978,
+  "formal_owner_reads": 5,
+  "raw_independent_intervals": 320,
+  "moose_service_starts": 0,
+  "owner_launches": 2,
+  "formal_measurement_runs": 1,
+  "actual_owner_wait_receipts": [
+    {
+      "phase": "owner",
+      "role": "ctl",
+      "pid": "1708316",
+      "start_ticks": "70389137",
+      "exit_code": 0
+    },
+    {
+      "phase": "owner",
+      "role": "b",
+      "pid": "33292",
+      "start_ticks": "7120563",
+      "exit_code": 0
+    },
+    {
+      "phase": "owner",
+      "role": "c",
+      "pid": "22785",
+      "start_ticks": "7087639",
+      "exit_code": 0
+    },
+    {
+      "phase": "owner-complete",
+      "role": "ctl",
+      "pid": "1708791",
+      "start_ticks": "70399283",
+      "exit_code": 0
+    },
+    {
+      "phase": "owner-complete",
+      "role": "b",
+      "pid": "33858",
+      "start_ticks": "7130702",
+      "exit_code": 0
+    },
+    {
+      "phase": "owner-complete",
+      "role": "c",
+      "pid": "23316",
+      "start_ticks": "7097779",
+      "exit_code": 0
+    }
+  ],
+  "controller_original_versions_restored": 2,
+  "pending_helper_sources_restored": 2,
+  "original_master_backup": "ACTUALLY_EXTRACTED_ON_LINUX_NOT_RUNTIME_REPLAYED",
+  "performance": "PENDING; no comparable Moose samples; no product improvement claimed"
+}

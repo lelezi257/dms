@@ -1,0 +1,13 @@
+{
+  "status": "BLOCKED",
+  "error": "untrusted stock server permissions",
+  "moose_service_starts": 0,
+  "capacity_not_cause": true,
+  "old_stock_install_unchanged": true,
+  "master_chunk_expected_owner": 0,
+  "master_chunk_observed_owner": 501,
+  "master_chunk_observed_gid": 1000,
+  "master_chunk_mode": "0755",
+  "next": "Await user choice: isolated fixed-SHA official binaries or defer comparison; do not mutate old installation",
+  "raw_receipt": "commands/ctl-moose-admit-2.stdout"
+}

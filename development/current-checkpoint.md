@@ -1,3 +1,5 @@
+**当前 G2.14（2026-10-08）：** d14候选 bind ON/B Home/C远端一次64MiB/C1读，功能限定PASS／Owner侧测量COMPLETE：416.250925MiB/s，独立pread p50/p95/p99为1.821228/5.166909/7.134337ms，320原始间隔。六轮Home实际取数各64MiB、内容/权限/errno及正式阶段三actualwait0通过；首驱动warmup失败另保留三wait0，未刷分。Moose因旧官方服务文件uid501不满足root所有权门禁，启动前BLOCKED，比较NOT_RUN、正式1.2/.8双目标PENDING；不是容量阻塞，无产品改动或改善结论。 [版本、原始证据和失败](evidence/20261008-owner-remote-direct-read/README.md)。G1历史8/8和原G2 12/0/15不变；b80 ON交付保留原身份。下一：等待Moose隔离部署选择，独立Owner远端工作继续，DFS仍暂缓。
+
 **环境维护（2026-10-08）：** [A四份旧ELF已完整归档并实际Linux恢复后移除](evidence/20261008-a-stopped-binary-archive/README.md)，实际可用1.50→2.55GiB；七memory Meta/FDB及原挂载/27非二进制文件身份保留。未改当前d14产品/候选/配置或运行测试；DFS原阻塞记录不改，暂缓决定不自动撤销，继续Owner远端。G1/G2验收计数不变。
 
 **G2.15 current retained candidate (2026-10-08):** Node d14e3182 /160-input map ec7e2de5 now matches current source. [One valid small WRITE pair](evidence/20261008-owner-remote-write-server-pair/README.md) retained under preset criteria; final MooseFS target pending. b80 trial remains a separate historical delivery.

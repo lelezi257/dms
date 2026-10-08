@@ -1,0 +1,52 @@
+{
+  "archive_path": "evidence/afs-delivery/owner-remote-direct-read-20261008-r1/raw-records.tar.gz",
+  "archive_sha256": "ff11099873bf8675d5cae8b4330ac8695253c0466c1c0606653162582dffbae0",
+  "archive_bytes": 199688,
+  "excluded_large_fixed_inputs": [
+    "mfsdiagtools",
+    "mfsfileinfo",
+    "mfsmount",
+    "official-readdata.c"
+  ],
+  "reused_module_recovery": [
+    "source/development/evidence/20261008-owner-remote-write-server-pair/archive-index.json",
+    "source/development/evidence/20261008-owner-remote-read-frames/archive-index.json"
+  ],
+  "pending_helper": "Unique new uncommitted sources retained once in pending-helper.tar.gz; no copied base source snapshot added to Git",
+  "member_count": 864,
+  "member_manifest_path": "evidence/afs-delivery/owner-remote-direct-read-20261008-r1/raw-index.json",
+  "member_manifest_sha256": "881bea9277778391cab2997d799cf4aadbdfc5145bba91f20efc6a2ee55460fb",
+  "linux_restore": "PASS: linux-audit.json",
+  "audit_supplement": {
+    "archive_path": "evidence/afs-delivery/owner-remote-direct-read-20261008-r1/audit-supplement.tar.gz",
+    "sha256": "e25c9c47be1b516f6f19e8be18d2d6ff6719948a10825f3a4b61070dedd65dbe",
+    "bytes": 3541,
+    "members": [
+      {
+        "path": "audit.py",
+        "bytes": 7442,
+        "sha256": "9f68d0c5c1efac5f484ba17ec88884e51d51cbb0557176652d9e876377f8f1f9"
+      },
+      {
+        "path": "audit.stdout",
+        "bytes": 1136,
+        "sha256": "d5deb17c77c39c002dc5dc924a859370cf7a8b34575f15159723396087b48b0b"
+      },
+      {
+        "path": "audit.stderr",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "audit-command.json",
+        "bytes": 302,
+        "sha256": "87857710b7d85cfd839181900f5080a39b5749c91721751526dc1ed0f645a124"
+      }
+    ],
+    "restore": {
+      "status": "PASS_ACTUAL_LINUX_RESTORE",
+      "members": 4,
+      "archive_sha256": "e25c9c47be1b516f6f19e8be18d2d6ff6719948a10825f3a4b61070dedd65dbe"
+    }
+  }
+}

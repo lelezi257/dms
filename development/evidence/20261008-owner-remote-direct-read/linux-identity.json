@@ -1,0 +1,7 @@
+{
+  "status": "PASS_IDENTICAL_BUILD_INPUT_REUSE",
+  "compiler_inputs": 160,
+  "map_sha256": "ec7e2de5ea5e5b83883725fe4175b819af75cd4713c25e0479bb275ff5bab300",
+  "candidate_four_tests_and_release_build": "REUSED_IDENTICAL_INPUTS_NOT_RERUN",
+  "product_source_changes": 0
+}

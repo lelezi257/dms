@@ -1,6 +1,6 @@
 # G2.12: real workspace bind ON with remote FUSE — finite functional closure
 
-**Current function: PASS (limited). Measurement: NOT_MEASURED. Performance: PENDING. ON trial delivery: PENDING.** G1 historical 8/8 stays closed; original G2 task counts do not change. This closes subclaims, not full G2.12.
+**Current function: PASS (limited). Measurement: NOT_MEASURED. Performance: PENDING. ON trial delivery: PASS in the subsequent [identified package/install/publication exit](../20261008-workspace-bind-on-trial/README.md).** Finite current-scenario G2.12 function and delivery is closed; original G2 totals are now 12 limited complete / 0 bind in progress / 15 pending (27 unchanged). G1 historical 8/8 stays closed. No unrestricted bind, full POSIX or new performance verdict.
 
 ## Product changes and before/after
 
@@ -18,13 +18,13 @@
 | G2.12 normal exit | Four runtime lifecycles (bootstrap, ON, remote, Meta) actual wait0, eight PID incarnations gone; owned FUSE/bind/UDS gone, protected process and full original mount inventories unchanged. [Closure](current-closure.json) |
 | G2.12 local-file orderly recovery | Reuse the normally stopped current fixture and confirmed renamed4KiB; restart center local-file Meta **and both Nodes**, ON bind and remote reads return original SHA/EOF, source inode/uid/mode preserved, deleted/old names ENOENT and unauthorized UID denied. Three actual wait0. [Recovery](restart-runtime.json), [scope](restart-contract.json), [closure](restart-closure.json). This is **not live Meta-only or crash recovery** |
 
-Current candidate [identity](identity.json): source b80dab66, 158 compiler inputs/map ea809fa7, Linux default release Meta SHA15648a87 / Node SHAb3335fb2. Existing f03 package only carried installer/control scripts; executed binaries were overlaid and independently matched before start. This is not an ON trial package delivery.
+Current candidate [identity](identity.json): source b80dab66, 158 compiler inputs/map ea809fa7, Linux default release Meta SHA15648a87 / Node SHAb3335fb2. Existing f03 package only carried installer/control scripts; executed binaries were overlaid and independently matched before start. This functional run itself was not a trial package; the subsequent identified ON package is linked above.
 
 Linux fmt,170 OwnerFs unit tests (12 ignored), owner-only lib/bins check, affected Clippy and release bins pass; two pre-existing dead-code warnings remain. Six probe guards pass. [Commands/results](linux-checks.json). The real three candidate runs are the adapter/remote rename regression; no full POSIX or ignored privileged matrix pass is claimed.
 
 ## Remaining finite exits and reuse
 
-Next **one centralized explicit ON trial delivery**: identified package, ON config/enable/support/limits and current evidence; installation checks reuse an existing no-compiler environment. Historical host/managed authorization-loss, source/epoch and held-reference drain remain scoped historical evidence; these lookup changes do not affect those paths. A live center-only availability failure still follows current fail-closed policy; it is not covered by orderly recovery. General mixed append/offset/locks/watch, production command issuer/durable ACK, existing-FD instant revocation and expanded topology remain unsupported expansion topics, with prior failures retained.
+The subsequent **centralized explicit ON trial delivery is closed**: identified package, ON config/enable/support/limits and current evidence; real ON installation passed in the existing no-compiler environment. Next is remote performance G2.14–16. Historical host/managed authorization-loss, source/epoch and held-reference drain remain scoped historical evidence; these lookup changes do not affect those paths. A live center-only availability failure still follows current fail-closed policy; it is not covered by orderly recovery. General mixed append/offset/locks/watch, production command issuer/durable ACK, existing-FD instant revocation and expanded topology remain unsupported expansion topics, with prior failures retained.
 
 G2.13 eight small bind kernel-path core performance PASS at >=0.90 ext4 is historical scoped reuse; name lookup changes affect remote FUSE, not the mounted native data path. Do not relabel old metrics as b80 measurements. Then remote G2.14–16 (MooseFS >=1.2 throughput **and** <=0.8 independent latency), DFS one-write/many-read G2.21, ordinary local G2.09–11. G2.21 function/read measurement closed; qualified3FS performance remains pending.
 

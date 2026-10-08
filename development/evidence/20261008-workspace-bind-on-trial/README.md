@@ -1,6 +1,6 @@
 # G2.12 ON trial package: b80
 
-**Local package and compiler-free real ON installation: PASS (limited). GitHub ON release publication: PENDING.** Full G2.12 delivery remains open until an accessible identified package is published. G1 historical8/8 and original G2 totals are unchanged.
+**Local package and compiler-free real ON installation: PASS (limited). GitHub ON release publication: PASS.** [Download the identified ON trial](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6); [four remote asset digests and exact tag commit](release-publication.json), [trial manifest](TRIAL_MANIFEST.json), [checksums](SHA256SUMS). The finite current-scenario G2.12 function and delivery exit is closed; G2 now has 12 limited completed / 0 bind in progress / 15 pending out of the original 27. G1 historical8/8 stays closed. Performance remains separately pending; this is not full POSIX or unrestricted bind support.
 
 Package `afs-0.1.0-g2-bind-b80dab6-linux-aarch64.tar.gz`,14,452,658B,
 SHA256 `5b51249d37e12afe21e1721b43735db31de83e19794bb80eb06373bc494718c5`.
@@ -11,7 +11,7 @@ No Cargo build, remote matrix, performance rerun or recovery rerun was performed
 
 The [packaged guide](../../../docs/guides/trial.md) is SHA256
 `0233b68bb051fc9c66ee8fbdd77d10fe97659c06b13ec2d6fcffa6b237e2802c`.
-Packaging started at main149 with that then-uncommitted guide; the exact13 packaging file hashes,
+Packaging started at main149 with that then-uncommitted guide; the exact12 packaging file hashes,
 including the guide, are fixed in [packaging inputs](packaging-inputs.json).
 The final guide/evidence commit and remote publication are recorded separately from the b80 compiler identity.
 Ordinary config remains defaultOFF; the scenario explicitly enables host workspace bind ON.
@@ -34,7 +34,7 @@ Runtime logs retain errors/warnings in the audit; noTRACE. [Raw command/state/lo
 and actual Linux extraction/SHA proof accompany the index; binaries and the14MiB package stay outside the source tree.
 No historical evidence or acceptance conclusion is rewritten. No third-party source change.
 
-Next close only GitHub ON publication with package/guide/manifest/SHA readback, then move directly to remote performance
+GitHub publication has closed after package/guide/manifest/SHA readback. Next move directly to remote performance
 G2.14–16, one main product issue per round. Historical eight bind >=.90 ext4 cases are scoped reuse;
 DFS G2.21 qualified3FS parity and ordinary remote1.2 throughput/.8 independent latency remain pending.
 Mixed append/offset/locks/watch, instant existing-FD revocation, durable command ACK/production issuer,

@@ -1,6 +1,6 @@
 # AFS
 
-**当前交付重点：bind ON与正确远端访问。** b80当前小规模必要功能及全停正常重启恢复限定通过，下一集中明确ON配置的试用包交付，再远端性能、DFS一写多读、普通本地FUSE。[当前版本/原失败/验收范围](development/evidence/20261008-workspace-bind-remote/README.md)。既有[8442普通OFF安装证据](development/evidence/20261008-current-trial-8442/README.md)保留原身份；不是当前ON包交付。
+**当前交付：bind ON有限场景试用已发布。** [下载ON试用包](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6)；[明确ON步骤/支持范围](docs/guides/trial.md)、[包/无编译器安装/远端SHA证据](development/evidence/20261008-workspace-bind-on-trial/README.md)。b80当前必要功能及正常全停local-file恢复限定通过，G2.12有限出口关闭；下一远端性能→DFS一写多读→普通本地FUSE。复杂组合和性能未自动通过；[原失败与功能范围](development/evidence/20261008-workspace-bind-remote/README.md)、[8442普通OFF历史证据](development/evidence/20261008-current-trial-8442/README.md)保持原身份。
 
 AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [same-mount visibility and close-to-open consistency](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
 

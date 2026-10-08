@@ -1,4 +1,4 @@
-**当前小项（2026-10-08，G2.12）：** b80dab66 当前小规模宿主bind ON + C远端FUSE双向可见性、重命名/删除、uid权限/errno、正常退出与全服务正常停止后的local-file恢复 **限定PASS，子项关闭**。实际产品修复：成功lookup选择已观察alias；名字与属性共同遵循原生/远程零TTL。原0bd新名ENOENT、bc8旧名错误成功保留；未测性能，不称性能改善或完整G2.12完成。G2.21功能PASS/逐次read测量COMPLETE/合格3FS性能PENDING，单次补测收口。G1历史8/8关闭、原G2总数不变。下一 **集中一次明确ON配置与当前包的试用交付 → 远端协同/性能 → DFS一写多读 → 普通本地FUSE**。历史授权失效/排空与八bind性能按未变路径限定复用；复杂append/lock/watch、多Meta/etcd/Redis后置。 [当前证据与范围](../development/evidence/20261008-workspace-bind-remote/README.md)。
+**当前出口（2026-10-08，G2.12）：** 当前b80必要场景功能与ON试用交付 **限定完成**：B宿主bind ON/C远程FUSE双向4/64KiB、rename/delete、权限/errno、正常退出及local-file全服务正常停机后重启恢复通过；授权失效/排空等未变路径按原版本限定复用。[ON包、无编译器安装、4附件远端SHA与固定tag](../development/evidence/20261008-workspace-bind-on-trial/README.md)，[真实运行/恢复及0bd、bc8原失败](../development/evidence/20261008-workspace-bind-remote/README.md)。原27项现 **12限定完成／0bind进行中／15待验收**，仅关闭原G2.12，不按工具/检查/提交加数；G1历史8/8关闭。本轮无新性能测量或达标宣称；八bind性能仅历史限定复用。下一 **G2.14–16远端一问题一轮产品优化 → DFS一写多读 → 普通本地FUSE**，读写保持Moose吞吐>=1.2且独立时延<=0.8。G2.21单次逐read补测已收口、3FS性能PENDING；复杂append/lock/watch原FAIL和不支持范围、在线Meta-only/crash、多Meta/etcd/Redis后置。普通配置默认OFF，试用场景明确ON；不反复打包。
 
 以下日期记录保留原版本与结论。
 

@@ -1,0 +1,20 @@
+{
+  "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/archives/20261008-dfs-read-version-cache/records.tar.gz",
+  "bytes": 710875,
+  "sha256": "2623eb5dfa251b9e3e50fe7f71231f3e65da27ba2af1d64afad25f740541a80b",
+  "files": 991,
+  "manifest_sha256": "3edce148f67a14c597a217920b24e45a328e28fab58814c8b088a3c74a4717b9",
+  "restore": {
+    "status": "PASS_ACTUAL_LINUX_RESTORE",
+    "root": "/var/tmp/afs-dfs-cache-restore-lbo_378i",
+    "files": 991,
+    "nested_guest_files": 85,
+    "archive_sha256": "2623eb5dfa251b9e3e50fe7f71231f3e65da27ba2af1d64afad25f740541a80b"
+  },
+  "retained_binary_inputs": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-read-version-cache-20261008-r1/candidate-node",
+    "bytes": 25208368,
+    "sha256": "c8bb82afef20f88918521eaeda4dadcc03a99862828835f767fc43bcd14cccfb"
+  },
+  "scope": "Raw commands/failures, frozen contract, candidate patch/input map, case deltas, timings, physical proof, closure and raw guest records. No ELF/private TLS/full source copies in Git or this archive."
+}

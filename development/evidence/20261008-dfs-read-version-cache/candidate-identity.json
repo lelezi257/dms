@@ -1,0 +1,12 @@
+{
+  "source_base": "61c1931b50e42e8a308fdb18c2bcc4f97ddd72e2",
+  "source_identity": "61c1931b50e42e8a308fdb18c2bcc4f97ddd72e2+patch:753b1bab0f0790d43aae26328f6ad352f9e87769e4e05fa6b310d0a72d89fe1f",
+  "compiler_input_map": "a3fac3b2ee9fabaf73d0842f2caf862e96c77556c42a8c5fb9bbd82d5360fd52",
+  "compiler_inputs": 158,
+  "product_patch_sha256": "753b1bab0f0790d43aae26328f6ad352f9e87769e4e05fa6b310d0a72d89fe1f",
+  "node_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-read-version-cache-20261008-r1/candidate-node",
+  "afs_node_sha256": "c8bb82afef20f88918521eaeda4dadcc03a99862828835f767fc43bcd14cccfb",
+  "afs_meta_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+  "meta_source": "b80dab66e9d819cad821c9b30edbf97c795c0c3e",
+  "scope": "One readonly immutable version/layout cache prototype; product performance not yet measured"
+}

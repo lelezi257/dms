@@ -225,6 +225,7 @@ pub struct DistributedFs {
     closed_lock_sessions: Mutex<HashSet<String>>,
     closed_lock_session_admission_closed: AtomicBool,
     remote_operation_results: Mutex<HashMap<RemoteOperationKey, RemoteOperationResult>>,
+    readonly_version_cache: Mutex<Option<ReadOnlyVersionCache>>,
     dirty_budget_bytes: u64,
     inode_to_backend: Mutex<HashMap<InodeId, u64>>,
     backend_to_inode: Mutex<HashMap<u64, InodeId>>,
@@ -232,6 +233,13 @@ pub struct DistributedFs {
     next_handle: AtomicU64,
     next_operation: AtomicU64,
     next_owner_open_seq: AtomicU64,
+}
+
+#[derive(Clone)]
+struct ReadOnlyVersionCache {
+    version_id: FileVersionId,
+    version: FileVersion,
+    layout: LayoutRoot,
 }
 
 struct DfsFileHandle {
@@ -1046,6 +1054,7 @@ impl DistributedFs {
             closed_lock_sessions: Mutex::new(HashSet::new()),
             closed_lock_session_admission_closed: AtomicBool::new(false),
             remote_operation_results: Mutex::new(HashMap::new()),
+            readonly_version_cache: Mutex::new(None),
             dirty_budget_bytes: DEFAULT_DIRTY_DATA_BUDGET_BYTES,
             inode_to_backend: Mutex::new(HashMap::from([(InodeId::new("1"), ROOT_INODE)])),
             backend_to_inode: Mutex::new(HashMap::from([(ROOT_INODE, InodeId::new("1"))])),
@@ -1164,6 +1173,41 @@ impl DistributedFs {
         self.meta
             .get_file_version(version_id)
             .map(|(version, layout)| (Some(version), layout))
+    }
+
+    fn load_readonly_version(
+        &self,
+        version_id: Option<&FileVersionId>,
+    ) -> Result<(Option<FileVersion>, LayoutRoot)> {
+        // Safe only for the read-only no-write-state path: callers must first
+        // fetch and validate the current inode head on every read. The cached
+        // payload is immutable FileVersion/LayoutRoot data keyed by the exact
+        // head ID, and the cache lock is not held across Meta RPCs.
+        let Some(version_id) = version_id else {
+            return self.load_version(None);
+        };
+        if let Some(cached) = self
+            .readonly_version_cache
+            .lock()
+            .map_err(|_| unavailable("DFS readonly version cache is poisoned"))?
+            .as_ref()
+            .filter(|cached| &cached.version_id == version_id)
+            .cloned()
+        {
+            return Ok((Some(cached.version), cached.layout));
+        }
+
+        let (version, layout) = self.meta.get_file_version(version_id)?;
+        *self
+            .readonly_version_cache
+            .lock()
+            .map_err(|_| unavailable("DFS readonly version cache is poisoned"))? =
+            Some(ReadOnlyVersionCache {
+                version_id: version_id.clone(),
+                version: version.clone(),
+                layout: layout.clone(),
+            });
+        Ok((Some(version), layout))
     }
 
     fn write_state(&self, inode_id: &InodeId) -> Result<Option<SharedInodeWriteState>> {
@@ -1635,7 +1679,7 @@ impl DistributedFs {
                 )
             } else {
                 let inode = self.validate_inode(self.meta.get_inode(inode_id)?)?;
-                let (version, layout) = self.load_version(inode.head_version.as_ref())?;
+                let (version, layout) = self.load_readonly_version(inode.head_version.as_ref())?;
                 (
                     version.as_ref().map(|version| version.id.clone()),
                     version.as_ref().map_or(0, |value| value.length),
@@ -8147,6 +8191,7 @@ mod tests {
         next_renew_error: Mutex<Option<Error>>,
         next_open_write_error: Mutex<Option<Error>>,
         next_get_inode_error: Mutex<Option<Error>>,
+        next_get_file_version_error: Mutex<Option<Error>>,
         next_get_inode_bad_id: Mutex<bool>,
         next_open_write_bad_namespace: Mutex<bool>,
         open_write_results: Mutex<std::collections::VecDeque<Result<(InodeRecord, WriteLease)>>>,
@@ -8157,6 +8202,7 @@ mod tests {
         node_sessions: Mutex<HashMap<String, Option<String>>>,
         next_current_session_error: Mutex<Option<Error>>,
         current_session_calls: AtomicUsize,
+        file_version_loads: AtomicUsize,
         renew_calls: AtomicUsize,
         open_write_calls: AtomicUsize,
         resolve_lock_calls: AtomicUsize,
@@ -8204,6 +8250,7 @@ mod tests {
                 next_renew_error: Mutex::new(None),
                 next_open_write_error: Mutex::new(None),
                 next_get_inode_error: Mutex::new(None),
+                next_get_file_version_error: Mutex::new(None),
                 next_get_inode_bad_id: Mutex::new(false),
                 next_open_write_bad_namespace: Mutex::new(false),
                 open_write_results: Mutex::new(std::collections::VecDeque::new()),
@@ -8214,6 +8261,7 @@ mod tests {
                 node_sessions: Mutex::new(HashMap::new()),
                 next_current_session_error: Mutex::new(None),
                 current_session_calls: AtomicUsize::new(0),
+                file_version_loads: AtomicUsize::new(0),
                 renew_calls: AtomicUsize::new(0),
                 open_write_calls: AtomicUsize::new(0),
                 resolve_lock_calls: AtomicUsize::new(0),
@@ -8272,6 +8320,14 @@ mod tests {
 
         fn fail_next_get_inode_with(&self, error: Error) {
             *self.next_get_inode_error.lock().unwrap() = Some(error);
+        }
+
+        fn fail_next_get_file_version_with(&self, error: Error) {
+            *self.next_get_file_version_error.lock().unwrap() = Some(error);
+        }
+
+        fn file_version_load_count(&self) -> usize {
+            self.file_version_loads.load(Ordering::SeqCst)
         }
 
         fn return_bad_inode_on_next_get_inode(&self) {
@@ -8340,6 +8396,15 @@ mod tests {
         }
 
         fn publish_external_version(&self, length: u64) -> FileVersionId {
+            self.publish_external_version_with_receipts(length, Vec::new(), Vec::new())
+        }
+
+        fn publish_external_version_with_receipts(
+            &self,
+            length: u64,
+            inline_extents: Vec<Extent>,
+            chunk_receipts: Vec<crate::dfs::ChunkReceipt>,
+        ) -> FileVersionId {
             let mut inode = self.inode.lock().unwrap();
             let generation = self.commits.lock().unwrap().len() + 1;
             let layout_id = LayoutRootId::new(format!("external-layout-{generation}"));
@@ -8363,9 +8428,9 @@ mod tests {
                 layout_root: LayoutRoot {
                     id: layout_id,
                     file_length: length,
-                    inline_extents: Vec::new(),
+                    inline_extents,
                 },
-                chunk_receipts: Vec::new(),
+                chunk_receipts,
                 metadata_delta: CommitMetadataDelta {
                     mode: CommitMetadataMode::Full,
                     mtime_unix_ms: Some(now),
@@ -8417,6 +8482,10 @@ mod tests {
             &self,
             version_id: &FileVersionId,
         ) -> Result<(FileVersion, LayoutRoot)> {
+            self.file_version_loads.fetch_add(1, Ordering::SeqCst);
+            if let Some(error) = self.next_get_file_version_error.lock().unwrap().take() {
+                return Err(error);
+            }
             self.commits
                 .lock()
                 .unwrap()
@@ -8780,6 +8849,31 @@ mod tests {
             read_engine,
         )
         .with_dirty_budget_bytes(budget)
+    }
+
+    fn publish_external_version_with_bytes(
+        meta: &RecordingMeta,
+        fs: &DistributedFs,
+        operation_id: &str,
+        bytes: &[u8],
+    ) -> FileVersionId {
+        let receipt = fs
+            .chunk_store
+            .put(StagedChunk::new(
+                OperationId::new(operation_id),
+                bytes.to_vec(),
+            ))
+            .unwrap();
+        meta.publish_external_version_with_receipts(
+            bytes.len() as u64,
+            vec![Extent {
+                file_offset: 0,
+                length: bytes.len() as u64,
+                chunk_id: receipt.chunk.id.clone(),
+                chunk_offset: 0,
+            }],
+            vec![receipt],
+        )
     }
 
     #[cfg(feature = "dfs")]
@@ -13753,6 +13847,112 @@ mod tests {
         fs_b.close_temporary_remote_write_session(&inode_id, &temp, Some(previous))
             .unwrap();
         assert!(fs_b.current_remote_provider(&inode_id).unwrap().is_none());
+    }
+
+    #[test]
+    fn readonly_read_reuses_cached_file_version_for_same_head() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        publish_external_version_with_bytes(&meta, &fs, "cache-same-head", b"cached-view");
+        let inode = fs.backend_inode(&inode_id).unwrap();
+        let reader = fs.open(&context(), inode, libc::O_RDONLY).unwrap();
+
+        let mut first = [0; 16];
+        assert_eq!(fs.read(&context(), reader, 0, &mut first).unwrap(), 11);
+        assert_eq!(&first[..11], b"cached-view");
+        assert_eq!(meta.file_version_load_count(), 1);
+
+        let mut second = [0; 16];
+        assert_eq!(fs.read(&context(), reader, 0, &mut second).unwrap(), 11);
+        assert_eq!(&second[..11], b"cached-view");
+        assert_eq!(
+            meta.file_version_load_count(),
+            1,
+            "same validated head should reuse the cached immutable version/layout"
+        );
+
+        fs.release(&context(), reader).unwrap();
+    }
+
+    #[test]
+    fn readonly_read_loads_changed_head_and_returns_new_content_and_length() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        publish_external_version_with_bytes(&meta, &fs, "cache-old-head", b"old");
+        let inode = fs.backend_inode(&inode_id).unwrap();
+        let reader = fs.open(&context(), inode, libc::O_RDONLY).unwrap();
+        let mut old = [0; 8];
+        assert_eq!(fs.read(&context(), reader, 0, &mut old).unwrap(), 3);
+        assert_eq!(&old[..3], b"old");
+        assert_eq!(meta.file_version_load_count(), 1);
+
+        publish_external_version_with_bytes(&meta, &fs, "cache-new-head", b"new-content");
+        let mut new = [0; 16];
+        assert_eq!(fs.read(&context(), reader, 0, &mut new).unwrap(), 11);
+        assert_eq!(&new[..11], b"new-content");
+        assert_eq!(meta.file_version_load_count(), 2);
+
+        fs.release(&context(), reader).unwrap();
+    }
+
+    #[test]
+    fn readonly_cached_read_still_propagates_get_inode_error() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        publish_external_version_with_bytes(&meta, &fs, "cache-inode-error", b"cached-view");
+        let inode = fs.backend_inode(&inode_id).unwrap();
+        let reader = fs.open(&context(), inode, libc::O_RDONLY).unwrap();
+        let mut first = [0; 16];
+        assert_eq!(fs.read(&context(), reader, 0, &mut first).unwrap(), 11);
+        assert_eq!(meta.file_version_load_count(), 1);
+
+        meta.fail_next_get_inode_with(unavailable("injected readonly get_inode failure"));
+        let mut second = [7; 16];
+        assert_eq!(
+            fs.read(&context(), reader, 0, &mut second)
+                .expect_err("validated inode failure must be returned")
+                .code(),
+            afs_error::NODE_VFS_UNAVAILABLE
+        );
+        assert_eq!(second, [7; 16]);
+        assert_eq!(
+            meta.file_version_load_count(),
+            1,
+            "cache lookup must not bypass the per-read inode validation"
+        );
+
+        fs.release(&context(), reader).unwrap();
+    }
+
+    #[test]
+    fn readonly_changed_version_load_error_does_not_return_cached_old_content() {
+        let (_temp, meta, fs) = test_fs();
+        let inode_id = meta.inode.lock().unwrap().inode_id.clone();
+        publish_external_version_with_bytes(&meta, &fs, "cache-old-before-error", b"old-data");
+        let inode = fs.backend_inode(&inode_id).unwrap();
+        let reader = fs.open(&context(), inode, libc::O_RDONLY).unwrap();
+        let mut old = [0; 16];
+        assert_eq!(fs.read(&context(), reader, 0, &mut old).unwrap(), 8);
+        assert_eq!(&old[..8], b"old-data");
+
+        publish_external_version_with_bytes(&meta, &fs, "cache-new-error", b"new-data");
+        meta.fail_next_get_file_version_with(unavailable(
+            "injected readonly GetFileVersion failure",
+        ));
+        let mut new = [9; 16];
+        assert_eq!(
+            fs.read(&context(), reader, 0, &mut new)
+                .expect_err("changed head load failure must not fall back to old cached version")
+                .code(),
+            afs_error::NODE_VFS_UNAVAILABLE
+        );
+        assert_eq!(new, [9; 16]);
+
+        let mut retry = [0; 16];
+        assert_eq!(fs.read(&context(), reader, 0, &mut retry).unwrap(), 8);
+        assert_eq!(&retry[..8], b"new-data");
+
+        fs.release(&context(), reader).unwrap();
     }
 
     #[test]

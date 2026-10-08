@@ -1,0 +1,91 @@
+{
+  "source_base": "61c1931b50e42e8a308fdb18c2bcc4f97ddd72e2",
+  "scope": "readonly immutable version/layout cache prototype, src/node/vfs/dfs.rs only",
+  "red_before_fix": "samehead test expected1 load, observed2; firstfailure retained",
+  "checks": [
+    {
+      "command": "cargo test -p afs readonly_ --lib --features dfs",
+      "passed": 15,
+      "note": "overlaps DFS module and Owner tests; not an extra product count"
+    },
+    {
+      "command": "cargo test -p afs node::vfs::dfs::tests --lib --features dfs",
+      "passed": 148
+    },
+    {
+      "command": "cargo fmt -- --check",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo check -p afs --lib --bins --features dfs",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo clippy -p afs --lib --bins --features dfs",
+      "result": "PASS two pre-existing peer fallback dead_code warnings"
+    },
+    {
+      "command": "cargo test -p afs node::dfs_read::tests --lib --features dfs",
+      "passed": 13,
+      "scope": "unchanged full-chunk integrity/corruption fallback, EIO, version/grant handling; does not close product performance"
+    }
+  ],
+  "logs": {
+    "cargo-fmt-check.final.host.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "targeted-readonly-tests.host.log": {
+      "sha256": "48ca5454e3e66a1354678ced5fc8542616fe8a76c9f89eb3305fcef39b154132",
+      "bytes": 2513
+    },
+    "targeted-readonly-tests.rerun.host.log": {
+      "sha256": "864ae36b659540d57b653e5affeb1154092e9c8c92d750a23886611e713c9f21",
+      "bytes": 2464
+    },
+    "targeted-readonly-tests.final.host.log": {
+      "sha256": "7e89da6ff3517b73884fab58febb4d0df6b37395e6dd6d4e0e34d65f4a0e7206",
+      "bytes": 2513
+    },
+    "cargo-clippy-lib-bins.host.log": {
+      "sha256": "032efde7e303ec02059807ce24e0dca2befee459cb2d10cd42c71750b78df0fd",
+      "bytes": 747
+    },
+    "cargo-clippy-lib-bins.final.host.log": {
+      "sha256": "665371d40f5c01add957de059e58d8931bc2240496d5eaff6f9ea3ee73352492",
+      "bytes": 747
+    },
+    "dfs-module-tests.host.log": {
+      "sha256": "48056db36619d2aaf119a13ea11fe476a18faec68000fb327b754a4f680317ce",
+      "bytes": 15451
+    },
+    "cargo-fmt-check.host.log": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "cargo-check-lib-bins.host.log": {
+      "sha256": "1de432b4d5825f6551ca4d754e52ea2482b13c07bf57803eec1c17c54a195ba4",
+      "bytes": 747
+    },
+    "cargo-check-lib-bins.final.host.log": {
+      "sha256": "ec07487e6b0d5943c50f91cfd09982c938a0c52510086901e012c77fbca1ad36",
+      "bytes": 747
+    },
+    "firstfail-readonly-cache-same-head.host.log": {
+      "sha256": "65bf4ad1a7215e2fb6abe3241bfccfce4aba3290ea7dda5c854356c6d69f5025",
+      "bytes": 1580
+    },
+    "parent-dfs-read-integrity.host.log": {
+      "sha256": "0a1365c5c0fd5bddcedb81536fabe55877dbb8e3c19ae7f792dfc2cd2c83f7c6",
+      "bytes": 2210
+    }
+  },
+  "performance": "One fixed product pair PASS_RETENTION; formal matched3FS PENDING",
+  "not_tested": [
+    "formal3FS comparison",
+    "full POSIX",
+    "RDMA runtime",
+    "crash recovery",
+    "new package"
+  ]
+}

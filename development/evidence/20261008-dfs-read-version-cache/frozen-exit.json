@@ -1,0 +1,34 @@
+{
+  "task": "G2.21 one product optimization: repeated immutable readonly version/layout fetch",
+  "not_reopened": "0bd missing per-read measurement COMPLETE; historical R3/normal recovery retain original identities",
+  "retention_before_run": {
+    "each_reader_median_throughput_ratio_min": 1.05,
+    "each_reader_pooled_p95_ratio_max": 1.0,
+    "readers": [
+      "b",
+      "c"
+    ],
+    "requires_all": true,
+    "no_post_result_metric_selection": true
+  },
+  "correctness_required": [
+    "same physical dataset/inode across pair",
+    "16 distinct chunks and3 synchronous durable physical copies",
+    "full content SHA/EOF eachround",
+    "changed head refreshes immediately in affected regressions",
+    "cached state never masks fresh head/meta errors",
+    "normal owned child waits/mount closure and protected inventories"
+  ],
+  "limits": [
+    "One formal product baseline/candidate pair only",
+    "one warmup+five formal rounds perphase",
+    "64MiB counter dataset/C1 perreader/1MiB logical reads",
+    "existing tool/normal configuration; no fresh compilation of tool",
+    "Do not repeat recovery or qualifier matrix",
+    "No new3FS baseline or finalparityclaim",
+    "No weakening fullchunkchecksum/freshness/auth/errors/durability",
+    "Real environment blocker: save+stop selected lane+ask; no iterative repair"
+  ],
+  "final_performance": "PENDING without matched3FS, irrespective of product retention",
+  "source_base": "61c1931b50e42e8a308fdb18c2bcc4f97ddd72e2"
+}

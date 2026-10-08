@@ -1,0 +1,28 @@
+{
+  "red_regression": "Before cache same-head test expected1 GetFileVersion call, observed2; firstfail-readonly-cache-same-head.host.log retained in raw archive. After cache all four new regressions pass.",
+  "prestart_tool_corrections": [
+    "manifest adapter recursion corrected before startup",
+    "phase-unique lifecycle command names and candidate ELF observer corrected before startup",
+    "nearest-rank percentile fixed before startup",
+    "audit draft lacked actual closure/budget/log proof; replaced before auditing data, no product rerun"
+  ],
+  "parent_orchestration_notes": {
+    "git_diff_check": "PASS in source",
+    "first_command_error": "git diff --check invoked at research parent (not Git); rc129; corrected cwd to source; no code/runtime/test rerun",
+    "agent_recovery": "interrupted child agents absent from live registry; bounded runner and audit reassigned, no services started"
+  },
+  "log_errors": "Five preserved A-side FUSE error lines: four DFS dentry not found, one non-user.* xattr unsupported; do not claim zero-error logs. Writer full content/EOF and all reader rounds passed.",
+  "not_tested": [
+    "qualified3FS parity",
+    "fullPOSIX on this candidate",
+    "crash recovery",
+    "RDMA runtime",
+    "new package/ON install of this candidate"
+  ],
+  "limits": [
+    "One serial baseline-then-candidate pair, normal one-warmup conditions; order/noise remains a limit.",
+    "No explicit physical-page mincore/cache-state freeze. This is a limited product before/after, not comparator qualification.",
+    "Baseline original R3 physical proof remains b80; A/Meta stayed b80 and B/C were candidate; never relabel as homogeneous candidate R3 recovery proof.",
+    "Closed historical 0bd measurement and recovery evidence keep original versions."
+  ]
+}

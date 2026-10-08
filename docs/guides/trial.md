@@ -1,12 +1,16 @@
-# AFS 默认 OFF 试用候选 f03
+# AFS 默认 OFF 试用候选 8442
 
-Linux ARM64 候选版本为 `0.1.0-g2-main-f03dc2b`，产品源码
-`f03dc2b3679c31daa51caee275fb2087413e949c`。`manifest.json` 标明版本、编译特性和
-两个产品 ELF 的 SHA256；包内及下载侧 `SHA256SUMS` 分别校验文件和归档。
+Linux ARM64 候选版本为 `0.1.0-g2-main-8442b55`，产品源码
+`8442b55ec25b018aad0898bd0f8679232e393f09`。`manifest.json` 标明版本、编译特性和
+两个产品 ELF 的 SHA256；打包用的文档提交可比编译锚点更新，
+必须核对编译输入逐文件相同，并另记打包输入SHA。包内及下载侧 `SHA256SUMS` 分别校验文件和归档。
 运行机器无需 Cargo、Rust/C 编译器或 Git。包仅含普通产品二进制、安装、配置、
 生命周期、自检和说明，不含测试探针、源码、容器 rootfs 或私钥。
 
-本指南提供复现步骤。试用包安装/恢复与标准、性能验收分别记录；完整阶段二性能仍待验。
+本指南提供复现步骤，新候选安装/恢复结论以独立证据为准，不继承f03。
+[历史f03交付](https://github.com/lelezi257/dms/releases/tag/afs-trial-f03dc2b)及
+[原指南](https://github.com/lelezi257/dms/blob/8442b55ec25b018aad0898bd0f8679232e393f09/docs/guides/trial.md)保留原身份。
+试用包安装/恢复与标准、性能验收分别记录；完整阶段二性能仍待验。
 [当前验收主表](https://github.com/lelezi257/dms/blob/main/development/trial-release-goals.md)
 是状态入口。[历史7e6交付](https://github.com/lelezi257/dms/releases/tag/afs-trial-7e6e00a)
 及[原指南](https://github.com/lelezi257/dms/blob/7eedd7eca3c1fb810663b3a491b35b18b9650f03/docs/guides/trial.md)
@@ -20,7 +24,7 @@ Linux ARM64 候选版本为 `0.1.0-g2-main-f03dc2b`，产品源码
 
 ```sh
 sha256sum -c SHA256SUMS
-package_dir=afs-0.1.0-g2-main-f03dc2b-linux-aarch64
+package_dir=afs-0.1.0-g2-main-8442b55-linux-aarch64
 tar -xzf "$package_dir.tar.gz"
 cd "$package_dir"
 sha256sum -c SHA256SUMS
@@ -39,7 +43,7 @@ OwnerFs与DFS使用两个独立挂载；本步骤使用local-file Meta、gRPC和
 OwnerFs workspace bind的宿主入口与实验适配器均默认 OFF。
 
 ```sh
-trial_root=/var/tmp/afs-trial-f03
+trial_root=/var/tmp/afs-trial-8442
 test ! -e "$trial_root" || exit 1
 sudo ./install.sh --prefix "$trial_root/prefix" --config-dir "$trial_root/etc" \
   --state-dir "$trial_root/state" --run-dir "$trial_root/run" \
@@ -57,14 +61,14 @@ ctl() {
 ctl start all
 for fs in ownerfs dfs; do
   sudo "$trial_root/prefix/bin/afs-selfcheck" --mount "$trial_root/mount/$fs" \
-    --workspace trial-f03 --size 64MiB --phase write --case-id "trial-f03-$fs" \
+    --workspace trial-8442 --size 64MiB --phase write --case-id "trial-8442-$fs" \
     --deadline 180 --output "$trial_root/$fs-write.json"
-  sudo sync -f "$trial_root/mount/$fs/trial-f03"
+  sudo sync -f "$trial_root/mount/$fs/trial-8442"
 done
 ctl restart meta
 for fs in ownerfs dfs; do
   sudo "$trial_root/prefix/bin/afs-selfcheck" --mount "$trial_root/mount/$fs" \
-    --workspace trial-f03 --size 64MiB --phase read --case-id "trial-f03-$fs" \
+    --workspace trial-8442 --size 64MiB --phase read --case-id "trial-8442-$fs" \
     --deadline 180 --input "$trial_root/$fs-write.json" \
     --output "$trial_root/$fs-read.json"
 done
@@ -89,6 +93,8 @@ ctl stop all
 
 ## 当前范围和已知限制
 
+- 8442包含f03同父目录独立创建的时间戳竞争修复和宿主bind限定RootCommand安全关闭；
+  新RootCommand消费者仅在host bind ON启动，普通默认OFF安装路径仍需要新候选回归。
 - f03修复同父目录独立创建的时间戳竞争；同名、权限/属性变化和真实冲突仍保留错误。
 - 同f03的[小规模三节点读写](https://github.com/lelezi257/dms/blob/main/development/evidence/20261007-dfs-r3-multinode-current/README.md)
   和[删除](https://github.com/lelezi257/dms/blob/main/development/evidence/20261007-dfs-delete-current/README.md)

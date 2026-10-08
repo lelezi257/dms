@@ -40,7 +40,7 @@ Each ordinary OwnerFs performance case must freeze these fields before it starts
 
 Every run records throughput plus p50, p95 and p99 for the measured operation-latency sample array. Read file-transaction timing covers `open -> reads -> close` after the file is prepared and verified. Write file-transaction timing covers `open/create -> writes -> selected barrier -> close` and ends only after the chosen visibility/durability condition matches the comparator. Existing C aggregate wall-time divided across a task summary is throughput diagnostic evidence, not syscall or per-operation latency evidence.
 
-Current bounded optimization: [G2.15 inbound WRITE Bytes pair](evidence/20261008-owner-remote-write-bytes/README.md), bind ON/B Home/C remote64MiB/C1, throughput187.468→184.904MiB/s and preselected independent pwrite p95 6.915→7.208ms: retention FAILED, production restored, no rerun. Latency pwrite+count-check excludes oracle; finalfdatasync separate from per-write samples and inside whole-task throughput. Both previous READ throughput improvement and its pure-read NOT_PROVEN correction remain under their own evidence. Final matched MooseFS dual targets PENDING; next one DFS core write/publication cost. Historical results below retain versions and conclusions.
+**当前出口（2026-10-08，G2.23）：** DFS独立复制链最多四路并行候选完成受影响Linux检查/trace修正构建，但A盘启动前少540,160,000B，功能运行/测量NOT_RUN，性能BLOCKED/PENDING；未安装夹具或启动/停止旧服务，未改预算/修环境。按用户选择暂缓，生产复制代码恢复84af，完整补丁/ELF及144raw归档和实际Linux源码恢复保留，不能把代码/工具就绪算功能或性能通过。G1历史8/8关闭、原G2仍12/0/15，b80有限ON交付、READ+31.84%/DFS读+16%保持原身份；两个失败WRITE方向不重试。下一OwnerFs远端READ输出所有权一个成本，保留授权/校验/关闭语义，不扩矩阵。[版本、阻塞、恢复和下一项](evidence/20261008-dfs-replica-batch-parallel/README.md)。
 
 ## Existing Evidence Audit
 

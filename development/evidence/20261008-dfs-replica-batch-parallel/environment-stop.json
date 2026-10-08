@@ -1,0 +1,15 @@
+{
+  "status": "BLOCKED_BEFORE_AFS_START",
+  "task_id": "G2.23",
+  "reason": "A free below predeclared combined two-phase ceiling plus retained floor",
+  "deficit_bytes": 540160000,
+  "services_started": false,
+  "fixtures_installed": false,
+  "candidate_perf": "NOT_RUN",
+  "function_runtime": "NOT_RUN",
+  "passed_rust_checks": "not runtime or performance qualification",
+  "threshold_changed": false,
+  "environment_repaired": false,
+  "old_services_stopped": false,
+  "next": "retain candidate patch and Linux checks; restore unmeasured production, continue independent Owner remote lane while user decision is pending"
+}

@@ -1,0 +1,13 @@
+{
+  "raw_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-replica-batch-parallel-20261008-r1",
+  "archive_manifest_sha256": "046f4ab35dd05145798a9c50b4a50c977ef84d29c360690dc04ff8af6e7148ad",
+  "code_recovery": "source-recovery.json",
+  "candidate_elf_retained_external": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-replica-batch-parallel-20261008-r1/candidate-node",
+    "bytes": 25163376,
+    "sha256": "95e0e4abfab42b40f092cbc88145e97ae44315cc60ec27c2b34a5783b0c5f69f"
+  },
+  "scope": "No duplicate full compiler maps, source/tool snapshots or ELF in Git",
+  "user_choice": "defer DFS compare; continue Owner remote",
+  "static_helper_limit": "guard/static checked; split-root runtime lifecycle NOT_RUN and must be checked at future re-admission"
+}

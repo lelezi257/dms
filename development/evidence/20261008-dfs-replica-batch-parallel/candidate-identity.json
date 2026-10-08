@@ -1,0 +1,12 @@
+{
+  "source_base": "84af854e19ffa6397eaae2b3af6f838c7cb17a28",
+  "source_identity": "84af854e19ffa6397eaae2b3af6f838c7cb17a28+patch:05052a339e77db821704d98df10f1b05b85facbcbff4e909cd0441ff80c7a5e6",
+  "compiler_input_map": "9ea6d54a584fbd350950690ce2ac86cf2b15339a39d7fb65b91a89471f452019",
+  "compiler_inputs": 160,
+  "product_patch_sha256": "05052a339e77db821704d98df10f1b05b85facbcbff4e909cd0441ff80c7a5e6",
+  "node_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/afs-delivery/dfs-replica-batch-parallel-20261008-r1/candidate-node",
+  "afs_node_sha256": "95e0e4abfab42b40f092cbc88145e97ae44315cc60ec27c2b34a5783b0c5f69f",
+  "afs_meta_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+  "meta_source": "b80dab66e9d819cad821c9b30edbf97c795c0c3e",
+  "scope": "one bounded DFS replica-chain batch overlap; no performance verdict"
+}

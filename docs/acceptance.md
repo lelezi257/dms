@@ -1,4 +1,4 @@
-**当前出口（2026-10-08，G2.15）：** bind ON/B Home/C远端64MiB/C1一次WRITE入站Bytes解码试改，吞吐187.468→184.904MiB/s（-1.37%）、独立pwrite p95 6.915→7.208ms（+4.23%）；未过预设>=1.05/<=1.0保留线，四生产/fixture文件已恢复68dc，保留wire兼容回归和全部负面数据，不重跑。功能限定PASS／测量COMPLETE／优化REJECTED／正式Moose双目标PENDING。此前READ+31.84%、DFS读+16%及b80有限ON交付保留各自身份；G1历史8/8关闭，原G2仍12/0/15。Linux受影响112tests（1ignored明确不计）、默认/RDMA检查/Clippy/build及恢复后协议3tests通过；6实际wait0/旧mount和3保护进程保留，1532raw+27guest实际恢复PASS。下一DFS一写多读核心写/发布路径一个成本，不重试两个写复制方向，不扩资格矩阵。[版本、全部失败、原始数据和恢复](../development/evidence/20261008-owner-remote-write-bytes/README.md)。
+**当前出口（2026-10-08，G2.23）：** DFS独立复制链最多四路并行候选完成受影响Linux检查/trace修正构建，但A盘启动前少540,160,000B，功能运行/测量NOT_RUN，性能BLOCKED/PENDING；未安装夹具或启动/停止旧服务，未改预算/修环境。按用户选择暂缓，生产复制代码恢复84af，完整补丁/ELF及144raw归档和实际Linux源码恢复保留，不能把代码/工具就绪算功能或性能通过。G1历史8/8关闭、原G2仍12/0/15，b80有限ON交付、READ+31.84%/DFS读+16%保持原身份；两个失败WRITE方向不重试。下一OwnerFs远端READ输出所有权一个成本，保留授权/校验/关闭语义，不扩矩阵。[版本、阻塞、恢复和下一项](../development/evidence/20261008-dfs-replica-batch-parallel/README.md)。
 
 以下日期记录保留原版本与结论。
 

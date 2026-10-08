@@ -1,0 +1,83 @@
+{
+  "platform": {
+    "system": "Linux",
+    "node": "lima-afs-accept-a",
+    "release": "6.8.0-142-generic",
+    "version": "#142-Ubuntu SMP PREEMPT_DYNAMIC Wed Sep  2 14:30:29 UTC 2026",
+    "machine": "aarch64",
+    "processor": "aarch64"
+  },
+  "volume": "/mnt/lima-afsadata",
+  "disk": {
+    "total": 33633878016,
+    "used": 30291898368,
+    "free": 1607323648
+  },
+  "mount": {
+    "filesystems": [
+      {
+        "source": "/dev/vdb1",
+        "target": "/mnt/lima-afsadata",
+        "fstype": "ext4",
+        "uuid": "63e5c3bc-3bb6-4037-9232-595320850ddb",
+        "options": "rw,relatime"
+      }
+    ]
+  },
+  "protected_processes": [
+    {
+      "pid": 150904,
+      "exe": "/usr/sbin/fdbserver",
+      "sha256": "cddf55256ba2ca1249f98481d6c9995fd7fda091d23bc0551b96c1ae9537128c",
+      "starttick": "2268457"
+    },
+    {
+      "pid": 706366,
+      "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v45/bin/afs-meta",
+      "sha256": "8bcfbcbd2f84be5029ab848c214aaff258ba8147684a141b17b262d0b6cc8d10",
+      "starttick": "5849843"
+    },
+    {
+      "pid": 707560,
+      "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/bin/afs-meta",
+      "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312",
+      "starttick": "6127754"
+    },
+    {
+      "pid": 722421,
+      "exe": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta",
+      "sha256": "00cb99fe46f20024ab3b476978dd0e16d9e8a2c0535b95d5c8febc3aa863cf2d",
+      "starttick": "6782793"
+    },
+    {
+      "pid": 723627,
+      "exe": "/mnt/lima-afsadata/afs-delivery/repair-v55-a/prefix/bin/afs-meta",
+      "sha256": "f08de71b873f9e9f5564acdd09ce58ab62b62472b36db7a8b0a514c2d47849fb",
+      "starttick": "7187988"
+    },
+    {
+      "pid": 724361,
+      "exe": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-meta",
+      "sha256": "37218622c1cfd1cfadc696269f0ea01a2570052ec460528c748d525fe982ef9d",
+      "starttick": "7349623"
+    },
+    {
+      "pid": 727122,
+      "exe": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/prefix/bin/afs-meta",
+      "sha256": "d10d5683935aa70c2e8d3968be9818a83df9cb1267d1b9a29f6494a1d146865c",
+      "starttick": "7806618"
+    },
+    {
+      "pid": 729413,
+      "exe": "/mnt/lima-afsadata/afs-delivery/rxe-repair-v62-a/prefix/bin/afs-meta",
+      "sha256": "d10d5683935aa70c2e8d3968be9818a83df9cb1267d1b9a29f6494a1d146865c",
+      "starttick": "7870207"
+    }
+  ],
+  "owned_test_started": false,
+  "required_free_before_both_phases": 2147483648,
+  "headroom_floor": 1073741824,
+  "combined_owned_ceiling": 1073741824,
+  "deficit_bytes": 540160000,
+  "status": "BLOCKED_CAPACITY"
+}

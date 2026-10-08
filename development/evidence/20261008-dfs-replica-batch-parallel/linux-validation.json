@@ -1,0 +1,117 @@
+{
+  "checks": [
+    {
+      "label": "green",
+      "passed": 30,
+      "disjoint_new": 30,
+      "sha256": "748be474b67d349aedd4e9f0b47bad73a8c72182701653e24a6ccf573a1380d3"
+    },
+    {
+      "label": "chunk",
+      "passed": 0,
+      "disjoint_new": 0,
+      "sha256": "7e17eb91b634f4cf15931f311218a3741643dd56cf52fa063e478a772fd60bf4"
+    },
+    {
+      "label": "dfs",
+      "passed": 148,
+      "disjoint_new": 148,
+      "sha256": "58abf490fa134eebc227420c4395c989f3042fe60a37e6fb727ceff8194f48eb"
+    },
+    {
+      "label": "replica-rpc",
+      "passed": 13,
+      "disjoint_new": 11,
+      "sha256": "c2ff16e454c3df5bac0d8960f299b4fe09844e83118c3ba3d263155970fd7934"
+    },
+    {
+      "label": "integrity-contract",
+      "passed": 13,
+      "disjoint_new": 13,
+      "sha256": "7267bc1740d6f2e626764e03361881b173b6213f0a345f8338c854551c541802"
+    },
+    {
+      "label": "replication-rdma",
+      "passed": 30,
+      "disjoint_new": 0,
+      "sha256": "ce2abde14f73f0455fcfdf9e53c85ea35378d3359d8660bb0656a4fd5beb8c96"
+    },
+    {
+      "label": "chunk-actual",
+      "passed": 9,
+      "disjoint_new": 9,
+      "sha256": "f313e669f422492f85fd732d81593bb3eaaae24f5f76415459ebd9cc381cac7e"
+    }
+  ],
+  "unique_test_names": 211,
+  "note": "RDMA exercises alternative compilation but overlaps same test names; no double count",
+  "checks_non_test": [
+    "fmt PASS",
+    "check default PASS",
+    "check RDMA PASS",
+    "clippy lib/bins PASS (two unchanged fallback warnings)",
+    "release-node PASS"
+  ],
+  "failures_preserved": [
+    "RED and serial suite expected overlap/drain failures",
+    "incorrect integrity integration target rc101; corrected actual dfs_read lib13 before runtime",
+    "duplicate command recorder refused overwrite; new namespace used",
+    "chunk::tests filter zero tests; actual chunk:: selected9 before runtime",
+    "first rustfmt file stdout header rejected; corrected via Linux stdin, full fmt PASS",
+    "valid trace regression RED None instead of Some; capture/attach fixed before final build"
+  ],
+  "not_tested": [
+    "RDMA runtime",
+    "crash reliability",
+    "full POSIX rerun",
+    "formal3FS parity",
+    "new package"
+  ],
+  "final_trace_boundary_checks": [
+    {
+      "label": "fmt",
+      "passed_test_names": 0,
+      "rc": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "replication-trace",
+      "passed_test_names": 30,
+      "rc": 0,
+      "stdout_sha256": "5784c6607ac064ab4eac21f76fef4696bfc9531d1c8a94ef941b59f4512ac49d"
+    },
+    {
+      "label": "check-default",
+      "passed_test_names": 0,
+      "rc": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "check-rdma",
+      "passed_test_names": 0,
+      "rc": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "replication-rdma",
+      "passed_test_names": 30,
+      "rc": 0,
+      "stdout_sha256": "1e906f1e46f2da0c8931486d02f5748f9068c140110f0908869c51f4e8921812"
+    },
+    {
+      "label": "clippy",
+      "passed_test_names": 0,
+      "rc": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "label": "release-node",
+      "passed_test_names": 0,
+      "rc": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "final_candidate_input_map": "9ea6d54a584fbd350950690ce2ac86cf2b15339a39d7fb65b91a89471f452019",
+  "reuse_boundary": "211 disjoint tests ran on initial parallel candidate; only trace propagation/test changed later, with fresh30 default and30 RDMA replication plus fmt/defaultRDMA/clippy/release. Unchanged DFS148/RPC11/integrity13/chunk9 reused within scope, not all211 rerun on final ELF.",
+  "performance": "NOT_RUN_BLOCKED_CAPACITY"
+}

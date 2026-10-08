@@ -4633,6 +4633,55 @@ mod tests {
 
     #[cfg(feature = "ownerfs")]
     #[tokio::test]
+    async fn owner_grpc_write_preserves_request_contract() {
+        let registry = afs_metrics::Registry::new();
+        let metrics = crate::node::rpc::OwnerRpcMetrics::register(&registry).unwrap();
+        let handler = std::sync::Arc::new(PayloadMetricsHandler::success());
+        let (channel, server) = spawn_owner_payload_server(handler.clone(), metrics.clone()).await;
+        let client = owner_files_client_from_channel_with_runtime_and_metrics(
+            channel,
+            tokio::runtime::Handle::current(),
+            Some(metrics),
+        );
+        let grant = test_grant();
+        let file = test_remote_file(b"handle-payload-contract".to_vec());
+        let payload = b"write-contract-payload";
+        let checksum = blake3::hash(payload).as_bytes().to_vec();
+
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(
+                client
+                    .write_with_options(
+                        &grant,
+                        &file,
+                        4096,
+                        payload,
+                        WriteOptions { kill_suidgid: true },
+                    )
+                    .unwrap(),
+                2
+            );
+        })
+        .await
+        .expect("write contract worker");
+
+        assert_eq!(
+            handler.writes(),
+            vec![PayloadWriteRecord {
+                offset: 4096,
+                data: payload.to_vec(),
+                length: payload.len() as u32,
+                kill_suidgid: true,
+                data_checksum: checksum,
+            }]
+        );
+        assert_eq!(owner_payload_bytes(&registry, "client", "write", "grpc"), 2);
+        assert_eq!(owner_payload_bytes(&registry, "server", "write", "grpc"), 2);
+        server.abort();
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test]
     async fn owner_grpc_malformed_replies_do_not_count_successful_payload_bytes() {
         let registry = afs_metrics::Registry::new();
         let metrics = crate::node::rpc::OwnerRpcMetrics::register(&registry).unwrap();
@@ -4746,6 +4795,17 @@ mod tests {
     #[cfg(feature = "ownerfs")]
     struct PayloadMetricsHandler {
         mode: PayloadMetricsMode,
+        writes: StdMutex<Vec<PayloadWriteRecord>>,
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    struct PayloadWriteRecord {
+        offset: u64,
+        data: Vec<u8>,
+        length: u32,
+        kill_suidgid: bool,
+        data_checksum: Vec<u8>,
     }
 
     #[cfg(feature = "ownerfs")]
@@ -4753,13 +4813,19 @@ mod tests {
         fn success() -> Self {
             Self {
                 mode: PayloadMetricsMode::Success,
+                writes: StdMutex::new(Vec::new()),
             }
         }
 
         fn malformed() -> Self {
             Self {
                 mode: PayloadMetricsMode::Malformed,
+                writes: StdMutex::new(Vec::new()),
             }
+        }
+
+        fn writes(&self) -> Vec<PayloadWriteRecord> {
+            self.writes.lock().unwrap().clone()
         }
     }
 
@@ -4793,6 +4859,13 @@ mod tests {
             request: OwnerWriteRequest,
         ) -> afs_error::Result<OwnerWriteReply> {
             assert_eq!(peer, "node-b");
+            self.writes.lock().unwrap().push(PayloadWriteRecord {
+                offset: request.offset,
+                data: request.data.clone(),
+                length: request.length,
+                kill_suidgid: request.kill_suidgid,
+                data_checksum: request.data_checksum.clone(),
+            });
             match self.mode {
                 PayloadMetricsMode::Success => Ok(OwnerWriteReply { written: 2 }),
                 PayloadMetricsMode::Malformed => Ok(OwnerWriteReply {

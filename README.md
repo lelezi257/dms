@@ -1,6 +1,6 @@
 # AFS
 
-**当前交付：bind ON有限场景试用已发布。** [下载ON试用包](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6)；[明确ON步骤/支持范围](docs/guides/trial.md)、[包/无编译器安装/远端SHA证据](development/evidence/20261008-workspace-bind-on-trial/README.md)。b80当前必要功能及正常全停local-file恢复限定通过，G2.12有限出口关闭；[一次远端READ调度试改](development/evidence/20261008-owner-remote-read-dispatch/README.md)仅+2.464%，低于预设5%而撤回，未宣称性能达标。下一远端写→DFS一写多读→普通本地FUSE。复杂组合和性能未自动通过；[原失败与功能范围](development/evidence/20261008-workspace-bind-remote/README.md)、[8442普通OFF历史证据](development/evidence/20261008-current-trial-8442/README.md)保持原身份。
+**当前交付：bind ON有限场景试用已发布。** [下载ON试用包](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6)；[明确ON步骤/支持范围](docs/guides/trial.md)、[包/无编译器安装/远端SHA证据](development/evidence/20261008-workspace-bind-on-trial/README.md)。b80当前必要功能及正常全停local-file恢复限定通过，G2.12有限出口关闭；[一次远端WRITE试改](development/evidence/20261008-owner-remote-owned-write/README.md)吞吐-1.4295%/p95略差，已撤回生产改动并留数，未宣称性能改善或达标。下一DFS一写多读→普通本地FUSE。复杂组合和性能未自动通过；[原失败与功能范围](development/evidence/20261008-workspace-bind-remote/README.md)、[8442普通OFF历史证据](development/evidence/20261008-current-trial-8442/README.md)保持原身份。
 
 AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [same-mount visibility and close-to-open consistency](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
 
@@ -32,7 +32,7 @@ Current priority is:
 - G2: required usage is OwnerFs workspace bind **ON** with correct remote FUSE access and an explicit ON trial. Prioritize finite bind functions/delivery, remote performance, DFS one-writer/many-readers, then ordinary local FUSE. Reuse scoped standard and eight bind core >=0.90 ext4 passes; tools/documents are supporting work. Ordinary Owner read/write still requires >=1.2x MooseFS throughput and <=0.8x independent operation latency; DFS keeps three-synchronous-copy matched 3FS parity.
 - G3: long soak, broad fault matrices, etcd memory/resource work and Redis persistence are deferred.
 
-OwnerFs native bind mount is tracked as two separate G2 items: a function gate and a performance gate. It remains default-off; a public production enable switch is not qualified in this checkpoint.
+OwnerFs workspace bind mount has separate function and performance gates. Ordinary defaults remain OFF; the published b80 ON trial closes the selected finite scenario, with its explicit support limits and historical eight-case performance scope.
 
 ## Development
 

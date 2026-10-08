@@ -1,0 +1,34 @@
+{
+  "final_source": {
+    "base": "df26b1c3e52cb8561aa4b71a8617f56367a31b18",
+    "owned_apis_removed": true,
+    "production_prefix_identical_to_base": true,
+    "test_only_diff_sha256": "d5d439aeac878826412045176efc091167832f55b9ccb03e028a7a65b91cb0ad"
+  },
+  "formal_moose": "PENDING",
+  "normal_child_waits": 6,
+  "phases": [
+    {
+      "content_transition": "98 to 97 every round",
+      "formal_operations": 320,
+      "median_mib_s": 190.4070789401003,
+      "p50_ns": 4752797,
+      "p95_ns": 6861693,
+      "p99_ns": 8136771,
+      "phase": "baseline-b80-owned-write"
+    },
+    {
+      "content_transition": "98 to 97 every round",
+      "formal_operations": 320,
+      "median_mib_s": 187.68520369004477,
+      "p50_ns": 4928215,
+      "p95_ns": 6873420,
+      "p99_ns": 7911533,
+      "phase": "candidate-owned-write"
+    }
+  ],
+  "retention": "FAIL_STOP_DIRECTION",
+  "same_physical_identity": true,
+  "scope": "saved-data arithmetic/content/cache/lifecycle/identity audit, not new product cases",
+  "status": "PASS_SAVED_DATA_AUDIT"
+}

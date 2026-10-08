@@ -1,0 +1,30 @@
+{
+  "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/archives/20261008-owner-remote-owned-write/records.tar.gz",
+  "bytes": 279902,
+  "sha256": "c96c7ecbcacb17da7fa8dcc7c8e452a42daaf7f99f693cfd86883027501e8a2f",
+  "files": 1320,
+  "manifest_sha256": "38df110ab17148729338c576f78b87be659221c28fea5e0a296a381a874cec26",
+  "restore": {
+    "status": "PASS_ACTUAL_LINUX_RESTORE",
+    "root": "/var/tmp/afs-owned-write-restore-gy43le9q",
+    "files": 1320,
+    "nested_guest_files": 71,
+    "archive_sha256": "c96c7ecbcacb17da7fa8dcc7c8e452a42daaf7f99f693cfd86883027501e8a2f"
+  },
+  "raw_scope": "All raw commands/failures, rejected candidate patch/input map, frozen harness delta, one pair actual timings, lifecycle/config/log bundles and final test-only diff; no private TLS, candidate ELF or full Rust source copies.",
+  "retained_binary_inputs": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-owned-write-20261008-r1/candidate-node",
+    "sha256": "5104ffe9824d4715801be960e74bf1f8d1f5faacb584f1d26ebe7e577a4c0994",
+    "bytes": 25143800
+  },
+  "shared_read_only_inputs": {
+    "harness": {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/performance/paired_remote_read.py",
+      "sha256": "875fa5ff560dcaa9bfd8a060c230b02a732dfd62a4931f0f9ac19d3825d1e8d8"
+    },
+    "io": {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/performance/tools/io",
+      "sha256": "0d4346c99ad5ed3a7af0306c7db965eb1d6ea57595a89d639216a2be15c9fa8e"
+    }
+  }
+}

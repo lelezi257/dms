@@ -16,7 +16,7 @@ The [three-stage goal table](trial-release-goals.md) is authoritative. The finit
 
 OwnerFs workspace bind mount functionality and performance remain independent existing G2 tasks. Ordinary distribution config defaults OFF; the identified current trial provides explicit host ON steps. Never enable stale remote caching, weaken authority/permissions/errors/persistence or call a FUSE-self bind a bypass. No full POSIX or deferred combinations are inferred from finite ON success.
 
-Current bounded product exit: [G2.14 Owner READ decode-copy reduction](evidence/20261008-owner-remote-read-bytes/README.md), +31.84% measured throughput under bind ON. The probe includes content checks; pure-read latency and final MooseFS dual target remain pending. Next independent slice is G2.15 remote WRITE, without retrying the rejected owned-buffer-copy direction.
+Current bounded exit: [G2.15 inbound WRITE decode-copy candidate](evidence/20261008-owner-remote-write-bytes/README.md) failed its single-pair retention (-1.37% throughput/+4.23% p95); production restored to68dc, wire regression retained. Prior READ+31.84% and DFS read+16% remain scoped; formal MooseFS targets pending. Next is one DFS one-writer/many-readers core write/publication cost. Do not retry either rejected WRITE copy direction.
 
 ## Architecture boundaries
 

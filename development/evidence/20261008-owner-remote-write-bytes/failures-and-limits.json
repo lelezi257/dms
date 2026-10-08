@@ -1,0 +1,53 @@
+{
+  "original_failures": [
+    "expected prechange sharing regression RED (wire passed)",
+    "candidate throughput-1.3673% and p95+4.2288% failed frozen retention; production restored, no rerun"
+  ],
+  "tool_selection_corrections": [
+    "server-write filter0: no tests counted; affected write via real Home and peer RPC",
+    "fuse-queue filter0: corrected dispatch_tests14 before runtime; both outputs retained"
+  ],
+  "preserved_logs": {
+    "logs": [
+      {
+        "role": "b",
+        "path": "logs/node.log",
+        "bytes": 2446,
+        "sha256": "ac1004ea6fa61f9e7656acc89d994435f656c641b4c06816dbc0b72402f01013",
+        "errors": 1,
+        "warnings": 2,
+        "trace": 0
+      },
+      {
+        "role": "c",
+        "path": "logs/node.log",
+        "bytes": 7422,
+        "sha256": "e9d7b5415d8cb949b136b4e0f56062a6557a8a6a4388b79380eb15419be9bbe7",
+        "errors": 2,
+        "warnings": 28,
+        "trace": 0
+      },
+      {
+        "role": "ctl",
+        "path": "logs/meta.log",
+        "bytes": 296,
+        "sha256": "b3c85859abf75ba36100fe45672a848ad67db38b47e47594638bab439ca33ee6",
+        "errors": 0,
+        "warnings": 0,
+        "trace": 0
+      }
+    ],
+    "total_bytes": 10164,
+    "errors": 3,
+    "warnings": 30,
+    "trace": 0
+  },
+  "not_claimed": [
+    "qualified MooseFS dual target",
+    "whole G2.15 completion",
+    "new package/POSIX/RDMA device runtime",
+    "historic acceptance relabeled to candidate",
+    "supervisor wait0 or continuously measured peak"
+  ],
+  "next": "DFS one-writer/many-readers core path: one actual write/publication cost, reuse read/R3/recovery evidence; avoid comparator qualification matrix"
+}

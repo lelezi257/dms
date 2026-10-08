@@ -1,0 +1,20 @@
+{
+  "source_external_raw": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-bytes-20261008-r1",
+  "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/archives/20261008-owner-remote-write-bytes/records.tar.gz",
+  "tools": {
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/transport/physical_cache.py": "13608209ad1709ec7f83b435a1f87b3d8a960eaa391f480ce0ec622a14b41853",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/performance/paired_remote_read.py": "875fa5ff560dcaa9bfd8a060c230b02a732dfd62a4931f0f9ac19d3825d1e8d8",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-remote-ttl-20261008-r1/admission.py": "e124e61bd0798e76270b4ff1ce3c4a32037279af742e815a077590309fba7edc",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-remote-ttl-20261008-r1/closure.py": "4d350e69d2520ba707af373c4282a717d1e8352c29a186d038b104b274526f7a",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-remote-ttl-20261008-r1/owner_fixture.py": "4f8e217a22d7ee71fd7dccd0153ed9867101f7b52dd88e99bf438c7a1a5119d9",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/afs-delivery/owner-remote-owned-write-20261008-r1/performance/owner_remote_owned_write.py": "2c2fb84966e1e193f60915c506fda10c69bfeba9dc331ca78f1d93fbe85b9d76",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/afs-delivery/owner-remote-read-bytes-20261008-r1/run-pair.py": "c29ca1d5cebb3da93f156c89069e09bbc63de64f025b303d0a6dd02c3770c359",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/afs-delivery/owner-remote-write-bytes-20261008-r1/compiler-inputs.json": "07616fb33c41f452951e1e8776a389f1af4551e5e934e9f6e0e24e881de49e6f",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/afs-delivery/owner-remote-write-bytes-20261008-r1/plan.md": "1facc92e964b44574aca92f8a35b9f62ba238ef155b9d6230b56026147464ff2",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/afs-delivery/owner-remote-write-bytes-20261008-r1/run-pair.py": "04c90f91940b334996939cd4f6b0b2c4161cd071d1ff69c0315eae32db51fb91",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/dfs_r3_fixture.py": "5816c9e4022a05d7a1665d90694c022e08dc6341615fc01c425cc7d235c66929",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/workspace_remote.py": "ba9d8a1b24eb06ca688f040d20029b7a49dfb7807da41431d6d1a3ef4154c70a",
+    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-bytes-20261008-r1/run-pair.py": "04c90f91940b334996939cd4f6b0b2c4161cd071d1ff69c0315eae32db51fb91"
+  },
+  "reuse": "fixture/WRITE phase/collector/archive implementations imported from prior immutable records; no full tool/source snapshots or ELF in source tree"
+}

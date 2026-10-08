@@ -1,0 +1,126 @@
+{
+  "baseline": {
+    "label": "baseline-68dc",
+    "latency_interval": "pwrite+count-check from IO tool samples; post-write content verification is outside timed interval",
+    "meaningful_write_proof": "each round resets physical file to byte98 outside timer, verifies C fresh SHA98/hot cache, then timed C uid501 fdatasync overwrite to byte97 and verifies B then C SHA97",
+    "measured_rounds": 5,
+    "node_sha256": "8e1216f4075deb48bc05c921dbfca1337a2180c78d693f5d9923736d83382a30",
+    "operations": 320,
+    "p50_ns": 4926349,
+    "p95_ns": 6915115,
+    "p99_ns": 8674415,
+    "physical_identity": {
+      "device": 64785,
+      "inode": 1326289,
+      "size": 67108864
+    },
+    "quantile": "nearest-rank ceil(p*N/100)-1",
+    "rounds": 6,
+    "runtime_semantics": {
+      "lines": [
+        {
+          "missing_errno": 2,
+          "size": 67108864,
+          "tail_len": 0,
+          "uid": 501
+        },
+        {
+          "uid": 502,
+          "write_errno": 13
+        },
+        {
+          "checks": [
+            {
+              "exit": 0,
+              "pid": 15372
+            },
+            {
+              "exit": 0,
+              "pid": 15373
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "status": "PASS"
+    },
+    "status": "PASS_PHASE_DATA",
+    "throughput_each_mib_s": [
+      191.98270907730696,
+      178.64094751359534,
+      176.22649413233785,
+      187.46763784979458,
+      192.81525354963316
+    ],
+    "throughput_median_mib_s": 187.46763784979458,
+    "wall_interval": "open+thread create/join+IO+fdatasync+close as reported by IO tool"
+  },
+  "candidate": {
+    "label": "candidate-write-bytes",
+    "latency_interval": "pwrite+count-check from IO tool samples; post-write content verification is outside timed interval",
+    "meaningful_write_proof": "each round resets physical file to byte98 outside timer, verifies C fresh SHA98/hot cache, then timed C uid501 fdatasync overwrite to byte97 and verifies B then C SHA97",
+    "measured_rounds": 5,
+    "node_sha256": "2c99df676252787dcbd65fb93d18754101631da96522c19e1a4df1a9ae56a0b0",
+    "operations": 320,
+    "p50_ns": 4709468,
+    "p95_ns": 7207540,
+    "p99_ns": 9113678,
+    "physical_identity": {
+      "device": 64785,
+      "inode": 1326289,
+      "size": 67108864
+    },
+    "quantile": "nearest-rank ceil(p*N/100)-1",
+    "rounds": 6,
+    "runtime_semantics": {
+      "lines": [
+        {
+          "missing_errno": 2,
+          "size": 67108864,
+          "tail_len": 0,
+          "uid": 501
+        },
+        {
+          "uid": 502,
+          "write_errno": 13
+        },
+        {
+          "checks": [
+            {
+              "exit": 0,
+              "pid": 16027
+            },
+            {
+              "exit": 0,
+              "pid": 16028
+            }
+          ],
+          "status": "PASS"
+        }
+      ],
+      "status": "PASS"
+    },
+    "status": "PASS_PHASE_DATA",
+    "throughput_each_mib_s": [
+      185.87980446071916,
+      189.62647480694508,
+      179.79408301661974,
+      184.90439106758666,
+      180.9392718752081
+    ],
+    "throughput_median_mib_s": 184.90439106758666,
+    "wall_interval": "open+thread create/join+IO+fdatasync+close as reported by IO tool"
+  },
+  "candidate_identity": {
+    "compile_map_sha256": "d951e3e0dd8338f8261652ceea3121684bbb67e74330b784b3c77e2da575cb3c",
+    "node_sha256": "2c99df676252787dcbd65fb93d18754101631da96522c19e1a4df1a9ae56a0b0",
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/afs-delivery/owner-remote-write-bytes-20261008-r1/candidate-node",
+    "source_commit": "68dcff2d4a081678d13cf2ecad08bceca34cb6c9+patch:de662eec455dd42a97ba43eab35e9df3fb7dd9f4cc824df00ae2f8e08067a1b4"
+  },
+  "formal_moose_g2_15": "PENDING",
+  "p95_ratio": 1.0422877999859728,
+  "retention": "FAIL_STOP_DIRECTION",
+  "same_physical_identity": true,
+  "status": "PASS_PAIR_RECORDED",
+  "throughput_improvement_ratio": 0.9863269905589696
+}

@@ -100,6 +100,8 @@ source build closes either exit.
 
 ## OwnerFs workspace bind host entry
 
+Host ON also enables authenticated Meta RootCommand polling. A matching Home revoke, control transport/protocol failure, compaction or unsupported reply closes Node normally; ordinary OFF keeps its existing Meta restart policy. There is no production revoke issuer or durable ACK yet. This experimental limit and the [current receipt/refusal test](../../development/evidence/20261008-workspace-bind-root-command/README.md) must be considered before enabling the switch.
+
 The independent experimental host entry is default OFF. Enable it only for an
 administrator-controlled, fixed-Home workspace that already exists:
 

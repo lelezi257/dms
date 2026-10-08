@@ -1,0 +1,472 @@
+{
+  "result.json": {
+    "status": "PASS_LIMITED_COMMAND_RECEIPT_REFUSAL",
+    "scope": "production command receipt/refusal and normal host bind close",
+    "runtime_base": "e6f0b028989bd0f975f254ce4c2f84b49a3a50b1",
+    "compiler_map": "d053a333988e9fa7fc11efc51b94a7272e841f26f3aca7351f64a015f160a16a"
+  },
+  "binding-before.json": {
+    "source": "/opt/workspace-bind-root-command-20261008-r1/state/node/ownerfs/root-776f726b7370616365-e1",
+    "target": "/opt/workspace-bind-root-command-20261008-r1/mount/ownerfs/workspace",
+    "cover": {
+      "target": "/opt/workspace-bind-root-command-20261008-r1/mount/ownerfs/workspace",
+      "source": "/dev/vda1[/opt/workspace-bind-root-command-20261008-r1/state/node/ownerfs/root-776f726b7370616365-e1]",
+      "fstype": "ext4",
+      "options": "rw,nosuid,nodev,relatime,discard,errors=remount-ro,commit=30",
+      "id": 88
+    },
+    "underlying": {
+      "target": "/",
+      "source": "/dev/vda1",
+      "fstype": "ext4",
+      "options": "rw,relatime,discard,errors=remount-ro,commit=30"
+    },
+    "namespace": {
+      "dev": 4,
+      "ino": 4026531841
+    },
+    "source_identity": [
+      64769,
+      830034
+    ],
+    "target_identity": [
+      64769,
+      830034
+    ]
+  },
+  "physical-before.json": {
+    "path": "/opt/workspace-bind-root-command-20261008-r1/state/node/ownerfs/root-776f726b7370616365-e1/root-command-proof",
+    "dev": 64769,
+    "ino": 830072,
+    "bytes": 4096,
+    "sha256": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193"
+  },
+  "physical-after.json": {
+    "path": "/opt/workspace-bind-root-command-20261008-r1/state/node/ownerfs/root-776f726b7370616365-e1/root-command-proof",
+    "dev": 64769,
+    "ino": 830072,
+    "bytes": 4096,
+    "sha256": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193"
+  },
+  "issuer-receipt.json": {
+    "workspace": "workspace",
+    "trigger": {
+      "command_id": "bind-root-command-r1",
+      "mismatch_generation": true,
+      "root_epoch": null
+    },
+    "meta_id": "meta-ctl",
+    "config": "/opt/workspace-bind-root-command-20261008-r1/etc/meta.toml",
+    "original_root": {
+      "root_id": "root-776f726b7370616365",
+      "root_epoch": 1,
+      "home_node_id": "node-a",
+      "home_session_id": "f3ce6958-60cf-4a9e-9906-790400b41e0b",
+      "local_prepare_id": "prepare:root-776f726b7370616365:a4f4b4fb-deef-471e-b5a8-bcbcd082c3cc:node-a:a4f4b4fb-deef-471e-b5a8-bcbcd082c3cc:root-776f726b7370616365:a4f4b4fb-deef-471e-b5a8-bcbcd082c3cc-3:a4f4b4fb-deef-471e-b5a8-bcbcd082c3cc",
+      "created_at_revision": 0,
+      "updated_at_revision": 0
+    },
+    "original_root_revision": 5,
+    "home_session": {
+      "node_id": "node-a",
+      "session_id": "f3ce6958-60cf-4a9e-9906-790400b41e0b",
+      "grpc_addr": "https://127.0.0.1:22500",
+      "data_addr": "https://127.0.0.1:22500",
+      "rest_addr": "http://127.0.0.1:22501",
+      "storage_devices": [],
+      "lease_epoch": 2,
+      "expires_at_unix_ms": 1791421602557
+    },
+    "home_session_revision": 4,
+    "home_grant": {
+      "root_id": "root-776f726b7370616365",
+      "root_epoch": 1,
+      "home_node_id": "node-a",
+      "home_session_id": "f3ce6958-60cf-4a9e-9906-790400b41e0b",
+      "holder_node_id": "node-a",
+      "holder_session_id": "f3ce6958-60cf-4a9e-9906-790400b41e0b",
+      "access_generation": 2,
+      "rights": [
+        "Lookup",
+        "Read",
+        "Write",
+        "Admin"
+      ],
+      "fencing_token": "fence:root-776f726b7370616365:f3ce6958-60cf-4a9e-9906-790400b41e0b:2",
+      "issued_at_revision": 0
+    },
+    "home_grant_revision": 5,
+    "issued": [
+      {
+        "request": {
+          "caller_id": "root-command-meta",
+          "request_id": "bind-root-command-r1.wrong-tuple"
+        },
+        "command": {
+          "command_id": "bind-root-command-r1.wrong-tuple",
+          "home_node_id": "node-a",
+          "home_session_id": "f3ce6958-60cf-4a9e-9906-790400b41e0b",
+          "root_id": "root-776f726b7370616365",
+          "root_epoch": 1,
+          "old_access_generation": 3,
+          "command_type": "RevokeAccess"
+        },
+        "outcome": {
+          "status": "committed",
+          "revision": 6,
+          "request_outcome": {
+            "request": {
+              "caller_id": "root-command-meta",
+              "request_id": "bind-root-command-r1.wrong-tuple"
+            },
+            "operation": "BeginRootRevocation",
+            "result": {
+              "RootCommand": {
+                "command_id": "bind-root-command-r1.wrong-tuple",
+                "home_node_id": "node-a",
+                "home_session_id": "f3ce6958-60cf-4a9e-9906-790400b41e0b",
+                "root_id": "root-776f726b7370616365",
+                "root_epoch": 1,
+                "old_access_generation": 3,
+                "command_type": "RevokeAccess"
+              }
+            }
+          }
+        }
+      },
+      {
+        "request": {
+          "caller_id": "root-command-meta",
+          "request_id": "bind-root-command-r1"
+        },
+        "command": {
+          "command_id": "bind-root-command-r1",
+          "home_node_id": "node-a",
+          "home_session_id": "f3ce6958-60cf-4a9e-9906-790400b41e0b",
+          "root_id": "root-776f726b7370616365",
+          "root_epoch": 1,
+          "old_access_generation": 2,
+          "command_type": "RevokeAccess"
+        },
+        "outcome": {
+          "status": "committed",
+          "revision": 7,
+          "request_outcome": {
+            "request": {
+              "caller_id": "root-command-meta",
+              "request_id": "bind-root-command-r1"
+            },
+            "operation": "BeginRootRevocation",
+            "result": {
+              "RootCommand": {
+                "command_id": "bind-root-command-r1",
+                "home_node_id": "node-a",
+                "home_session_id": "f3ce6958-60cf-4a9e-9906-790400b41e0b",
+                "root_id": "root-776f726b7370616365",
+                "root_epoch": 1,
+                "old_access_generation": 2,
+                "command_type": "RevokeAccess"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "node-health-before.json": {
+    "checks": {
+      "data_device": {
+        "configured": true,
+        "error": null,
+        "fresh_for_ms": 30000,
+        "observed": true,
+        "observed_age_ms": 103,
+        "path": "/opt/workspace-bind-root-command-20261008-r1/state/node",
+        "ready": true,
+        "source": "data_dir internal sampler",
+        "stale": false
+      },
+      "meta_persistence": {
+        "allow_volatile_meta": false,
+        "backend_healthy": true,
+        "backend_persistence": "persistent",
+        "functional_ready": true,
+        "last_error": null,
+        "persistent_ready": true,
+        "ready": true,
+        "required": true,
+        "source": "Meta store durability capability reported by registration heartbeat"
+      },
+      "mounts": {
+        "configured": true,
+        "dfs": {
+          "configured": false,
+          "ready": true
+        },
+        "ownerfs": {
+          "configured": true,
+          "error": null,
+          "expected_fstype": "fuse",
+          "expected_source": "afs-ownerfs",
+          "path": "/opt/workspace-bind-root-command-20261008-r1/mount/ownerfs",
+          "ready": true,
+          "source": "/proc/self/mountinfo",
+          "startup_capture_error": null,
+          "startup_mount_id": "80"
+        },
+        "ready": true
+      },
+      "node_registration": {
+        "fresh_for_ms": 30000,
+        "last_error": null,
+        "last_success_age_ms": 121,
+        "lease_epoch": 2,
+        "ready": true,
+        "required": true,
+        "session_id": "f3ce6958-60cf-4a9e-9906-790400b41e0b"
+      },
+      "rdma": {
+        "available": false,
+        "configured": false,
+        "device": null,
+        "error": null,
+        "fresh_for_ms": 30000,
+        "observed": true,
+        "observed_age_ms": 103,
+        "ready": true,
+        "required": false,
+        "source": "RDMA sysfs sampler",
+        "stale": false
+      }
+    },
+    "configured_filesystems_ready": true,
+    "dfs": false,
+    "id": "node-a",
+    "ownerfs": true,
+    "role": "node",
+    "scope": "configured_fs",
+    "status": "ready"
+  },
+  "node-natural-wait1.json": {
+    "path": "/opt/workspace-bind-root-command-20261008-r1/run/node.lifecycle.cYOB6S",
+    "child": {
+      "pid": "111414",
+      "exe": "/opt/workspace-bind-root-command-20261008-r1/prefix/bin/afs-node",
+      "config": "/opt/workspace-bind-root-command-20261008-r1/etc/node.toml",
+      "start_ticks": "14704725",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/workspace-bind-root-command-20261008-r1/run/node.lifecycle.cYOB6S",
+      "supervisor_pid": "111398"
+    },
+    "ready": {
+      "supervisor_pid": "111398"
+    },
+    "exit": {
+      "pid": "111414",
+      "exe": "/opt/workspace-bind-root-command-20261008-r1/prefix/bin/afs-node",
+      "config": "/opt/workspace-bind-root-command-20261008-r1/etc/node.toml",
+      "start_ticks": "14704725",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/workspace-bind-root-command-20261008-r1/run/node.lifecycle.cYOB6S",
+      "supervisor_pid": "111398",
+      "exit_code": "1"
+    },
+    "both_gone": true
+  },
+  "meta-normal-wait0.json": {
+    "path": "/opt/workspace-bind-root-command-20261008-r1/run/meta.lifecycle.wqczI5",
+    "child": {
+      "pid": "111161",
+      "exe": "/opt/workspace-bind-root-command-20261008-r1/prefix/bin/afs-meta",
+      "config": "/opt/workspace-bind-root-command-20261008-r1/etc/meta.toml",
+      "start_ticks": "14704702",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/workspace-bind-root-command-20261008-r1/run/meta.lifecycle.wqczI5",
+      "supervisor_pid": "111145"
+    },
+    "ready": {
+      "supervisor_pid": "111145"
+    },
+    "exit": {
+      "pid": "111161",
+      "exe": "/opt/workspace-bind-root-command-20261008-r1/prefix/bin/afs-meta",
+      "config": "/opt/workspace-bind-root-command-20261008-r1/etc/meta.toml",
+      "start_ticks": "14704702",
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": "/opt/workspace-bind-root-command-20261008-r1/run/meta.lifecycle.wqczI5",
+      "supervisor_pid": "111145",
+      "exit_code": "0"
+    },
+    "both_gone": true
+  },
+  "bootstrap-actual-waits.json": {
+    "meta": {
+      "child": {
+        "pid": "110407",
+        "exe": "/opt/workspace-bind-root-command-20261008-r1/prefix/bin/afs-meta",
+        "config": "/opt/workspace-bind-root-command-20261008-r1/etc/meta.toml",
+        "start_ticks": "14704632",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/opt/workspace-bind-root-command-20261008-r1/run/meta.lifecycle.nRjgA2",
+        "supervisor_pid": "110391"
+      },
+      "ready": {
+        "supervisor_pid": "110391"
+      },
+      "exit": {
+        "pid": "110407",
+        "exe": "/opt/workspace-bind-root-command-20261008-r1/prefix/bin/afs-meta",
+        "config": "/opt/workspace-bind-root-command-20261008-r1/etc/meta.toml",
+        "start_ticks": "14704632",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/opt/workspace-bind-root-command-20261008-r1/run/meta.lifecycle.nRjgA2",
+        "supervisor_pid": "110391",
+        "exit_code": "0"
+      },
+      "both_gone": true
+    },
+    "node": {
+      "child": {
+        "pid": "110591",
+        "exe": "/opt/workspace-bind-root-command-20261008-r1/prefix/bin/afs-node",
+        "config": "/opt/workspace-bind-root-command-20261008-r1/etc/node.toml",
+        "start_ticks": "14704651",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/opt/workspace-bind-root-command-20261008-r1/run/node.lifecycle.edoYhK",
+        "supervisor_pid": "110575"
+      },
+      "ready": {
+        "supervisor_pid": "110575"
+      },
+      "exit": {
+        "pid": "110591",
+        "exe": "/opt/workspace-bind-root-command-20261008-r1/prefix/bin/afs-node",
+        "config": "/opt/workspace-bind-root-command-20261008-r1/etc/node.toml",
+        "start_ticks": "14704651",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/opt/workspace-bind-root-command-20261008-r1/run/node.lifecycle.edoYhK",
+        "supervisor_pid": "110575",
+        "exit_code": "0"
+      },
+      "both_gone": true
+    }
+  },
+  "observations.json": [
+    {
+      "elapsed_seconds": 0.0015509320073761046,
+      "node_alive": true,
+      "supervisor_alive": true,
+      "fuse": true,
+      "bind": true,
+      "fuse_id": 80,
+      "bind_id": 88,
+      "node_listeners": true,
+      "lifecycle_exit": false
+    },
+    {
+      "elapsed_seconds": 0.023195990012027323,
+      "node_alive": true,
+      "supervisor_alive": true,
+      "fuse": true,
+      "bind": true,
+      "fuse_id": 80,
+      "bind_id": 88,
+      "node_listeners": true,
+      "lifecycle_exit": false
+    },
+    {
+      "elapsed_seconds": 0.04818553398945369,
+      "node_alive": true,
+      "supervisor_alive": true,
+      "fuse": true,
+      "bind": true,
+      "fuse_id": 80,
+      "bind_id": 88,
+      "node_listeners": true,
+      "lifecycle_exit": false
+    },
+    {
+      "elapsed_seconds": 0.07314478600164875,
+      "node_alive": true,
+      "supervisor_alive": true,
+      "fuse": true,
+      "bind": true,
+      "fuse_id": 80,
+      "bind_id": 88,
+      "node_listeners": true,
+      "lifecycle_exit": false
+    },
+    {
+      "elapsed_seconds": 0.09815691300900653,
+      "node_alive": true,
+      "supervisor_alive": true,
+      "fuse": true,
+      "bind": true,
+      "fuse_id": 80,
+      "bind_id": 88,
+      "node_listeners": true,
+      "lifecycle_exit": false
+    },
+    {
+      "elapsed_seconds": 0.1213261540106032,
+      "node_alive": true,
+      "supervisor_alive": true,
+      "fuse": true,
+      "bind": true,
+      "fuse_id": 80,
+      "bind_id": 88,
+      "node_listeners": true,
+      "lifecycle_exit": false
+    },
+    {
+      "elapsed_seconds": 0.14494622001075186,
+      "node_alive": true,
+      "supervisor_alive": true,
+      "fuse": true,
+      "bind": true,
+      "fuse_id": 80,
+      "bind_id": 88,
+      "node_listeners": true,
+      "lifecycle_exit": false
+    },
+    {
+      "elapsed_seconds": 0.1664178220089525,
+      "node_alive": true,
+      "supervisor_alive": true,
+      "fuse": true,
+      "bind": true,
+      "fuse_id": 80,
+      "bind_id": 88,
+      "node_listeners": false,
+      "lifecycle_exit": false
+    },
+    {
+      "elapsed_seconds": 0.1898876829945948,
+      "node_alive": true,
+      "supervisor_alive": true,
+      "fuse": true,
+      "bind": true,
+      "fuse_id": 80,
+      "bind_id": 88,
+      "node_listeners": false,
+      "lifecycle_exit": false
+    },
+    {
+      "elapsed_seconds": 0.21084029399207793,
+      "node_alive": false,
+      "supervisor_alive": false,
+      "fuse": false,
+      "bind": false,
+      "fuse_id": null,
+      "bind_id": null,
+      "node_listeners": false,
+      "lifecycle_exit": true
+    }
+  ],
+  "budget-final.json": {
+    "allocated_bytes": 177524736,
+    "apparent_bytes": 177149968,
+    "distinct_inodes": 205,
+    "free_bytes": 6575247360
+  }
+}

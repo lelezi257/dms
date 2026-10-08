@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "archive_members": 154,
+  "guest_records": 112,
+  "restored_tool_versions": 9,
+  "restored_compiler_inputs": 158,
+  "saved_data_audit_checks": 46,
+  "archive_sha256": "ea5d9dacd72c4b786ed894d70a71d9dce9dd5407e04d2751a7bf1a02498b8a59"
+}

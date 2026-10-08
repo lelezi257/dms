@@ -1035,6 +1035,8 @@ async fn run_node(
     )?);
 
     #[cfg(feature = "ownerfs")]
+    let mut workspace_bind_root_control = None;
+    #[cfg(feature = "ownerfs")]
     let ownerfs_instance = if cfg.ownerfs {
         let endpoint = meta_endpoint.expect("OwnerFs checked meta_endpoint");
         let root_meta = Arc::new(rpc::meta::GrpcRootMeta::new(
@@ -1084,17 +1086,21 @@ async fn run_node(
                 rpc::peer::OWNER_RDMA_MAX_CLIENT_WINDOWS,
             )),
         });
+        let recovery_root_meta = root_meta.clone();
         let roots = Arc::new(
             tokio::task::spawn_blocking(move || {
                 vfs::ownerfs::root::RootManager::open(
                     recovery_node_id,
                     recovery_session_id,
-                    root_meta,
+                    recovery_root_meta,
                     recovery_disk,
                 )
             })
             .await??,
         );
+        if cfg.experimental_ownerfs_workspace_bind {
+            workspace_bind_root_control = Some((root_meta, roots.clone()));
+        }
         let owner = if cfg.experimental_native_workspace || cfg.experimental_ownerfs_workspace_bind
         {
             vfs::ownerfs::OwnerFs::new_local_native_eligible_with_remote(
@@ -1754,6 +1760,13 @@ async fn run_node(
         }
     }
     #[cfg(feature = "ownerfs")]
+    if native_workspace_startup_error.is_none()
+        && let Some((meta, roots)) = workspace_bind_root_control
+    {
+        let stop = services.stop.subscribe();
+        services.spawn(run_workspace_bind_root_commands(meta, roots, stop));
+    }
+    #[cfg(feature = "ownerfs")]
     let mut shutdown_error = if let Some(error) = native_workspace_startup_error {
         Some(drain_started_services(services, on_shutdown, error).await)
     } else {
@@ -1897,6 +1910,111 @@ async fn run_node(
     Ok(())
 }
 
+/// In-session progress only: no persisted cursor or revoke ACK is produced.
+/// A matching command rejects admission before Services starts normal closure.
+#[cfg(feature = "ownerfs")]
+fn process_workspace_bind_root_commands(
+    after_revision: u64,
+    batch: rpc::meta::RootCommandBatch,
+    mut reject: impl FnMut(&rpc::meta::RootCommand) -> afs_error::Result<bool>,
+) -> afs_error::Result<u64> {
+    let rpc::meta::RootCommandBatch::Events {
+        start_revision,
+        next_revision,
+        commands,
+    } = batch
+    else {
+        return Err(afs_error::Error::coded(
+            afs_error::NODE_OWNER_GRANT_UNAVAILABLE,
+            "workspace bind RootCommand control requires recovery or is unsupported",
+        ));
+    };
+    if start_revision != after_revision || next_revision <= start_revision {
+        return Err(afs_error::Error::coded(
+            afs_error::CLIENT_PROTOCOL_VIOLATION,
+            "workspace bind RootCommand batch does not match the requested cursor",
+        ));
+    }
+    for command in commands {
+        if reject(&command)? {
+            afs_logging::info!("ownerfs.workspace_bind_root_command_rejected";
+                "command_id" => command.command_id,
+                "revision" => command.revision,
+                "root_id" => command.root_id,
+                "root_epoch" => command.root_epoch,
+                "access_generation" => command.access_generation);
+            return Err(afs_error::Error::coded(
+                afs_error::NODE_OWNER_GRANT_UNAVAILABLE,
+                "workspace bind Home admission rejected by Meta RootCommand",
+            ));
+        }
+        afs_logging::info!("ownerfs.workspace_bind_root_command_ignored";
+            "command_id" => command.command_id,
+            "revision" => command.revision,
+            "root_id" => command.root_id);
+    }
+    // Filtered events still advance through the complete Meta history batch.
+    Ok(next_revision - 1)
+}
+
+#[cfg(feature = "ownerfs")]
+async fn run_workspace_bind_root_commands(
+    meta: Arc<rpc::meta::GrpcRootMeta>,
+    roots: Arc<vfs::ownerfs::root::RootManager>,
+    stop: tokio::sync::watch::Receiver<bool>,
+) -> Result<(), BoxError> {
+    let shutdown = cancelled(stop.clone());
+    tokio::pin!(shutdown);
+    let mut after_revision = 0;
+    let mut delay = Duration::ZERO;
+    loop {
+        tokio::select! {
+            biased;
+            _ = &mut shutdown => return Ok(()),
+            _ = tokio::time::sleep(delay) => {}
+        }
+        let meta = meta.clone();
+        // Join this exact blocking RPC before another poll or shutdown. Do not
+        // race/cancel it on a tick and leave detached duplicate control calls.
+        let result =
+            tokio::task::spawn_blocking(move || meta.poll_root_command_batch(after_revision))
+                .await?;
+        if *stop.borrow() {
+            return Ok(());
+        }
+        let next = result.and_then(|batch| {
+            process_workspace_bind_root_commands(after_revision, batch, |command| {
+                roots.revoke_matching_home(&vfs::ownerfs::root::HomeRootRevocation {
+                    command_id: command.command_id.clone(),
+                    root_id: vfs::ownerfs::root::RootId(command.root_id.clone()),
+                    root_epoch: command.root_epoch,
+                    home_node_id: command.home_node_id.clone(),
+                    home_session_id: command.home_session_id.clone(),
+                    access_generation: command.access_generation,
+                })
+            })
+        });
+        match next {
+            Ok(next) => {
+                delay = if next > after_revision {
+                    Duration::ZERO
+                } else {
+                    Duration::from_millis(250)
+                };
+                after_revision = next;
+            }
+            Err(error) => {
+                // Host ON deliberately fails closed on any untrusted control
+                // result. Ordinary OFF retains its existing heartbeat policy.
+                afs_logging::error!("ownerfs.workspace_bind_root_command_control_failed";
+                    "after_revision" => after_revision,
+                    "error" => error.to_string());
+                return Err(error.into());
+            }
+        }
+    }
+}
+
 #[cfg(feature = "ownerfs")]
 struct WorkspaceBindWorker {
     stop: Arc<AtomicBool>,
@@ -2015,6 +2133,141 @@ impl WorkspaceBindWorker {
 impl Drop for WorkspaceBindWorker {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Release);
+    }
+}
+
+#[cfg(all(test, feature = "ownerfs"))]
+mod workspace_bind_root_command_tests {
+    use super::*;
+    use rpc::meta::{RootCommand, RootCommandBatch, RootCommandRecoveryReason, RootCommandType};
+
+    fn command(id: &str, revision: u64) -> RootCommand {
+        RootCommand {
+            command_id: id.into(),
+            command_type: RootCommandType::RevokeAccess,
+            revision,
+            root_id: "workspace".into(),
+            root_epoch: 7,
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            access_generation: 3,
+        }
+    }
+
+    fn events(start: u64, next: u64, commands: Vec<RootCommand>) -> RootCommandBatch {
+        RootCommandBatch::Events {
+            start_revision: start,
+            next_revision: next,
+            commands,
+        }
+    }
+
+    #[test]
+    fn workspace_bind_root_command_filtered_and_idle_batches_preserve_full_progress() {
+        let reject = |_: &RootCommand| panic!("no command should be applied");
+        assert_eq!(
+            process_workspace_bind_root_commands(10, events(10, 21, vec![]), reject).unwrap(),
+            20
+        );
+        assert_eq!(
+            process_workspace_bind_root_commands(20, events(20, 21, vec![]), reject).unwrap(),
+            20
+        );
+    }
+
+    #[test]
+    fn workspace_bind_root_command_unrelated_tuples_are_processed_before_progress() {
+        let mut seen = Vec::new();
+        let next = process_workspace_bind_root_commands(
+            10,
+            events(10, 31, vec![command("old", 12), command("foreign", 20)]),
+            |c| {
+                seen.push(c.command_id.clone());
+                Ok(false)
+            },
+        )
+        .unwrap();
+        assert_eq!(next, 30);
+        assert_eq!(seen, ["old", "foreign"]);
+    }
+
+    #[test]
+    fn workspace_bind_root_command_matching_refusal_stops_without_ack_or_further_admission() {
+        let mut seen = Vec::new();
+        let error = process_workspace_bind_root_commands(
+            10,
+            events(
+                10,
+                31,
+                vec![
+                    command("old", 12),
+                    command("matching", 20),
+                    command("later", 21),
+                ],
+            ),
+            |c| {
+                seen.push(c.command_id.clone());
+                Ok(c.command_id == "matching")
+            },
+        )
+        .unwrap_err();
+        assert_eq!(seen, ["old", "matching"]);
+        assert_eq!(error.code(), afs_error::NODE_OWNER_GRANT_UNAVAILABLE);
+        assert!(
+            error
+                .to_string()
+                .contains("Home admission rejected by Meta RootCommand")
+        );
+    }
+
+    #[test]
+    fn workspace_bind_root_command_invalid_or_replayed_cursor_cannot_touch_grants() {
+        for (start, next) in [(9, 31), (10, 10), (10, 0)] {
+            let error = process_workspace_bind_root_commands(
+                10,
+                events(start, next, vec![command("matching", 12)]),
+                |_| panic!("invalid batch cannot touch a grant"),
+            )
+            .unwrap_err();
+            assert_eq!(error.code(), afs_error::CLIENT_PROTOCOL_VIOLATION);
+        }
+    }
+
+    #[test]
+    fn workspace_bind_root_command_compaction_and_unsupported_do_not_restore_authority() {
+        for batch in [
+            RootCommandBatch::Compacted {
+                requested_after: 10,
+                compacted_to: 20,
+                recovery_resume_after: 20,
+                recovery_reason: RootCommandRecoveryReason::WatchCompacted,
+            },
+            RootCommandBatch::Unsupported {
+                message: "not supported".into(),
+            },
+        ] {
+            let error = process_workspace_bind_root_commands(10, batch, |_| {
+                panic!("non-authorizing control result")
+            })
+            .unwrap_err();
+            assert_eq!(error.code(), afs_error::NODE_OWNER_GRANT_UNAVAILABLE);
+        }
+    }
+
+    #[test]
+    fn workspace_bind_root_command_refusal_error_is_propagated_without_progress() {
+        let error = process_workspace_bind_root_commands(
+            10,
+            events(10, 31, vec![command("matching", 12)]),
+            |_| {
+                Err(afs_error::Error::coded(
+                    afs_error::NODE_OWNER_INVALID_GRANT,
+                    "poisoned grant lock",
+                ))
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), afs_error::NODE_OWNER_INVALID_GRANT);
     }
 }
 

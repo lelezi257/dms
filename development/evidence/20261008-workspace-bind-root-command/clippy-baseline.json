@@ -1,0 +1,11 @@
+{
+  "src/node/rpc/peer.rs": {
+    "current": "ebecfcf8f62d0a6814ef01c24655f9c31d42253f38a1866ec159eb937ca74161",
+    "base": "ebecfcf8f62d0a6814ef01c24655f9c31d42253f38a1866ec159eb937ca74161"
+  },
+  "third_party/fuser/Cargo.toml": {
+    "current": "0cac441d79547e6a238ac3ddbed53547aa15065e162193e26398dcc351669e7c",
+    "base": "0cac441d79547e6a238ac3ddbed53547aa15065e162193e26398dcc351669e7c"
+  },
+  "meaning": "all-target strict Clippy three pre-existing peer.rs lints preserved; no suppression or out-of-scope fix"
+}

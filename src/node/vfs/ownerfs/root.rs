@@ -157,6 +157,22 @@ pub struct PresentedRootAccess {
     pub fencing_token: String,
 }
 
+/// Authoritative Meta request to stop admitting new work on the current Home grant.
+///
+/// This is intentionally narrower than a complete RootCommand receipt. It fences
+/// this process' cached authority only when every identity field matches the
+/// currently active Home grant. It does not durably advance a command cursor,
+/// claim ACK completion, or wait for already admitted `RootUse` instances.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct HomeRootRevocation {
+    pub command_id: String,
+    pub root_id: RootId,
+    pub root_epoch: u64,
+    pub home_node_id: String,
+    pub home_session_id: String,
+    pub access_generation: u64,
+}
+
 /// Node→Meta 的业务边界。gRPC/Proto 转换归 `node/rpc/meta.rs`，这里
 /// 不直接使用生成的 wire 类型。与当前同步 VFS 回调一致，控制调用
 /// 只发生于创建、未命中和恢复等慢路径；适配器不得在 Tokio worker
@@ -835,6 +851,38 @@ impl RootManager {
         Ok(())
     }
 
+    /// Apply a precise Home revocation received from Meta's control plane.
+    ///
+    /// `Ok(true)` means this process held exactly that active Home grant and
+    /// now rejects new local/peer admissions for it. `Ok(false)` means the tuple
+    /// is well-formed but stale, unrelated, already inactive, or absent here.
+    /// Existing `RootUse` holders drain through their normal lifecycle.
+    pub(crate) fn revoke_matching_home(&self, revocation: &HomeRootRevocation) -> Result<bool> {
+        self.check_home_revocation_shape(revocation)?;
+        if revocation.home_node_id != self.local_node_id
+            || revocation.home_session_id != self.session_id
+        {
+            return Ok(false);
+        }
+        if !self.control_valid.load(Ordering::Acquire) {
+            return Err(unavailable_grant("Meta control session is invalid"));
+        }
+        let Some(root) = self
+            .roots
+            .read()
+            .map_err(|_| invalid_grant("root cache lock poisoned"))?
+            .get(&revocation.root_id)
+            .cloned()
+        else {
+            return Ok(false);
+        };
+        let mut state = root
+            .state
+            .lock()
+            .map_err(|_| invalid_grant("root grant lock poisoned"))?;
+        Ok(self.invalidate_matching_home_locked(&mut state, revocation))
+    }
+
     fn check_presented_shape(
         &self,
         access: &PresentedRootAccess,
@@ -880,6 +928,48 @@ impl RootManager {
             ));
         }
         Ok(())
+    }
+
+    fn check_home_revocation_shape(&self, revocation: &HomeRootRevocation) -> Result<()> {
+        if revocation.command_id.is_empty()
+            || revocation.root_id.0.is_empty()
+            || revocation.root_epoch == 0
+            || revocation.home_node_id.is_empty()
+            || revocation.home_session_id.is_empty()
+            || revocation.access_generation == 0
+        {
+            return Err(invalid_grant("home root revocation identity is incomplete"));
+        }
+        Ok(())
+    }
+
+    fn invalidate_matching_home_locked(
+        &self,
+        state: &mut RootRuntime,
+        revocation: &HomeRootRevocation,
+    ) -> bool {
+        let GrantPhase::Active(grant) = &state.phase else {
+            return false;
+        };
+        if grant.id != revocation.root_id
+            || grant.epoch != revocation.root_epoch
+            || grant.home_node_id != revocation.home_node_id
+            || grant.home_session_id != revocation.home_session_id
+            || grant.holder_node_id != self.local_node_id
+            || grant.session_id != self.session_id
+            || grant.access_generation != revocation.access_generation
+        {
+            return false;
+        }
+        let fenced: Vec<_> = state
+            .validated_peer_grants
+            .keys()
+            .map(|key| (key.holder_node_id.clone(), key.session_id.clone()))
+            .collect();
+        state.phase = GrantPhase::Invalid;
+        state.validated_peer_grants.clear();
+        state.fenced_peer_sessions.extend(fenced);
+        true
     }
 
     fn check_authoritative_matches_presented(
@@ -1255,6 +1345,15 @@ impl RootManager {
                 "private root command does not match this Home",
             ));
         }
+        let revocation = HomeRootRevocation {
+            command_id: command.command_id.clone(),
+            root_id: command.root_id.clone(),
+            root_epoch: command.root_epoch,
+            home_node_id: command.home_node_id.clone(),
+            home_session_id: command.home_session_id.clone(),
+            access_generation: command.access_generation,
+        };
+        self.check_home_revocation_shape(&revocation)?;
         let root = self
             .roots
             .read()
@@ -1267,31 +1366,11 @@ impl RootManager {
             .state
             .lock()
             .map_err(|_| invalid_grant("root grant lock poisoned"))?;
-        let GrantPhase::Active(grant) = &state.phase else {
-            return Err(unavailable_grant(
-                "private root command target is not active",
-            ));
-        };
-        if grant.id != command.root_id
-            || grant.epoch != command.root_epoch
-            || grant.home_node_id != command.home_node_id
-            || grant.home_session_id != command.home_session_id
-            || grant.holder_node_id != self.local_node_id
-            || grant.session_id != self.session_id
-            || grant.access_generation != command.access_generation
-        {
+        if !self.invalidate_matching_home_locked(&mut state, &revocation) {
             return Err(invalid_grant(
                 "private root command does not match active grant",
             ));
         }
-        let fenced: Vec<_> = state
-            .validated_peer_grants
-            .keys()
-            .map(|key| (key.holder_node_id.clone(), key.session_id.clone()))
-            .collect();
-        state.phase = GrantPhase::Invalid;
-        state.validated_peer_grants.clear();
-        state.fenced_peer_sessions.extend(fenced);
         while state.in_flight != 0 {
             let now = std::time::Instant::now();
             if now >= deadline {
@@ -1680,6 +1759,186 @@ mod tests {
                 .code(),
             afs_error::NODE_OWNER_GRANT_UNAVAILABLE
         );
+    }
+
+    fn home_revocation(id: &RootId, command_id: &str) -> HomeRootRevocation {
+        HomeRootRevocation {
+            command_id: command_id.to_owned(),
+            root_id: id.clone(),
+            root_epoch: 1,
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            access_generation: 7,
+        }
+    }
+
+    #[test]
+    fn home_revocation_refuses_matching_active_home_without_waiting_for_rootuse() {
+        let (_temp, manager, prepared) = fixture("session-a", "session-a");
+        manager
+            .activate_prepared(OsString::from("job-42"), &prepared)
+            .unwrap();
+        let use_guard = manager
+            .enter_root(&prepared.reservation.id, RootRight::Lookup)
+            .unwrap();
+        assert!(
+            manager
+                .revoke_matching_home(&home_revocation(&prepared.reservation.id, "cmd-a"))
+                .unwrap()
+        );
+        assert_eq!(
+            manager
+                .enter_root(&prepared.reservation.id, RootRight::Lookup)
+                .err()
+                .expect("revoked Home must refuse new RootUse")
+                .code(),
+            afs_error::NODE_OWNER_GRANT_UNAVAILABLE
+        );
+        drop(use_guard);
+    }
+
+    #[test]
+    fn home_revocation_wrong_tuple_and_missing_root_do_not_revoke_current_home() {
+        let (_temp, manager, prepared) = fixture("session-a", "session-a");
+        manager
+            .activate_prepared(OsString::from("job-42"), &prepared)
+            .unwrap();
+        let mut stale = home_revocation(&prepared.reservation.id, "cmd-stale");
+        stale.access_generation += 1;
+        assert!(!manager.revoke_matching_home(&stale).unwrap());
+        let _still_active = manager
+            .enter_root(&prepared.reservation.id, RootRight::Lookup)
+            .unwrap();
+        let missing = home_revocation(&RootId("missing-root".into()), "cmd-missing");
+        assert!(!manager.revoke_matching_home(&missing).unwrap());
+    }
+
+    #[test]
+    fn foreign_home_revocation_is_false_and_does_not_touch_current_home() {
+        let (_temp, manager, prepared) = fixture("session-a", "session-a");
+        manager
+            .activate_prepared(OsString::from("job-42"), &prepared)
+            .unwrap();
+        let mut foreign = home_revocation(&prepared.reservation.id, "cmd-foreign-home");
+        foreign.home_node_id = "node-z".into();
+        assert!(!manager.revoke_matching_home(&foreign).unwrap());
+        let mut wrong_session = home_revocation(&prepared.reservation.id, "cmd-foreign-session");
+        wrong_session.home_session_id = "session-z".into();
+        assert!(!manager.revoke_matching_home(&wrong_session).unwrap());
+        let _still_active = manager
+            .enter_root(&prepared.reservation.id, RootRight::Lookup)
+            .unwrap();
+    }
+
+    #[test]
+    fn home_revocation_is_idempotent_after_match() {
+        let (_temp, manager, prepared) = fixture("session-a", "session-a");
+        manager
+            .activate_prepared(OsString::from("job-42"), &prepared)
+            .unwrap();
+        let revocation = home_revocation(&prepared.reservation.id, "cmd-idempotent");
+        assert!(manager.revoke_matching_home(&revocation).unwrap());
+        assert!(!manager.revoke_matching_home(&revocation).unwrap());
+    }
+
+    #[test]
+    fn malformed_home_revocation_is_rejected_before_touching_current_home() {
+        let (_temp, manager, prepared) = fixture("session-a", "session-a");
+        manager
+            .activate_prepared(OsString::from("job-42"), &prepared)
+            .unwrap();
+        let mut malformed = home_revocation(&prepared.reservation.id, "");
+        assert_eq!(
+            manager.revoke_matching_home(&malformed).unwrap_err().code(),
+            afs_error::NODE_OWNER_INVALID_GRANT
+        );
+        malformed.command_id = "cmd-zero".into();
+        malformed.access_generation = 0;
+        assert_eq!(
+            manager.revoke_matching_home(&malformed).unwrap_err().code(),
+            afs_error::NODE_OWNER_INVALID_GRANT
+        );
+        let _still_active = manager
+            .enter_root(&prepared.reservation.id, RootRight::Lookup)
+            .unwrap();
+    }
+
+    #[test]
+    fn home_revocation_fences_cached_peer_grants() {
+        let temp = tempfile::tempdir().unwrap();
+        let disk = Arc::new(LocalFs::open(temp.path()).unwrap());
+        let data_dir = StoragePath::new("job-42-e1").unwrap();
+        disk.mkdir(&data_dir, 0o700).unwrap();
+        disk.sync_root().unwrap();
+        let id = RootId("job-42".into());
+        let prepared = PreparedRoot {
+            reservation: RootReservation {
+                id: id.clone(),
+                epoch: 1,
+                home_node_id: "node-a".into(),
+                session_id: "session-a".into(),
+                create_intent_id: "intent-a".into(),
+                prepare_token: "prepare-a".into(),
+            },
+            data_dir,
+            local_prepare_id: "local-a".into(),
+            parent_fsync_generation: 1,
+        };
+        let local_grant = RootGrant {
+            id: id.clone(),
+            epoch: 1,
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            holder_node_id: "node-a".into(),
+            session_id: "session-a".into(),
+            access_generation: 7,
+            rights: vec![RootRight::Lookup],
+            fencing_token: "fence-a".into(),
+        };
+        let peer_grant = RootGrant {
+            id: id.clone(),
+            epoch: 1,
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            holder_node_id: "node-b".into(),
+            session_id: "session-b".into(),
+            access_generation: 7,
+            rights: vec![RootRight::Read],
+            fencing_token: "fence-b".into(),
+        };
+        let meta = fixed_meta(local_grant, Some(peer_grant));
+        let manager = RootManager::new("node-a".into(), "session-a".into(), meta.clone(), disk);
+        manager
+            .activate_prepared(OsString::from("job-42"), &prepared)
+            .unwrap();
+        let presented = PresentedRootAccess {
+            id: id.clone(),
+            epoch: 1,
+            home_node_id: "node-a".into(),
+            home_session_id: "session-a".into(),
+            holder_node_id: "node-b".into(),
+            session_id: "session-b".into(),
+            access_generation: 7,
+            fencing_token: "fence-b".into(),
+        };
+        manager
+            .validate_peer_root_access(&presented, "node-b", RootRight::Read)
+            .unwrap();
+        assert_eq!(meta.validate_calls.load(Ordering::SeqCst), 1);
+        assert!(
+            manager
+                .revoke_matching_home(&home_revocation(&id, "cmd-peer-fence"))
+                .unwrap()
+        );
+        assert!(manager.cached_peer_sessions().unwrap().is_empty());
+        assert_eq!(
+            manager
+                .validate_peer_root_access(&presented, "node-b", RootRight::Read)
+                .unwrap_err()
+                .code(),
+            afs_error::NODE_OWNER_GRANT_UNAVAILABLE
+        );
+        assert_eq!(meta.validate_calls.load(Ordering::SeqCst), 1);
     }
 
     fn private_command(id: &RootId, command_id: &str) -> PrivateRootCommand {

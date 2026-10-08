@@ -17,8 +17,9 @@ use afs_error::{CLIENT_ARGUMENT_INVALID, CLIENT_CONNECTION_UNAVAILABLE, Error, R
 #[cfg(feature = "ownerfs")]
 use afs_protocol::meta::{
     AbortRootRequest, AcquireRootRequest, ActivateRootRequest, ListOwnerRootsRequest,
-    LookupNodeRequest, LookupRootRequest, RecoverRootRequest, ReserveConflictPolicy,
-    ReserveRootRequest, ValidateRootAccessRequest, owner_roots_client::OwnerRootsClient,
+    LookupNodeRequest, LookupRootRequest, PollRootCommandBatchRequest, RecoverRootRequest,
+    ReserveConflictPolicy, ReserveRootRequest, ValidateRootAccessRequest,
+    owner_roots_client::OwnerRootsClient,
 };
 use afs_protocol::meta::{
     MetaBackendPersistence, PingRequest, RegisterNodeReply, RegisterNodeRequest,
@@ -158,6 +159,18 @@ impl GrpcRootMeta {
 
     fn client(&self) -> OwnerRootsClient<Channel> {
         OwnerRootsClient::new(self.channel.clone())
+    }
+
+    pub(crate) fn poll_root_command_batch(&self, after_revision: u64) -> Result<RootCommandBatch> {
+        let mut client = self.client();
+        let reply = self
+            .run(client.poll_root_command_batch(PollRootCommandBatchRequest {
+                node_id: self.node_id.clone(),
+                session_id: self.session_id.clone(),
+                after_revision,
+            }))?
+            .into_inner();
+        root_command_batch_from_wire(after_revision, reply)
     }
 
     /// 节点位置来自 Meta 注册表，而非调用者在数据请求中自报的地址。
@@ -2288,58 +2301,91 @@ fn domain_dfs_read_grant(value: afs_protocol::meta::DfsReadGrant) -> crate::dfs:
     }
 }
 
-#[cfg(all(test, feature = "ownerfs"))]
-#[derive(Debug, Eq, PartialEq)]
-struct PrivateNodeRootCommand {
-    command_id: String,
-    command_type: i32,
-    revision: u64,
-    root_id: String,
-    root_epoch: u64,
-    home_node_id: String,
-    home_session_id: String,
-    holder_node_id: String,
-    session_id: String,
-    access_generation: u64,
-    fencing_token: String,
+#[cfg(feature = "ownerfs")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RootCommandType {
+    RevokeAccess,
 }
 
-#[cfg(all(test, feature = "ownerfs"))]
+#[cfg(feature = "ownerfs")]
 #[derive(Debug, Eq, PartialEq)]
-enum PrivateNodeRootCommandBatch {
+pub(crate) struct RootCommand {
+    pub(crate) command_id: String,
+    pub(crate) command_type: RootCommandType,
+    pub(crate) revision: u64,
+    pub(crate) root_id: String,
+    pub(crate) root_epoch: u64,
+    pub(crate) home_node_id: String,
+    pub(crate) home_session_id: String,
+    pub(crate) access_generation: u64,
+}
+
+#[cfg(feature = "ownerfs")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RootCommandRecoveryReason {
+    WatchCompacted,
+    NodeSessionRestarted,
+    BackendLeaderChanged,
+}
+
+#[cfg(feature = "ownerfs")]
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum RootCommandBatch {
     Events {
         start_revision: u64,
         next_revision: u64,
-        durable_resume_after: u64,
-        commands: Vec<PrivateNodeRootCommand>,
+        commands: Vec<RootCommand>,
     },
     Compacted {
         requested_after: u64,
         compacted_to: u64,
         recovery_resume_after: u64,
-        recovery_reason: i32,
+        recovery_reason: RootCommandRecoveryReason,
     },
     Unsupported {
         message: String,
     },
 }
 
-#[cfg(all(test, feature = "ownerfs"))]
-fn private_node_root_command_batch_from_wire(
+#[cfg(feature = "ownerfs")]
+fn root_command_batch_from_wire(
+    requested_after: u64,
     value: afs_protocol::meta::RootCommandBatchReply,
-) -> Result<PrivateNodeRootCommandBatch> {
+) -> Result<RootCommandBatch> {
     match value.result {
         Some(afs_protocol::meta::root_command_batch_reply::Result::Events(events)) => {
+            if events.start_revision != requested_after {
+                return Err(Error::coded(
+                    CLIENT_PROTOCOL_VIOLATION,
+                    "RootCommandBatchEvents start revision does not match request",
+                ));
+            }
             if events.next_revision == 0 || events.next_revision <= events.start_revision {
                 return Err(Error::coded(
                     CLIENT_PROTOCOL_VIOLATION,
                     "RootCommandBatchEvents has invalid next revision",
                 ));
             }
+            let mut seen_ids = std::collections::BTreeSet::new();
+            let mut last_revision = events.start_revision;
             let commands = events
                 .commands
                 .into_iter()
                 .map(|command| {
+                    if command.command_id.is_empty() || !seen_ids.insert(command.command_id.clone())
+                    {
+                        return Err(Error::coded(
+                            CLIENT_PROTOCOL_VIOLATION,
+                            "RootCommand has an empty or duplicate command id",
+                        ));
+                    }
+                    if command.revision < last_revision {
+                        return Err(Error::coded(
+                            CLIENT_PROTOCOL_VIOLATION,
+                            "RootCommand revisions are not ordered",
+                        ));
+                    }
+                    last_revision = command.revision;
                     if command.revision <= events.start_revision
                         || command.revision >= events.next_revision
                     {
@@ -2348,31 +2394,63 @@ fn private_node_root_command_batch_from_wire(
                             "RootCommand revision is outside the batch range",
                         ));
                     }
+                    let command_type =
+                        afs_protocol::meta::RootCommandType::try_from(command.command_type)
+                            .map_err(|_| {
+                                Error::coded(
+                                    CLIENT_PROTOCOL_VIOLATION,
+                                    "RootCommand has an unknown command type",
+                                )
+                            })?;
+                    let command_type = match command_type {
+                        afs_protocol::meta::RootCommandType::RevokeAccess => {
+                            RootCommandType::RevokeAccess
+                        }
+                        afs_protocol::meta::RootCommandType::InvalidateCache => {
+                            return Err(Error::coded(
+                                CLIENT_PROTOCOL_VIOLATION,
+                                "RootCommand InvalidateCache is not implemented by OwnerFs",
+                            ));
+                        }
+                        afs_protocol::meta::RootCommandType::Unspecified => {
+                            return Err(Error::coded(
+                                CLIENT_PROTOCOL_VIOLATION,
+                                "RootCommand has unspecified command type",
+                            ));
+                        }
+                    };
                     let access = command.access.ok_or_else(|| {
                         Error::coded(
                             CLIENT_PROTOCOL_VIOLATION,
                             "RootCommand is missing root access",
                         )
                     })?;
-                    Ok(PrivateNodeRootCommand {
+                    if access.root_id.is_empty()
+                        || access.root_epoch == 0
+                        || access.home_node_id.is_empty()
+                        || access.home_session_id.is_empty()
+                        || access.access_generation == 0
+                    {
+                        return Err(Error::coded(
+                            CLIENT_PROTOCOL_VIOLATION,
+                            "RootCommand has invalid root identity",
+                        ));
+                    }
+                    Ok(RootCommand {
                         command_id: command.command_id,
-                        command_type: command.command_type,
+                        command_type,
                         revision: command.revision,
                         root_id: access.root_id,
                         root_epoch: access.root_epoch,
                         home_node_id: access.home_node_id,
                         home_session_id: access.home_session_id,
-                        holder_node_id: access.holder_node_id,
-                        session_id: access.session_id,
                         access_generation: access.access_generation,
-                        fencing_token: access.fencing_token,
                     })
                 })
                 .collect::<Result<Vec<_>>>()?;
-            Ok(PrivateNodeRootCommandBatch::Events {
+            Ok(RootCommandBatch::Events {
                 start_revision: events.start_revision,
                 next_revision: events.next_revision,
-                durable_resume_after: events.next_revision - 1,
                 commands,
             })
         }
@@ -2385,11 +2463,7 @@ fn private_node_root_command_batch_from_wire(
             })?;
             // This private consumer accepts forward compacted-history diagnostics
             // only. Other recovery shapes stay unsupported, never authoritative.
-            if afs_protocol::meta::RootCommandRecoveryReason::try_from(cursor.reason)
-                .ok()
-                .is_none_or(|reason| {
-                    reason == afs_protocol::meta::RootCommandRecoveryReason::Unspecified
-                })
+            if compacted.requested_after != requested_after
                 || compacted.compacted_to <= compacted.requested_after
                 || cursor.resume_after <= compacted.requested_after
             {
@@ -2398,15 +2472,33 @@ fn private_node_root_command_batch_from_wire(
                     "RootCommandBatchCompacted has invalid diagnostic cursor",
                 ));
             }
-            Ok(PrivateNodeRootCommandBatch::Compacted {
+            let recovery_reason =
+                match afs_protocol::meta::RootCommandRecoveryReason::try_from(cursor.reason) {
+                    Ok(afs_protocol::meta::RootCommandRecoveryReason::WatchCompacted) => {
+                        RootCommandRecoveryReason::WatchCompacted
+                    }
+                    Ok(afs_protocol::meta::RootCommandRecoveryReason::NodeSessionRestarted) => {
+                        RootCommandRecoveryReason::NodeSessionRestarted
+                    }
+                    Ok(afs_protocol::meta::RootCommandRecoveryReason::BackendLeaderChanged) => {
+                        RootCommandRecoveryReason::BackendLeaderChanged
+                    }
+                    Ok(afs_protocol::meta::RootCommandRecoveryReason::Unspecified) | Err(_) => {
+                        return Err(Error::coded(
+                            CLIENT_PROTOCOL_VIOLATION,
+                            "RootCommandBatchCompacted has invalid recovery reason",
+                        ));
+                    }
+                };
+            Ok(RootCommandBatch::Compacted {
                 requested_after: compacted.requested_after,
                 compacted_to: compacted.compacted_to,
                 recovery_resume_after: cursor.resume_after,
-                recovery_reason: cursor.reason,
+                recovery_reason,
             })
         }
         Some(afs_protocol::meta::root_command_batch_reply::Result::Unsupported(unsupported)) => {
-            Ok(PrivateNodeRootCommandBatch::Unsupported {
+            Ok(RootCommandBatch::Unsupported {
                 message: unsupported.message,
             })
         }
@@ -2418,7 +2510,7 @@ fn private_node_root_command_batch_from_wire(
 }
 
 #[cfg(all(test, feature = "ownerfs"))]
-mod n2b2_private_root_command_batch_tests {
+mod n2b2_root_command_batch_tests {
     use super::*;
 
     fn access() -> afs_protocol::meta::RootAccess {
@@ -2436,7 +2528,7 @@ mod n2b2_private_root_command_batch_tests {
     }
 
     #[test]
-    fn private_batch_adapter_uses_next_minus_one_cursor_and_exact_access_fields() {
+    fn root_command_batch_adapter_uses_next_minus_one_cursor_and_exact_access_fields() {
         let reply = afs_protocol::meta::RootCommandBatchReply {
             result: Some(
                 afs_protocol::meta::root_command_batch_reply::Result::Events(
@@ -2454,33 +2546,29 @@ mod n2b2_private_root_command_batch_tests {
             ),
         };
 
-        let batch = private_node_root_command_batch_from_wire(reply).unwrap();
+        let batch = root_command_batch_from_wire(11, reply).unwrap();
 
         assert_eq!(
             batch,
-            PrivateNodeRootCommandBatch::Events {
+            RootCommandBatch::Events {
                 start_revision: 11,
                 next_revision: 14,
-                durable_resume_after: 13,
-                commands: vec![PrivateNodeRootCommand {
+                commands: vec![RootCommand {
                     command_id: "cmd-a".into(),
-                    command_type: afs_protocol::meta::RootCommandType::RevokeAccess as i32,
+                    command_type: RootCommandType::RevokeAccess,
                     revision: 12,
                     root_id: "root-a".into(),
                     root_epoch: 3,
                     home_node_id: "home-a".into(),
                     home_session_id: "home-session-a".into(),
-                    holder_node_id: "holder-a".into(),
-                    session_id: "holder-session-a".into(),
                     access_generation: 5,
-                    fencing_token: "fence-a".into(),
                 }],
             }
         );
     }
 
     #[test]
-    fn private_batch_adapter_compaction_is_non_authorizing() {
+    fn root_command_batch_adapter_compaction_is_non_authorizing() {
         let reply = afs_protocol::meta::RootCommandBatchReply {
             result: Some(
                 afs_protocol::meta::root_command_batch_reply::Result::Compacted(
@@ -2497,22 +2585,21 @@ mod n2b2_private_root_command_batch_tests {
             ),
         };
 
-        let batch = private_node_root_command_batch_from_wire(reply).unwrap();
+        let batch = root_command_batch_from_wire(8, reply).unwrap();
 
         assert_eq!(
             batch,
-            PrivateNodeRootCommandBatch::Compacted {
+            RootCommandBatch::Compacted {
                 requested_after: 8,
                 compacted_to: 20,
                 recovery_resume_after: 20,
-                recovery_reason: afs_protocol::meta::RootCommandRecoveryReason::WatchCompacted
-                    as i32,
+                recovery_reason: RootCommandRecoveryReason::WatchCompacted,
             }
         );
     }
 
     #[test]
-    fn private_batch_adapter_rejects_malformed_compaction_diagnostics() {
+    fn root_command_batch_adapter_rejects_malformed_compaction_diagnostics() {
         use afs_protocol::meta::RootCommandRecoveryReason;
         for (requested_after, compacted_to, resume_after, reason) in [
             (8, 20, 19, RootCommandRecoveryReason::Unspecified as i32),
@@ -2536,16 +2623,14 @@ mod n2b2_private_root_command_batch_tests {
                 ),
             };
             assert_eq!(
-                private_node_root_command_batch_from_wire(reply)
-                    .unwrap_err()
-                    .code(),
+                root_command_batch_from_wire(8, reply).unwrap_err().code(),
                 CLIENT_PROTOCOL_VIOLATION
             );
         }
     }
 
     #[test]
-    fn private_batch_adapter_unsupported_is_non_authorizing() {
+    fn root_command_batch_adapter_unsupported_is_non_authorizing() {
         let reply = afs_protocol::meta::RootCommandBatchReply {
             result: Some(
                 afs_protocol::meta::root_command_batch_reply::Result::Unsupported(
@@ -2556,27 +2641,28 @@ mod n2b2_private_root_command_batch_tests {
             ),
         };
 
-        let batch = private_node_root_command_batch_from_wire(reply).unwrap();
+        let batch = root_command_batch_from_wire(8, reply).unwrap();
 
         assert_eq!(
             batch,
-            PrivateNodeRootCommandBatch::Unsupported {
+            RootCommandBatch::Unsupported {
                 message: "batch polling is disabled".into(),
             }
         );
     }
 
     #[test]
-    fn private_batch_adapter_rejects_empty_and_invalid_event_batches() {
-        let error =
-            private_node_root_command_batch_from_wire(afs_protocol::meta::RootCommandBatchReply {
-                result: None,
-            })
-            .expect_err("empty reply must not authorize anything");
+    fn root_command_batch_adapter_rejects_empty_and_invalid_event_batches() {
+        let error = root_command_batch_from_wire(
+            14,
+            afs_protocol::meta::RootCommandBatchReply { result: None },
+        )
+        .expect_err("empty reply must not authorize anything");
         assert_eq!(error.code(), CLIENT_PROTOCOL_VIOLATION);
 
-        let error =
-            private_node_root_command_batch_from_wire(afs_protocol::meta::RootCommandBatchReply {
+        let error = root_command_batch_from_wire(
+            14,
+            afs_protocol::meta::RootCommandBatchReply {
                 result: Some(
                     afs_protocol::meta::root_command_batch_reply::Result::Events(
                         afs_protocol::meta::RootCommandBatchEvents {
@@ -2586,12 +2672,14 @@ mod n2b2_private_root_command_batch_tests {
                         },
                     ),
                 ),
-            })
-            .expect_err("non-advancing events cannot produce a durable cursor");
+            },
+        )
+        .expect_err("non-advancing events cannot produce a durable cursor");
         assert_eq!(error.code(), CLIENT_PROTOCOL_VIOLATION);
 
-        let error =
-            private_node_root_command_batch_from_wire(afs_protocol::meta::RootCommandBatchReply {
+        let error = root_command_batch_from_wire(
+            14,
+            afs_protocol::meta::RootCommandBatchReply {
                 result: Some(
                     afs_protocol::meta::root_command_batch_reply::Result::Events(
                         afs_protocol::meta::RootCommandBatchEvents {
@@ -2607,8 +2695,218 @@ mod n2b2_private_root_command_batch_tests {
                         },
                     ),
                 ),
-            })
-            .expect_err("start_revision is the exclusive previously observed revision");
+            },
+        )
+        .expect_err("start_revision is the exclusive previously observed revision");
+        assert_eq!(error.code(), CLIENT_PROTOCOL_VIOLATION);
+    }
+
+    #[test]
+    fn root_command_batch_adapter_accepts_empty_idle_progress_without_new_command() {
+        let reply = afs_protocol::meta::RootCommandBatchReply {
+            result: Some(
+                afs_protocol::meta::root_command_batch_reply::Result::Events(
+                    afs_protocol::meta::RootCommandBatchEvents {
+                        start_revision: 14,
+                        next_revision: 15,
+                        commands: Vec::new(),
+                    },
+                ),
+            ),
+        };
+
+        assert_eq!(
+            root_command_batch_from_wire(14, reply).unwrap(),
+            RootCommandBatch::Events {
+                start_revision: 14,
+                next_revision: 15,
+                commands: Vec::new(),
+            }
+        );
+    }
+
+    #[test]
+    fn root_command_batch_adapter_rejects_request_start_mismatch() {
+        let reply = afs_protocol::meta::RootCommandBatchReply {
+            result: Some(
+                afs_protocol::meta::root_command_batch_reply::Result::Events(
+                    afs_protocol::meta::RootCommandBatchEvents {
+                        start_revision: 15,
+                        next_revision: 16,
+                        commands: Vec::new(),
+                    },
+                ),
+            ),
+        };
+
+        let error = root_command_batch_from_wire(14, reply)
+            .expect_err("batch must identify the requested exclusive start");
+        assert_eq!(error.code(), CLIENT_PROTOCOL_VIOLATION);
+    }
+
+    #[test]
+    fn root_command_batch_adapter_rejects_unimplemented_command_type() {
+        let reply = afs_protocol::meta::RootCommandBatchReply {
+            result: Some(
+                afs_protocol::meta::root_command_batch_reply::Result::Events(
+                    afs_protocol::meta::RootCommandBatchEvents {
+                        start_revision: 11,
+                        next_revision: 14,
+                        commands: vec![afs_protocol::meta::RootCommand {
+                            command_id: "cmd-cache".into(),
+                            command_type: afs_protocol::meta::RootCommandType::InvalidateCache
+                                as i32,
+                            access: Some(access()),
+                            revision: 12,
+                        }],
+                    },
+                ),
+            ),
+        };
+
+        let error = root_command_batch_from_wire(11, reply)
+            .expect_err("known but unimplemented commands must fail close");
+        assert_eq!(error.code(), CLIENT_PROTOCOL_VIOLATION);
+    }
+
+    #[test]
+    fn root_command_batch_adapter_rejects_duplicate_or_unordered_commands() {
+        let mut first = access();
+        first.root_id = "root-a".into();
+        let mut second = access();
+        second.root_id = "root-b".into();
+        let duplicate = afs_protocol::meta::RootCommandBatchReply {
+            result: Some(
+                afs_protocol::meta::root_command_batch_reply::Result::Events(
+                    afs_protocol::meta::RootCommandBatchEvents {
+                        start_revision: 11,
+                        next_revision: 14,
+                        commands: vec![
+                            afs_protocol::meta::RootCommand {
+                                command_id: "cmd-dup".into(),
+                                command_type: afs_protocol::meta::RootCommandType::RevokeAccess
+                                    as i32,
+                                access: Some(first.clone()),
+                                revision: 12,
+                            },
+                            afs_protocol::meta::RootCommand {
+                                command_id: "cmd-dup".into(),
+                                command_type: afs_protocol::meta::RootCommandType::RevokeAccess
+                                    as i32,
+                                access: Some(second.clone()),
+                                revision: 12,
+                            },
+                        ],
+                    },
+                ),
+            ),
+        };
+        assert_eq!(
+            root_command_batch_from_wire(11, duplicate)
+                .unwrap_err()
+                .code(),
+            CLIENT_PROTOCOL_VIOLATION
+        );
+
+        let unordered = afs_protocol::meta::RootCommandBatchReply {
+            result: Some(
+                afs_protocol::meta::root_command_batch_reply::Result::Events(
+                    afs_protocol::meta::RootCommandBatchEvents {
+                        start_revision: 11,
+                        next_revision: 15,
+                        commands: vec![
+                            afs_protocol::meta::RootCommand {
+                                command_id: "cmd-later".into(),
+                                command_type: afs_protocol::meta::RootCommandType::RevokeAccess
+                                    as i32,
+                                access: Some(first),
+                                revision: 13,
+                            },
+                            afs_protocol::meta::RootCommand {
+                                command_id: "cmd-earlier".into(),
+                                command_type: afs_protocol::meta::RootCommandType::RevokeAccess
+                                    as i32,
+                                access: Some(second),
+                                revision: 12,
+                            },
+                        ],
+                    },
+                ),
+            ),
+        };
+        assert_eq!(
+            root_command_batch_from_wire(11, unordered)
+                .unwrap_err()
+                .code(),
+            CLIENT_PROTOCOL_VIOLATION
+        );
+    }
+
+    #[test]
+    fn root_command_batch_adapter_accepts_distinct_commands_at_same_revision() {
+        let mut first = access();
+        first.root_id = "root-a".into();
+        let mut second = access();
+        second.root_id = "root-b".into();
+        let reply = afs_protocol::meta::RootCommandBatchReply {
+            result: Some(
+                afs_protocol::meta::root_command_batch_reply::Result::Events(
+                    afs_protocol::meta::RootCommandBatchEvents {
+                        start_revision: 11,
+                        next_revision: 14,
+                        commands: vec![
+                            afs_protocol::meta::RootCommand {
+                                command_id: "cmd-a".into(),
+                                command_type: afs_protocol::meta::RootCommandType::RevokeAccess
+                                    as i32,
+                                access: Some(first),
+                                revision: 12,
+                            },
+                            afs_protocol::meta::RootCommand {
+                                command_id: "cmd-b".into(),
+                                command_type: afs_protocol::meta::RootCommandType::RevokeAccess
+                                    as i32,
+                                access: Some(second),
+                                revision: 12,
+                            },
+                        ],
+                    },
+                ),
+            ),
+        };
+
+        let RootCommandBatch::Events { commands, .. } =
+            root_command_batch_from_wire(11, reply).unwrap()
+        else {
+            panic!("events batch expected");
+        };
+        assert_eq!(commands.len(), 2);
+        assert_eq!(commands[0].revision, commands[1].revision);
+    }
+
+    #[test]
+    fn root_command_batch_adapter_rejects_zero_home_tuple() {
+        let mut invalid = access();
+        invalid.root_epoch = 0;
+        let reply = afs_protocol::meta::RootCommandBatchReply {
+            result: Some(
+                afs_protocol::meta::root_command_batch_reply::Result::Events(
+                    afs_protocol::meta::RootCommandBatchEvents {
+                        start_revision: 11,
+                        next_revision: 14,
+                        commands: vec![afs_protocol::meta::RootCommand {
+                            command_id: "cmd-a".into(),
+                            command_type: afs_protocol::meta::RootCommandType::RevokeAccess as i32,
+                            access: Some(invalid),
+                            revision: 12,
+                        }],
+                    },
+                ),
+            ),
+        };
+
+        let error = root_command_batch_from_wire(11, reply)
+            .expect_err("nonzero root identity is required for revocation");
         assert_eq!(error.code(), CLIENT_PROTOCOL_VIOLATION);
     }
 }

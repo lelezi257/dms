@@ -1,0 +1,783 @@
+{
+  "base-main.command.json": {
+    "argv": [
+      "git",
+      "rev-parse",
+      "HEAD"
+    ],
+    "exit": 0,
+    "seconds": 0.007318292045965791
+  },
+  "build-preflight.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "python3",
+      "-c",
+      "import os,json,shutil,platform,subprocess; names=['cargo','rustc','rustfmt','cc','protoc','pkg-config','python3','tar','git'];p={'system':platform.system(),'arch':platform.machine(),'missing':[x for x in names if not shutil.which(x)],'disk':shutil.disk_usage('/var/tmp')._asdict(),'rustc':subprocess.check_output(['rustc','-Vv'],text=True),'cargo':subprocess.check_output(['cargo','-V'],text=True),'active_builds':subprocess.run(['pgrep','-x','cargo|rustc'],capture_output=True,text=True).stdout};print(json.dumps(p));assert not p['missing'] and not p['active_builds'] and p['disk']['free']>=12*2**30"
+    ],
+    "exit": 0,
+    "seconds": 0.09830000007059425
+  },
+  "cert.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "--lib",
+      "certificate",
+      "--",
+      "--nocapture"
+    ],
+    "exit": 0,
+    "seconds": 22.81673754111398
+  },
+  "clippy-affected.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "clippy",
+      "--locked",
+      "--offline",
+      "--lib",
+      "--bins",
+      "--example",
+      "afs-root-command-meta"
+    ],
+    "exit": 0,
+    "seconds": 8.083599707926624
+  },
+  "clippy-owner.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "clippy",
+      "--locked",
+      "--offline",
+      "--no-default-features",
+      "--features",
+      "ownerfs",
+      "--lib",
+      "--bins",
+      "--example",
+      "afs-root-command-meta",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 101,
+    "seconds": 3.950581999961287
+  },
+  "clippy.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "clippy",
+      "--locked",
+      "--offline",
+      "--all-targets",
+      "--",
+      "-D",
+      "warnings"
+    ],
+    "exit": 101,
+    "seconds": 9.391742542036809
+  },
+  "commands.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "--lib",
+      "root_command",
+      "--",
+      "--nocapture"
+    ],
+    "exit": 0,
+    "seconds": 26.55017562501598
+  },
+  "dfs-only.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "check",
+      "--locked",
+      "--offline",
+      "--no-default-features",
+      "--features",
+      "dfs"
+    ],
+    "exit": 0,
+    "seconds": 2.26935829105787
+  },
+  "fmt.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "fmt",
+      "--all",
+      "--",
+      "--check"
+    ],
+    "exit": 0,
+    "seconds": 0.6129333750577644
+  },
+  "format.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "python3",
+      "-c",
+      "from pathlib import Path;import subprocess,json,base64;root=Path('/workspace/dms/source');target=Path('/var/tmp/afs-workspace-bind-root-command-20261008-r1-fmt');target.mkdir(exist_ok=False);result={}\nfor i,p in enumerate(['src/node.rs', 'src/node/rpc/meta.rs', 'src/node/vfs/ownerfs/root.rs']):\n f=target/(str(i)+'.rs');f.write_bytes((root/p).read_bytes());r=subprocess.run(['rustfmt','--edition','2024','--config','skip_children=true',str(f)],capture_output=True);assert r.returncode==0,r.stderr;result[p]=base64.b64encode(f.read_bytes()).decode()\nprint(json.dumps(result))"
+    ],
+    "exit": 0,
+    "before": {
+      "src/node.rs": "30ceaa57fbc62a0dad04f9c8aba8b08fbeed414313f5dff0666c5d411406c0aa",
+      "src/node/rpc/meta.rs": "6facd17ac054a9e6f6fb137b5174bcdc48f9593a7141d62e48956fc2fd375160",
+      "src/node/vfs/ownerfs/root.rs": "3c0ea32c58e41db20983308cb9e36517d4ff80cc28069abb0fd2bc0dcd81d487"
+    }
+  },
+  "helper.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "--example",
+      "afs-root-command-meta",
+      "--",
+      "--nocapture"
+    ],
+    "exit": 0,
+    "seconds": 18.693079666933045
+  },
+  "issuer.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "build",
+      "--locked",
+      "--offline",
+      "--release",
+      "--example",
+      "afs-root-command-meta",
+      "--message-format=json"
+    ],
+    "exit": 0,
+    "seconds": 55.598377541056834
+  },
+  "meta.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "--test",
+      "meta_contract",
+      "n2b1_",
+      "--",
+      "--nocapture"
+    ],
+    "exit": 0,
+    "seconds": 36.86358033306897
+  },
+  "owner-only.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "check",
+      "--locked",
+      "--offline",
+      "--no-default-features",
+      "--features",
+      "ownerfs"
+    ],
+    "exit": 0,
+    "seconds": 5.391996624995954
+  },
+  "python.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "python3",
+      "-B",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "development/acceptance",
+      "-p",
+      "test_workspace_bind_root_command.py",
+      "-v"
+    ],
+    "exit": 0,
+    "seconds": 0.11525541706942022
+  },
+  "release.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "build",
+      "--locked",
+      "--offline",
+      "--release",
+      "--bins",
+      "--message-format=json"
+    ],
+    "exit": 0,
+    "seconds": 69.46460870897863
+  },
+  "remote-before.command.json": {
+    "argv": [
+      "git",
+      "ls-remote",
+      "origin",
+      "refs/heads/main"
+    ],
+    "exit": 0,
+    "seconds": 1.964530291967094
+  },
+  "roots.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "--lib",
+      "node::vfs::ownerfs::root::tests",
+      "--",
+      "--nocapture"
+    ],
+    "exit": 0,
+    "seconds": 0.20876654202584177
+  },
+  "source-before.command.json": {
+    "argv": [
+      "git",
+      "status",
+      "--porcelain"
+    ],
+    "exit": 0,
+    "seconds": 0.06401183293201029
+  },
+  "workers.command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/workspace/dms/source",
+      "afs-build",
+      "--",
+      "env",
+      "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+      "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+      "CARGO_BUILD_JOBS=2",
+      "CARGO_INCREMENTAL=0",
+      "cargo",
+      "test",
+      "--locked",
+      "--offline",
+      "--lib",
+      "workspace_bind_worker_tests",
+      "--",
+      "--nocapture"
+    ],
+    "exit": 0,
+    "seconds": 0.1775617910316214
+  },
+  "archive-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "sudo",
+      "python3",
+      "-B",
+      "-c",
+      "from pathlib import Path;import tarfile;root=Path('/opt/workspace-bind-root-command-20261008-r1');t=Path('/var/tmp/workspace-bind-root-command-20261008-r1');\nwith tarfile.open(t/\"guest-evidence.tar.gz\",\"w:gz\") as archive:\n for path in [t/\"inputs.json\",t/\"results\"]:\n  if path.exists():archive.add(path,arcname=path.name)\n if (root/\"run\").exists():\n  for path in sorted((root/\"run\").glob(\"*.lifecycle.*\")):archive.add(path,arcname=\"receipts/\"+path.name)"
+    ],
+    "exit": 0,
+    "seconds": 0.09107183397281915
+  },
+  "archive-readable-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "sudo",
+      "chmod",
+      "644",
+      "/var/tmp/workspace-bind-root-command-20261008-r1/guest-evidence.tar.gz"
+    ],
+    "exit": 0,
+    "seconds": 0.040226500015705824
+  },
+  "collect-guest-command.json": {
+    "argv": [
+      "limactl",
+      "copy",
+      "afs-g2-micro:/var/tmp/workspace-bind-root-command-20261008-r1/guest-evidence.tar.gz",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/guest-evidence.tar.gz"
+    ],
+    "exit": 0,
+    "seconds": 0.051158957998268306
+  },
+  "collect-issuer-command.json": {
+    "argv": [
+      "limactl",
+      "copy",
+      "afs-build:/var/tmp/afs-dfs-create-contention-20261007-r1/target/release/examples/afs-root-command-meta",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/issuer"
+    ],
+    "exit": 0,
+    "seconds": 0.14362679200712591
+  },
+  "collect-new-meta-command.json": {
+    "argv": [
+      "limactl",
+      "copy",
+      "afs-build:/var/tmp/afs-dfs-create-contention-20261007-r1/target/release/afs-meta",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/new-meta"
+    ],
+    "exit": 0,
+    "seconds": 0.17034895799588412
+  },
+  "collect-new-node-command.json": {
+    "argv": [
+      "limactl",
+      "copy",
+      "afs-build:/var/tmp/afs-dfs-create-contention-20261007-r1/target/release/afs-node",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/new-node"
+    ],
+    "exit": 0,
+    "seconds": 0.18618412502110004
+  },
+  "collect-stopped-wal-command.json": {
+    "argv": [
+      "limactl",
+      "copy",
+      "afs-g2-micro:/var/tmp/workspace-bind-root-command-20261008-r1/stopped-meta.wal",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/stopped-meta.wal"
+    ],
+    "exit": 0,
+    "seconds": 0.04218008404131979
+  },
+  "decoder-version-command.json": {
+    "argv": [
+      "git",
+      "-C",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source",
+      "rev-parse",
+      "HEAD:development/acceptance/dfs_r3_replica.py"
+    ],
+    "exit": 0,
+    "seconds": 0.010500957956537604
+  },
+  "executable-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "chmod",
+      "755",
+      "/var/tmp/workspace-bind-root-command-20261008-r1/new-node",
+      "/var/tmp/workspace-bind-root-command-20261008-r1/new-meta",
+      "/var/tmp/workspace-bind-root-command-20261008-r1/issuer"
+    ],
+    "exit": 0,
+    "seconds": 0.039349791943095624
+  },
+  "guest-input-sha-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "python3",
+      "-B",
+      "-c",
+      "import json,hashlib;from pathlib import Path;p=Path('/var/tmp/workspace-bind-root-command-20261008-r1');m=json.loads((p/\"inputs.json\").read_text());assert all(hashlib.sha256((p/n).read_bytes()).hexdigest()==x for n,x in m[\"tools\"].items());assert all(hashlib.sha256((p/n).read_bytes()).hexdigest()==x for n,x in {'new-meta': 'e2bbf9bcfa6d99e0674f8f55455441cfad3b5f154ac9b73862f7e48fe0ffd77b', 'new-node': '2094eadc23cc8f57e165b080330686dbd8886f871ee3a9ddcaf61b09657660f0', 'issuer': '0213ee02f953ae9bfa045f2f89085b686c846aff9bb31ce3c169f635365b628b'}.items());print(\"PASS exact transferred inputs\")"
+    ],
+    "exit": 0,
+    "seconds": 0.11515762493945658
+  },
+  "independent-audit-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-build",
+      "--",
+      "python3",
+      "-B",
+      "/workspace/dms/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/audit.py",
+      "/workspace/dms/evidence/afs-delivery/workspace-bind-root-command-20261008-r1"
+    ],
+    "exit": 1,
+    "seconds": 0.12471529096364975
+  },
+  "independent-audit-r2-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-build",
+      "--",
+      "python3",
+      "-B",
+      "/workspace/dms/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/audit.py",
+      "/workspace/dms/evidence/afs-delivery/workspace-bind-root-command-20261008-r1"
+    ],
+    "exit": 0,
+    "seconds": 0.08428362489212304
+  },
+  "initial-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "python3",
+      "-B",
+      "-c",
+      "import json,hashlib,shutil;from pathlib import Path;t=Path('/var/tmp/workspace-bind-root-command-20261008-r1');r=Path('/opt/workspace-bind-root-command-20261008-r1');p=Path('/var/tmp/afs-current-trial-f03-20261008-r1-package.tar.gz');assert not t.exists() and not r.exists();assert hashlib.sha256(p.read_bytes()).hexdigest()=='7bfc6b520e551d2281790862c2968e990e376c5c490b2135f583f4da0ccc1972';print(json.dumps({\"free_bytes\":shutil.disk_usage(\"/opt\").free,\"fresh_fixture\":True}))"
+    ],
+    "exit": 0,
+    "seconds": 0.09315737499855459
+  },
+  "mkdir-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "mkdir",
+      "/var/tmp/workspace-bind-root-command-20261008-r1"
+    ],
+    "exit": 0,
+    "seconds": 0.03782741702161729
+  },
+  "post-closure-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "sudo",
+      "python3",
+      "-B",
+      "-c",
+      "import json,hashlib,os,importlib.util\nfrom pathlib import Path\nr=Path('/opt/workspace-bind-root-command-20261008-r1')\nf=next((r/'state/node/ownerfs').glob('root-776f726b7370616365-e*'))/'root-command-proof'\nst=f.stat();home=f.parent.stat()\nspec=importlib.util.spec_from_file_location('decoder','/var/tmp/workspace-bind-root-command-20261008-r1'+'/dfs_r3_replica.py')\nm=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\nstate=m.load_meta_state(r/'state/meta/meta-store')\nprint(json.dumps(dict(physical=dict(path=str(f),dev=st.st_dev,ino=st.st_ino,bytes=st.st_size,\nsha256=hashlib.sha256(f.read_bytes()).hexdigest(),full_bytes_correct=f.read_bytes()==bytes(range(256))*16),\nhome=dict(dev=home.st_dev,ino=home.st_ino,mode=home.st_mode&511,uid=home.st_uid,gid=home.st_gid),\nowned_mounts=[l for l in Path('/proc/self/mountinfo').read_text().splitlines() if str(r/'mount') in l],\nowned_services=[p.name for p in Path('/proc').iterdir() if p.name.isdigit() and (p/'cmdline').exists()\nand str(r/'prefix/bin').encode() in (p/'cmdline').read_bytes()],\nstate=state,wal_sha256=hashlib.sha256((r/'state/meta/meta-store/wal').read_bytes()).hexdigest())))\n"
+    ],
+    "exit": 0,
+    "seconds": 0.061852665967307985
+  },
+  "restore-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-build",
+      "--",
+      "python3",
+      "-B",
+      "/workspace/dms/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/restore.py",
+      "/workspace/dms/evidence/afs-delivery/workspace-bind-root-command-20261008-r1"
+    ],
+    "exit": 0,
+    "seconds": 0.6146057090954855
+  },
+  "retain-stopped-wal-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "sudo",
+      "cp",
+      "/opt/workspace-bind-root-command-20261008-r1/state/meta/meta-store/wal",
+      "/var/tmp/workspace-bind-root-command-20261008-r1/stopped-meta.wal"
+    ],
+    "exit": 0,
+    "seconds": 0.046910166973248124
+  },
+  "runtime-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "sudo",
+      "python3",
+      "-B",
+      "/var/tmp/workspace-bind-root-command-20261008-r1/workspace-bind-root-command-linux.py",
+      "--root",
+      "/opt/workspace-bind-root-command-20261008-r1",
+      "--out",
+      "/var/tmp/workspace-bind-root-command-20261008-r1/results",
+      "--transport",
+      "/var/tmp/workspace-bind-root-command-20261008-r1",
+      "--package",
+      "/var/tmp/afs-current-trial-f03-20261008-r1-package.tar.gz",
+      "--inputs",
+      "/var/tmp/workspace-bind-root-command-20261008-r1/inputs.json",
+      "--package-sha256",
+      "7bfc6b520e551d2281790862c2968e990e376c5c490b2135f583f4da0ccc1972",
+      "--source-commit",
+      "f03dc2b3679c31daa51caee275fb2087413e949c",
+      "--afs-meta-sha256",
+      "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+      "--afs-node-sha256",
+      "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+      "--inputs-sha256",
+      "4a1a7e74829355a0d41ec2fb53017721b7aa8552a171f411a349ca6ede0cbf62",
+      "--runtime-base",
+      "e6f0b028989bd0f975f254ce4c2f84b49a3a50b1",
+      "--runtime-map-sha256",
+      "d053a333988e9fa7fc11efc51b94a7272e841f26f3aca7351f64a015f160a16a",
+      "--new-node-sha256",
+      "2094eadc23cc8f57e165b080330686dbd8886f871ee3a9ddcaf61b09657660f0",
+      "--new-meta-sha256",
+      "e2bbf9bcfa6d99e0674f8f55455441cfad3b5f154ac9b73862f7e48fe0ffd77b",
+      "--issuer-sha256",
+      "0213ee02f953ae9bfa045f2f89085b686c846aff9bb31ce3c169f635365b628b"
+    ],
+    "exit": 0,
+    "seconds": 3.594323333934881
+  },
+  "tools-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "sudo",
+      "tar",
+      "-xf",
+      "/var/tmp/workspace-bind-root-command-20261008-r1/tools.tar",
+      "-C",
+      "/var/tmp/workspace-bind-root-command-20261008-r1"
+    ],
+    "exit": 0,
+    "seconds": 0.05451775004621595
+  },
+  "transfer-issuer-command.json": {
+    "argv": [
+      "limactl",
+      "copy",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/issuer",
+      "afs-g2-micro:/var/tmp/workspace-bind-root-command-20261008-r1/issuer"
+    ],
+    "exit": 0,
+    "seconds": 0.14502795902080834
+  },
+  "transfer-new-meta-command.json": {
+    "argv": [
+      "limactl",
+      "copy",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/new-meta",
+      "afs-g2-micro:/var/tmp/workspace-bind-root-command-20261008-r1/new-meta"
+    ],
+    "exit": 0,
+    "seconds": 0.16871499991975725
+  },
+  "transfer-new-node-command.json": {
+    "argv": [
+      "limactl",
+      "copy",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/new-node",
+      "afs-g2-micro:/var/tmp/workspace-bind-root-command-20261008-r1/new-node"
+    ],
+    "exit": 0,
+    "seconds": 0.1544209159910679
+  },
+  "transfer-read-only-decoder-command.json": {
+    "argv": [
+      "limactl",
+      "copy",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/dfs_r3_replica.py",
+      "afs-g2-micro:/var/tmp/workspace-bind-root-command-20261008-r1/dfs_r3_replica.py"
+    ],
+    "exit": 0,
+    "seconds": 0.09760600002482533
+  },
+  "transfer-tools-command.json": {
+    "argv": [
+      "limactl",
+      "copy",
+      "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-root-command-20261008-r1/tools.tar",
+      "afs-g2-micro:/var/tmp/workspace-bind-root-command-20261008-r1/tools.tar"
+    ],
+    "exit": 0,
+    "seconds": 0.07702433306258172
+  },
+  "wal-readable-command.json": {
+    "argv": [
+      "limactl",
+      "shell",
+      "--workdir=/",
+      "afs-g2-micro",
+      "--",
+      "sudo",
+      "chmod",
+      "644",
+      "/var/tmp/workspace-bind-root-command-20261008-r1/stopped-meta.wal"
+    ],
+    "exit": 0,
+    "seconds": 0.03500362497288734
+  }
+}

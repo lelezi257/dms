@@ -30,6 +30,11 @@ rdma = ["afs-transport/rdma"]
 name = "afs-workspace-probe"
 path = "tests/support/workspace_probe.rs"
 
+[[example]]
+name = "afs-root-command-meta"
+path = "tests/support/root_command_meta.rs"
+required-features = ["ownerfs"]
+
 [dependencies]
 afs-error = { path = "common/error" }
 afs-logging = { path = "common/logging" }

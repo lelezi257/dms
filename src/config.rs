@@ -630,8 +630,9 @@ fn validate_native_workspace_command(argv: &[String], field: &str) -> Result<()>
     Ok(())
 }
 
-// Normalize configured certificate files to the leaf DER identity exposed by tonic.
-pub(crate) fn read_certificate_der(path: &std::path::Path) -> Result<Vec<u8>> {
+/// Normalize a configured certificate file to the leaf DER identity exposed by tonic.
+/// Explicit service launchers reuse this parser instead of maintaining a second decoder.
+pub fn read_certificate_der(path: &std::path::Path) -> Result<Vec<u8>> {
     let bytes = std::fs::read(path).map_err(|source| {
         invalid(format!(
             "failed to read trusted node cert {}: {source}",

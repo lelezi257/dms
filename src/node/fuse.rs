@@ -42,11 +42,6 @@ use crate::node::vfs::{
 use self::state::{FuseNode, FuseState, ROOT_INO};
 
 const TTL: Duration = Duration::ZERO;
-// Keep name-to-inode mappings briefly on P2P mounts without caching remote
-// attributes. This separates redundant path lookups from close-to-open data
-// freshness; the patched fuser reply supports independent TTLs.
-#[cfg(feature = "ownerfs")]
-const OWNER_ENTRY_TTL: Duration = Duration::from_secs(1);
 const DIRECT_IO: u32 = consts::FOPEN_DIRECT_IO;
 const LOCK_WORKERS: usize = 4;
 const MAX_PENDING_LOCK_INTERRUPTS: usize = 4096;
@@ -726,17 +721,11 @@ impl Filesystem for AfsFuse {
                     #[cfg(feature = "ownerfs")]
                     if let Some(ownerfs) = &ownerfs {
                         ownerfs.remember_fuse_inode(ino);
-                        ownerfs.with_fuse_cache_policy(entry.inode, |ttl, private| {
-                            if !private {
-                                reply.entry_with_ttls(
-                                    &OWNER_ENTRY_TTL,
-                                    &ttl,
-                                    &file_attr(ino, &entry.attributes),
-                                    0,
-                                );
-                            } else {
-                                reply.entry(&ttl, &file_attr(ino, &entry.attributes), 0);
-                            }
+                        ownerfs.with_fuse_cache_policy(entry.inode, |ttl, _| {
+                            // A native or remote writer may rename or unlink between
+                            // opens. Apply the freshness policy to names as well as
+                            // attributes so an old dentry cannot open a new alias.
+                            reply.entry(&ttl, &file_attr(ino, &entry.attributes), 0);
                         });
                         return;
                     }

@@ -1,0 +1,203 @@
+{
+  "rust-red": {
+    "command": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/workspace/dms/source",
+        "afs-build",
+        "env",
+        "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+        "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_BUILD_JOBS=2",
+        "cargo",
+        "test",
+        "--offline",
+        "--release",
+        "--lib",
+        "native_home_",
+        "--",
+        "--nocapture"
+      ],
+      "timeout": 600
+    },
+    "result": {
+      "rc": 101
+    },
+    "stdout_sha256": "824b6683362e6b48b90d0cbe875199fcc7f4779bb636558e32bff545696af322",
+    "stderr_sha256": "07003dc5b7199b002b567cd8166e175d7f9c7612be9c76cde446e08ac2f36356",
+    "raw": "evidence/afs-delivery/workspace-bind-remote-0bd-20261008-r1/commands/rust-red.command.json"
+  },
+  "v2-owner-regressions": {
+    "command": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/workspace/dms/source",
+        "afs-build",
+        "env",
+        "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+        "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_BUILD_JOBS=2",
+        "cargo",
+        "test",
+        "--offline",
+        "--release",
+        "--lib",
+        "node::vfs::ownerfs",
+        "--",
+        "--nocapture"
+      ],
+      "timeout": 600
+    },
+    "result": {
+      "rc": 0
+    },
+    "stdout_sha256": "0f84e34b917f3bfd272ffaae23ae95b6550fbc7bcaee6b3db0b2c9a2dd32d314",
+    "stderr_sha256": "909545646ee035c107997617b410cb5f8b3a8b06a167845a68afbf6d6baf41ff",
+    "raw": "evidence/afs-delivery/workspace-bind-remote-0bd-20261008-r1/commands/v2-owner-regressions.command.json"
+  },
+  "ttl-fmt": {
+    "command": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/workspace/dms/source",
+        "afs-build",
+        "env",
+        "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+        "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_BUILD_JOBS=2",
+        "cargo",
+        "fmt",
+        "--check"
+      ],
+      "timeout": 600
+    },
+    "result": {
+      "rc": 0
+    },
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "raw": "evidence/afs-delivery/workspace-bind-remote-0bd-20261008-r1/commands/ttl-fmt.command.json"
+  },
+  "ttl-owner-regressions": {
+    "command": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/workspace/dms/source",
+        "afs-build",
+        "env",
+        "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+        "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_BUILD_JOBS=2",
+        "cargo",
+        "test",
+        "--offline",
+        "--release",
+        "--lib",
+        "node::vfs::ownerfs",
+        "--",
+        "--nocapture"
+      ],
+      "timeout": 600
+    },
+    "result": {
+      "rc": 0
+    },
+    "stdout_sha256": "44cd8ffc8e358bf0c6c47ea63315b0846e7e9a3dd71fc4f0539489905a096ca6",
+    "stderr_sha256": "6bfc1df18eafd049424f0eabc2caaa0091a089aab25f314cf9d0725157f0cfcf",
+    "raw": "evidence/afs-delivery/workspace-bind-remote-0bd-20261008-r1/commands/ttl-owner-regressions.command.json"
+  },
+  "ttl-owner-check": {
+    "command": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/workspace/dms/source",
+        "afs-build",
+        "env",
+        "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+        "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_BUILD_JOBS=2",
+        "cargo",
+        "check",
+        "--offline",
+        "--no-default-features",
+        "--features",
+        "ownerfs",
+        "--lib",
+        "--bins"
+      ],
+      "timeout": 600
+    },
+    "result": {
+      "rc": 0
+    },
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "9ab03e239df1eb255e383c0c47bf91ee6b0cf11683e189f2cc3531346711946f",
+    "raw": "evidence/afs-delivery/workspace-bind-remote-0bd-20261008-r1/commands/ttl-owner-check.command.json"
+  },
+  "ttl-clippy": {
+    "command": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/workspace/dms/source",
+        "afs-build",
+        "env",
+        "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+        "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_BUILD_JOBS=2",
+        "cargo",
+        "clippy",
+        "--offline",
+        "--lib",
+        "--bins"
+      ],
+      "timeout": 600
+    },
+    "result": {
+      "rc": 0
+    },
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "e1a571f2ecd770515b8f1a5701710eb9267b3bdba1ada1d093e748ec35f73530",
+    "raw": "evidence/afs-delivery/workspace-bind-remote-0bd-20261008-r1/commands/ttl-clippy.command.json"
+  },
+  "ttl-release": {
+    "command": {
+      "argv": [
+        "limactl",
+        "shell",
+        "--workdir=/workspace/dms/source",
+        "afs-build",
+        "env",
+        "PATH=/home/lzc.linux/.cargo/bin:/usr/local/bin:/usr/bin:/bin",
+        "CARGO_TARGET_DIR=/var/tmp/afs-dfs-create-contention-20261007-r1/target",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_BUILD_JOBS=2",
+        "cargo",
+        "build",
+        "--offline",
+        "--release",
+        "--bins",
+        "--message-format",
+        "json"
+      ],
+      "timeout": 600
+    },
+    "result": {
+      "rc": 0
+    },
+    "stdout_sha256": "51fa61432f3cd4f09350ebdbc26fd7fde07dfca97abe3523597d78f22977e52b",
+    "stderr_sha256": "ce05b3cf1fc6b5d0cdc7b0e3ac8df90bb6460142af9b3af34fea5b782f400efb",
+    "raw": "evidence/afs-delivery/workspace-bind-remote-0bd-20261008-r1/commands/ttl-release.command.json"
+  }
+}

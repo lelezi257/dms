@@ -1,0 +1,255 @@
+{
+  "b-bootstrap": {
+    "status": "PASS",
+    "actual_wait": {
+      "child": {
+        "pid": "13844",
+        "exe": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-node",
+        "config": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/node.toml",
+        "start_ticks": "4557809",
+        "boot_id": "15a59ff4-fb37-41f6-8686-e083bd2110ce",
+        "lifecycle": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/node.lifecycle.k13t30",
+        "supervisor_pid": "13828"
+      },
+      "ready": {
+        "supervisor_pid": "13828"
+      },
+      "exit": {
+        "pid": "13844",
+        "exe": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-node",
+        "config": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/node.toml",
+        "start_ticks": "4557809",
+        "boot_id": "15a59ff4-fb37-41f6-8686-e083bd2110ce",
+        "lifecycle": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/node.lifecycle.k13t30",
+        "supervisor_pid": "13828",
+        "exit_code": "0"
+      },
+      "path": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/node.lifecycle.k13t30"
+    },
+    "pids_gone": [
+      13844,
+      13828
+    ],
+    "config_and_elf": {
+      "root": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1",
+      "config": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/node.toml",
+      "config_sha256": "48c512c4a16fd4b0c2cc77f03177a374e9ce2f25246e38f1a68bc4d374b425d6",
+      "executable": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-node",
+      "executable_sha256": "b240d402e6d2c0e440c21f1b59d68242c2fd4bf437a57d2d767d031fcc0179ed",
+      "executable_dev": 64785,
+      "executable_ino": 1325629,
+      "fixture_sha256": "2030958398a95b25f1d4c1220a6a5358c7443f8df0aa08ce0d8bf21e5de51636"
+    },
+    "protected_processes": [],
+    "protected_mount_inventory_sha256": "23785f3cf775a67bf924e60a6901deb42f7f44a476d53c42b75b82fa4856d34e",
+    "exact_final_rows": true,
+    "raw_evidence": "evidence/afs-delivery/workspace-bind-remote-bc8-20261008-r1/closure-summary.json"
+  },
+  "c-remote": {
+    "status": "PASS",
+    "actual_wait": {
+      "child": {
+        "pid": "7480",
+        "exe": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-node",
+        "config": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/node.toml",
+        "start_ticks": "4524904",
+        "boot_id": "469bd4a4-d98a-4288-bac4-de6b700b9ff4",
+        "lifecycle": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/node.lifecycle.GOZDUh",
+        "supervisor_pid": "7464"
+      },
+      "ready": {
+        "supervisor_pid": "7464"
+      },
+      "exit": {
+        "pid": "7480",
+        "exe": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-node",
+        "config": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/node.toml",
+        "start_ticks": "4524904",
+        "boot_id": "469bd4a4-d98a-4288-bac4-de6b700b9ff4",
+        "lifecycle": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/node.lifecycle.GOZDUh",
+        "supervisor_pid": "7464",
+        "exit_code": "0"
+      },
+      "path": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/node.lifecycle.GOZDUh"
+    },
+    "pids_gone": [
+      7480,
+      7464
+    ],
+    "config_and_elf": {
+      "root": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1",
+      "config": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/node.toml",
+      "config_sha256": "97594f90691fb3d788301e50b92225b973fa8dbe49981953315d9fd9f8175d0a",
+      "executable": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-node",
+      "executable_sha256": "b240d402e6d2c0e440c21f1b59d68242c2fd4bf437a57d2d767d031fcc0179ed",
+      "executable_dev": 64785,
+      "executable_ino": 268082,
+      "fixture_sha256": "2030958398a95b25f1d4c1220a6a5358c7443f8df0aa08ce0d8bf21e5de51636"
+    },
+    "protected_processes": [],
+    "protected_mount_inventory_sha256": "8235f5f0087a9ef67256e20bcb9b179e8eda6fb3522d3e5bcb9b91bac767d4c1",
+    "exact_final_rows": true,
+    "raw_evidence": "evidence/afs-delivery/workspace-bind-remote-bc8-20261008-r1/closure-summary.json"
+  },
+  "b-on": {
+    "status": "PASS",
+    "actual_wait": {
+      "child": {
+        "pid": "14308",
+        "exe": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-node",
+        "config": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/node.toml",
+        "start_ticks": "4557877",
+        "boot_id": "15a59ff4-fb37-41f6-8686-e083bd2110ce",
+        "lifecycle": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/node.lifecycle.H4ETGO",
+        "supervisor_pid": "14292"
+      },
+      "ready": {
+        "supervisor_pid": "14292"
+      },
+      "exit": {
+        "pid": "14308",
+        "exe": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-node",
+        "config": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/node.toml",
+        "start_ticks": "4557877",
+        "boot_id": "15a59ff4-fb37-41f6-8686-e083bd2110ce",
+        "lifecycle": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/node.lifecycle.H4ETGO",
+        "supervisor_pid": "14292",
+        "exit_code": "0"
+      },
+      "path": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/node.lifecycle.H4ETGO"
+    },
+    "pids_gone": [
+      14308,
+      14292
+    ],
+    "config_and_elf": {
+      "root": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1",
+      "config": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/node.toml",
+      "config_sha256": "b2d4427f557d5b248029befcbddcec3de041960f6fd34ec196e557a79613ed13",
+      "executable": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-node",
+      "executable_sha256": "b240d402e6d2c0e440c21f1b59d68242c2fd4bf437a57d2d767d031fcc0179ed",
+      "executable_dev": 64785,
+      "executable_ino": 1325629,
+      "fixture_sha256": "2030958398a95b25f1d4c1220a6a5358c7443f8df0aa08ce0d8bf21e5de51636"
+    },
+    "protected_processes": [],
+    "protected_mount_inventory_sha256": "23785f3cf775a67bf924e60a6901deb42f7f44a476d53c42b75b82fa4856d34e",
+    "exact_final_rows": true,
+    "raw_evidence": "evidence/afs-delivery/workspace-bind-remote-bc8-20261008-r1/closure-summary.json"
+  },
+  "ctl-meta": {
+    "status": "PASS",
+    "actual_wait": {
+      "child": {
+        "pid": "1700029",
+        "exe": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-meta",
+        "config": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/meta.toml",
+        "start_ticks": "67826322",
+        "boot_id": "18c9c087-49d6-458f-817b-0f84c0effd7a",
+        "lifecycle": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/meta.lifecycle.5nPsqv",
+        "supervisor_pid": "1700013"
+      },
+      "ready": {
+        "supervisor_pid": "1700013"
+      },
+      "exit": {
+        "pid": "1700029",
+        "exe": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-meta",
+        "config": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/meta.toml",
+        "start_ticks": "67826322",
+        "boot_id": "18c9c087-49d6-458f-817b-0f84c0effd7a",
+        "lifecycle": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/meta.lifecycle.5nPsqv",
+        "supervisor_pid": "1700013",
+        "exit_code": "0"
+      },
+      "path": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run/meta.lifecycle.5nPsqv"
+    },
+    "pids_gone": [
+      1700029,
+      1700013
+    ],
+    "config_and_elf": {
+      "root": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-bc8-20261008-r1",
+      "config": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-bc8-20261008-r1/etc/meta.toml",
+      "config_sha256": "de37eae4382c817f0f1aeb82d4253b887612bfd55acd6517b9e66f59dd5b4ec7",
+      "executable": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-bc8-20261008-r1/prefix/bin/afs-meta",
+      "executable_sha256": "39dbcf988033088ed8f334f6de6e4526a5263f1b75ea092b2e44495d48629be9",
+      "executable_dev": 64785,
+      "executable_ino": 281403,
+      "fixture_sha256": "2030958398a95b25f1d4c1220a6a5358c7443f8df0aa08ce0d8bf21e5de51636"
+    },
+    "protected_processes": [
+      {
+        "pid": 472165,
+        "exe": "/var/tmp/afs-p2e-redis/pkg/redis-server",
+        "sha256": "550a5b148fb69040a437e49f762124a92064b92991d3db232e64dc01f2cd346a",
+        "starttick": "421560",
+        "argv": [
+          "/var/tmp/afs-p2e-redis/pkg/redis-server 0.0.0.0:17637",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "ppid": 1
+      },
+      {
+        "pid": 1136874,
+        "exe": "/mnt/lima-afsctlstate/afs-delivery/p1b/bin/afs-meta",
+        "sha256": "0cc53e784027582815be40fd89c5b9efb48235bee8061146399d7a4d20fcfac1",
+        "starttick": "1233842",
+        "argv": [
+          "/mnt/lima-afsctlstate/afs-delivery/p1b/bin/afs-meta",
+          "--config",
+          "/mnt/lima-afsctlstate/afs-delivery/p1b/meta.toml",
+          ""
+        ],
+        "ppid": 1
+      },
+      {
+        "pid": 1418880,
+        "exe": "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-meta",
+        "sha256": "64d85fc3933637ccd7fdf4eafded5e5c8cb2354e73b4c8d1a27b2b8d43f4c7e7",
+        "starttick": "10164420",
+        "argv": [
+          "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-meta",
+          "--config",
+          "/mnt/lima-afsctlstate/afs-delivery/round1-mainline-v77-archive-async/etc/meta.toml",
+          ""
+        ],
+        "ppid": 1418864
+      }
+    ],
+    "protected_mount_inventory_sha256": "a5f041935f0851e0a4268f3c41f9faf26aca4717e50ad03da8ce9f33776ad83a",
+    "exact_final_rows": true,
+    "raw_evidence": "evidence/afs-delivery/workspace-bind-remote-bc8-20261008-r1/closure-summary.json"
+  }
+}

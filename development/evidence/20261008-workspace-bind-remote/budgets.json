@@ -1,0 +1,99 @@
+{
+  "runtime": {
+    "roles": {
+      "ctl": {
+        "allocated_bytes": 97099776,
+        "free_bytes": 2661511168,
+        "volume": {
+          "target": "/mnt/lima-afsctlstate",
+          "source": "/dev/vdb1",
+          "fstype": "ext4",
+          "options": "rw,relatime"
+        },
+        "ceiling_bytes": 134217728,
+        "floor_bytes": 536870912,
+        "excluded": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-ttl-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      },
+      "b": {
+        "allocated_bytes": 96882688,
+        "free_bytes": 22814605312,
+        "volume": {
+          "target": "/mnt/lima-afsbdata",
+          "source": "/dev/vdb1",
+          "fstype": "ext4",
+          "options": "rw,relatime"
+        },
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-ttl-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      },
+      "c": {
+        "allocated_bytes": 96854016,
+        "free_bytes": 37903265792,
+        "volume": {
+          "target": "/mnt/lima-afscdata",
+          "source": "/dev/vdb1",
+          "fstype": "ext4",
+          "options": "rw,relatime"
+        },
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-ttl-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      }
+    },
+    "aggregate": 290836480,
+    "ceiling": 671088640
+  },
+  "restart": {
+    "roles": {
+      "ctl": {
+        "allocated_bytes": 97193984,
+        "free_bytes": 2661416960,
+        "volume": {
+          "target": "/mnt/lima-afsctlstate",
+          "source": "/dev/vdb1",
+          "fstype": "ext4",
+          "options": "rw,relatime"
+        },
+        "ceiling_bytes": 134217728,
+        "floor_bytes": 536870912,
+        "excluded": "/mnt/lima-afsctlstate/afs-delivery/workspace-bind-remote-ttl-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      },
+      "b": {
+        "allocated_bytes": 96890880,
+        "free_bytes": 22814597120,
+        "volume": {
+          "target": "/mnt/lima-afsbdata",
+          "source": "/dev/vdb1",
+          "fstype": "ext4",
+          "options": "rw,relatime"
+        },
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afsbdata/afs-delivery/workspace-bind-remote-ttl-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      },
+      "c": {
+        "allocated_bytes": 96862208,
+        "free_bytes": 37903257600,
+        "volume": {
+          "target": "/mnt/lima-afscdata",
+          "source": "/dev/vdb1",
+          "fstype": "ext4",
+          "options": "rw,relatime"
+        },
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-ttl-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      }
+    },
+    "aggregate": 290947072,
+    "ceiling": 671088640
+  },
+  "scope": "point-in-time allocation, not continuous peak"
+}

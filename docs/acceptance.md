@@ -1,3 +1,7 @@
+**当前小项（2026-10-08，G2.12）：** b80dab66 当前小规模宿主bind ON + C远端FUSE双向可见性、重命名/删除、uid权限/errno、正常退出与全服务正常停止后的local-file恢复 **限定PASS，子项关闭**。实际产品修复：成功lookup选择已观察alias；名字与属性共同遵循原生/远程零TTL。原0bd新名ENOENT、bc8旧名错误成功保留；未测性能，不称性能改善或完整G2.12完成。G2.21功能PASS/逐次read测量COMPLETE/合格3FS性能PENDING，单次补测收口。G1历史8/8关闭、原G2总数不变。下一 **集中一次明确ON配置与当前包的试用交付 → 远端协同/性能 → DFS一写多读 → 普通本地FUSE**。历史授权失效/排空与八bind性能按未变路径限定复用；复杂append/lock/watch、多Meta/etcd/Redis后置。 [当前证据与范围](../development/evidence/20261008-workspace-bind-remote/README.md)。
+
+以下日期记录保留原版本与结论。
+
 **2026-10-08 当前新增（事实/决策）：** 新候选e6f基底/158输入mapd053a333的host bind ON生产RootCommand接收、精确Home拒绝及正常关闭限定PASS：59 Rust+5 Python针对性测试、58运行检查、46独立保存数据核验及Linux实际恢复通过。真实Store两提交/生产RPC日志匹配，Node自然wait1、Meta及bootstrap正常wait0，原4KiB/身份/权限不变；测试发行器不入普通包。Strict all-target/Owner-only Clippy被未修改文件既有lint阻塞，失败保留；受影响Clippy带既有warnings通过。Host ON控制错误fail-closed，OFF策略未改；不称生产issuer/durable ACK/full bind或性能。G1历史8/8/G2总数/defaultOFF不变。下一新候选default-OFF包复现/安装和OwnerFs+DFS local-file核心恢复，标准/八bind性能按身份复用；复杂可靠性和点优化后置。[版本、边界、原始证据](../development/evidence/20261008-workspace-bind-root-command/README.md)。以下保留原时点记录。
 
 **2026-10-08 当前事实：** f03/7bfc的三同步副本正常Meta重启读回已补齐：三Node/挂载身份不变，前后48物理份及A/B/C全64MiB SHA/EOF，五actualwait0、12保护进程和预算通过。副本观察器15 Linux针对性测试、506保存数据检查及605raw/60guest实际恢复通过；R1原FAIL保留，51→54历史回执按三当前serving节点计数，无产品/vendor/环境变更。仅正常进程恢复，不称崩溃可靠性或3FS性能。G1历史8/8/G2总数/defaultOFF不变。 [当前版本、证据和下一项](../development/evidence/20261008-dfs-r3-recovery-qualified/README.md)。 以下保留原时点。

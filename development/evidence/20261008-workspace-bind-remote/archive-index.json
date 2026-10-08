@@ -1,0 +1,26 @@
+{
+  "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/archives/20261008-workspace-bind-remote/records.tar.gz",
+  "archive_sha256": "a7385bcb7acac710b7b8dcaca0f654ba83889960f27ce222d5124052bef48541",
+  "archive_bytes": 465190,
+  "regular_files": 1741,
+  "uncompressed_bytes": 2089491,
+  "excluded": [
+    "workspace-bind-remote-0bd-20261008-r1/b-config.tar",
+    "workspace-bind-remote-0bd-20261008-r1/c-config.tar",
+    "workspace-bind-remote-0bd-20261008-r1/configs.tar",
+    "workspace-bind-remote-0bd-20261008-r1/ctl-config.tar",
+    "workspace-bind-remote-bc8-20261008-r1/b-config.tar",
+    "workspace-bind-remote-bc8-20261008-r1/c-config.tar",
+    "workspace-bind-remote-bc8-20261008-r1/configs.tar",
+    "workspace-bind-remote-bc8-20261008-r1/ctl-config.tar",
+    "workspace-bind-remote-bc8-20261008-r1/new-meta",
+    "workspace-bind-remote-bc8-20261008-r1/new-node",
+    "workspace-bind-remote-ttl-20261008-r1/b-config.tar",
+    "workspace-bind-remote-ttl-20261008-r1/c-config.tar",
+    "workspace-bind-remote-ttl-20261008-r1/configs.tar",
+    "workspace-bind-remote-ttl-20261008-r1/ctl-config.tar",
+    "workspace-bind-remote-ttl-20261008-r1/new-meta",
+    "workspace-bind-remote-ttl-20261008-r1/new-node"
+  ],
+  "reason": "ELFs identified by compiler/ELF SHA remain outside Git; TLS private configs excluded. Guest closed run/state/logs and exact tools included; Git stores compact receipts, not code snapshots."
+}

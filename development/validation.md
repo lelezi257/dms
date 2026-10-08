@@ -1,3 +1,7 @@
+**当前小项（2026-10-08，G2.12）：** b80dab66 当前小规模宿主bind ON + C远端FUSE双向可见性、重命名/删除、uid权限/errno、正常退出与全服务正常停止后的local-file恢复 **限定PASS，子项关闭**。实际产品修复：成功lookup选择已观察alias；名字与属性共同遵循原生/远程零TTL。原0bd新名ENOENT、bc8旧名错误成功保留；未测性能，不称性能改善或完整G2.12完成。G2.21功能PASS/逐次read测量COMPLETE/合格3FS性能PENDING，单次补测收口。G1历史8/8关闭、原G2总数不变。下一 **集中一次明确ON配置与当前包的试用交付 → 远端协同/性能 → DFS一写多读 → 普通本地FUSE**。历史授权失效/排空与八bind性能按未变路径限定复用；复杂append/lock/watch、多Meta/etcd/Redis后置。 [当前证据与范围](evidence/20261008-workspace-bind-remote/README.md)。
+
+以下日期记录保留原版本与结论。
+
 **2026-10-08 G2.21当前小项（事实）：** 原f03/7bfc档案在Linux核对700成员，复用10次正式整文件验证耗时和5个ctl窗口；只可给出事后诊断分位数，旧数据没有逐次read区间/跨VM时钟映射。仅测试C探针和driver补64个逻辑1MiB full_read区间（排除oracle），单独open/fstat/EOF/close；Linux先RED再31项针对性测试及独立ext4 helper验证通过，13成员紧凑证据核对。没有Rust/AFS服务/新性能运行，不宣称G2.21或3FS达标；历史功能/恢复、G1 8/8、G2计数/defaultOFF保留。下一仅小规模同步双读的缺失测量，3FS资格/实际跨VM syscall overlap/复杂场景后置。[版本、原数据、工具及边界](evidence/20261008-dfs-manyread-timing-reuse/README.md)。
 
 **2026-10-08 当前新增（事实/决策）：** 修复 managed runc 单独ON遗漏RootCommand监听，仅Node资格谓词改为host OR managed，双OFF和配置互斥不变。Linux先复现RED，再11个Rust/10个Python测试及受影响构建通过；新候选9d7基底/158-map866cd522真实官方runc/4KiB容器读回、wrong忽略/matching拒绝及自然关闭限定PASS：71运行谓词、23独立核验，3wait0+1拒绝wait1、9PID/runtime/FUSE闭合，原数据和保护库存不变。420raw/158编译输入/39工具版本Linux恢复通过；两启动前工具BLOCKED和3ERRO/1WARN保留，无VM修补、产品只运行一次。私有export不在host观察namespace，不能冒称宿主ON/完整bind/POSIX/性能。DFS历史f03一写多读/R3证据限定复用，不重标新ELF；8442 OFF smoke仍原版本。G1历史8/8/G2总数/defaultOFF不变，Release按用户决定等待。下一G2.21先核对原始时延/并发观察复用，仅补小规模缺口；点优化/3FS资格/复杂可靠性后置。 [版本、范围、失败和证据](evidence/20261008-workspace-runc-root-command/README.md)。以下保留原时点记录。
@@ -38,7 +42,7 @@ G1/g1.5 remains complete in its historical scope: OwnerFs/DFS installable trial,
 
 ### G2 current work
 
-G2 now prioritizes usable **bind ON + correct remote access**. Execute G2.12 finite necessary functions and explicit ON scenario delivery, then remote cooperation/performance (G2.14–16), then DFS one-writer/many-readers (G2.21), then ordinary local FUSE (G2.09–11). Reuse unchanged standard/recovery evidence by version/scope; supplement only affected gaps. The current DFS missing-read slice ends after one small formal run; measurement completion without qualified 3FS comparison leaves performance pending.
+G2 now prioritizes usable **bind ON + correct remote access**. Execute G2.12 finite necessary functions and explicit ON scenario delivery, then remote cooperation/performance (G2.14–16), then DFS one-writer/many-readers (G2.21), then ordinary local FUSE (G2.09–11). Reuse unchanged standard/recovery evidence by version/scope; supplement only affected gaps. The DFS missing-read slice has ended after its single small formal run: function PASS / measurement COMPLETE / qualified3FS performance PENDING. G2.12 current limited functional and orderly recovery subclaims are closed; next is its explicit ON scenario delivery, then remote performance.
 
 Separate function, measurement, performance and delivery under existing IDs. Tool checks and document synchronization do not close product exits. Bind eight scoped core >=0.90 ext4 results are reused unless affected. Preserve ordinary Owner throughput >=1.2x MooseFS and independently measured latency <=0.8x; do not hide current remote/local FAILs. Optimize one demonstrated product problem per round with same-condition before/after results; packaging/install is concentrated at ON delivery. The checklist contains finite required vs expansion exits.
 

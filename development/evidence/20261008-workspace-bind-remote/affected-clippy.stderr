@@ -1,0 +1,23 @@
+    Checking afs v0.1.0 (/workspace/dms/source)
+warning: field `fallback` is never read
+   --> src/node/rpc/peer.rs:336:5
+    |
+333 | pub struct RdmaReplicaDataPlane {
+    |            -------------------- field in this struct
+...
+336 |     fallback: Option<GrpcReplicaDataPlane>,
+    |     ^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `fallback` is never read
+    --> src/node/rpc/peer.rs:1229:5
+     |
+1225 | pub struct RdmaChunkTransfer {
+     |            ----------------- field in this struct
+...
+1229 |     fallback: Option<GrpcChunkTransfer>,
+     |     ^^^^^^^^
+
+warning: `afs` (lib) generated 2 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.07s

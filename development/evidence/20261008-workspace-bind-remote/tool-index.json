@@ -1,0 +1,37 @@
+{
+  "maintained": {
+    "workspace_remote.py": "development/acceptance/probes/workspace_remote.py",
+    "test_workspace_remote.py": "development/acceptance/probes/test_workspace_remote.py",
+    "dfs_r3_fixture.py": "development/acceptance/probes/dfs_r3_fixture.py"
+  },
+  "executed_hashes": {
+    "owner_fixture.py": "4f8e217a22d7ee71fd7dccd0153ed9867101f7b52dd88e99bf438c7a1a5119d9",
+    "closure.py": "4d350e69d2520ba707af373c4282a717d1e8352c29a186d038b104b274526f7a",
+    "dfs_r3_fixture.py": "5816c9e4022a05d7a1665d90694c022e08dc6341615fc01c425cc7d235c66929",
+    "workspace_remote.py": "ba9d8a1b24eb06ca688f040d20029b7a49dfb7807da41431d6d1a3ef4154c70a"
+  },
+  "observer_reconstruction": {
+    "admission.py": {
+      "base": "evidence/afs-delivery/workspace-bind-remote-bc8-20261008-r1/admission.py",
+      "base_sha256": "c17656bf7b9b320ff7e14c213f136972081f562baee698f85305b5b63088713f",
+      "current_sha256": "e124e61bd0798e76270b4ff1ce3c4a32037279af742e815a077590309fba7edc"
+    },
+    "owner_fixture.py": {
+      "base": "evidence/afs-delivery/workspace-bind-remote-bc8-20261008-r1/owner_fixture.py",
+      "base_sha256": "2030958398a95b25f1d4c1220a6a5358c7443f8df0aa08ce0d8bf21e5de51636",
+      "current_sha256": "4f8e217a22d7ee71fd7dccd0153ed9867101f7b52dd88e99bf438c7a1a5119d9"
+    },
+    "closure.py": {
+      "base": "evidence/afs-delivery/workspace-bind-remote-bc8-20261008-r1/closure.py",
+      "base_sha256": "725d029d8f2a838e3c164a9a4289763768331928df54f40291e430d930508cb6",
+      "current_sha256": "4d350e69d2520ba707af373c4282a717d1e8352c29a186d038b104b274526f7a"
+    },
+    "run.py": {
+      "base": "evidence/afs-delivery/workspace-bind-remote-bc8-20261008-r1/run.py",
+      "base_sha256": "40a61d8e18be3108343d4ca7cd37eec3c180b870ee4d7b08142cd10ae1b37f8c",
+      "current_sha256": "bac1d570beea327bb4dec221dfda44d2827ade148ae4a9bdf2f0fd38c0a3d8c0"
+    }
+  },
+  "raw_command_location": "evidence/afs-delivery/workspace-bind-remote-ttl-20261008-r1/commands",
+  "policy": "No Python/Rust source snapshots or ELFs copied into Git; exact observer source and diffs are in externally archived records."
+}

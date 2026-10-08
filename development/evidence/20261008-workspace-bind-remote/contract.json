@@ -1,0 +1,51 @@
+{
+  "id": "G2.12",
+  "scope": "one fixed Home B host bind ON + C remote FUSE, ctl local-file; small necessary functional combination only",
+  "candidate": {
+    "product_source_commit": "b80dab66e9d819cad821c9b30edbf97c795c0c3e",
+    "compiler_input_map": "ea809fa74a7735a587d6018f57a5456d809dfc80d4169585503c4f98e888d72d",
+    "afs_meta_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+    "afs_node_sha256": "b3335fb29212802798e81a0bf8bd8f1c1421d5a0dcf605e8a7e3b59969050a86",
+    "reviewed_main": "b80dab66e9d819cad821c9b30edbf97c795c0c3e"
+  },
+  "data": [
+    4096,
+    65536
+  ],
+  "credentials": [
+    501,
+    502
+  ],
+  "operations": [
+    "native create/fsync/close then remote fresh read/full SHA/length/EOF",
+    "native overwrite+grow then remote fresh read",
+    "remote truncate/write/fsync/close then bind fresh read",
+    "remote create then bind fresh read",
+    "native rename then remote new read and old ENOENT",
+    "native chmod000 then remote same-owner fresh EACCES; restore0600 and read",
+    "remote EEXIST exclusive-create refusal preserves data",
+    "remote unlink then native ENOENT",
+    "unauthorized UID502 remote EACCES",
+    "normal bound wait0/owned PIDs mounts UDS gone/protected inventory preserved"
+  ],
+  "not_claimed": [
+    "performance",
+    "held-open snapshot or immediate refresh",
+    "mixed append/lock/watch",
+    "Meta crash recovery",
+    "ON release delivery"
+  ],
+  "budget": {
+    "ctl": 134217728,
+    "B": 268435456,
+    "C": 268435456,
+    "aggregate": 671088640,
+    "ctl_reserve": 536870912,
+    "B_C_reserve": 4294967296,
+    "info_logs": true,
+    "TRACE": false
+  },
+  "reuse": "same conditions as preserved old failing runtime; only affected small ON/remote function regression. No performance or delivery claim",
+  "stop": "real environment blocker: save and stop selected lane; product failure save exact case and normal shutdown, no threshold change",
+  "previous_failure": "workspace-bind-remote-bc8-20261008-r1"
+}

@@ -1,6 +1,6 @@
 # AFS
 
-**当前普通default-OFF试用候选8442：** [安装与中心正常重启恢复证据](development/evidence/20261008-current-trial-8442/README.md)、[操作指南](docs/guides/trial.md)。正式性能与完整bind仍待验；新包不能继承f03标准/三副本实跑结论。
+**当前交付重点：bind ON与正确远端访问。** b80当前小规模必要功能及全停正常重启恢复限定通过，下一集中明确ON配置的试用包交付，再远端性能、DFS一写多读、普通本地FUSE。[当前版本/原失败/验收范围](development/evidence/20261008-workspace-bind-remote/README.md)。既有[8442普通OFF安装证据](development/evidence/20261008-current-trial-8442/README.md)保留原身份；不是当前ON包交付。
 
 AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [same-mount visibility and close-to-open consistency](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
 

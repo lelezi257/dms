@@ -1,0 +1,22 @@
+{
+  "status": "FAIL",
+  "failure": {
+    "error": "RuntimeError('c-remote-read-renamed rc=1 Traceback (most recent call last):\\n  File \"/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-0bd-20261008-r1/tools/workspace_remote.py\", line 123, in <module>\\n    main()\\n  File \"/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-0bd-20261008-r1/tools/workspace_remote.py\", line 117, in main\\n    result = operate(a.action, a.root / a.name, a.size, a.byte,\\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\\n  File \"/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-0bd-20261008-r1/tools/workspace_remote.py\", line 40, in operate\\n    fd = os.open(path, os.O_RDONLY)\\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^\\nFileNotFoundError: [Errno 2] No such file or directory: \\'/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-0bd-20261008-r1/mount/ownerfs/workspace/_g2_case/renamed\\'\\n')",
+    "traceback": "Traceback (most recent call last):\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-remote-0bd-20261008-r1/run.py\", line 101, in run\n    operation('b','native-rename','rename',destination='renamed');operation('c','remote-read-renamed','read',name='renamed',byte=99);operation('c','remote-old-ENOENT','open-error',expected_errno=2);listing('c','remote-list-renamed',['renamed','other'])\n                                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-remote-0bd-20261008-r1/run.py\", line 80, in operation\n    v=json.loads(h.vm(role,label,argv));assert v['status']=='PASS';save(label+'.json',v);return v\n                 ^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-multinode-7e6-20261007-r1/host-run.py\", line 18, in vm\n    def vm(role,name,args,**kw):return record(role+'-'+name,['limactl','shell','--workdir=/','afs-accept-'+role,'sudo',*args],**kw)\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-multinode-7e6-20261007-r1/host-run.py\", line 16, in record\n    if check and r.returncode:raise RuntimeError(name+' rc='+str(r.returncode)+' '+r.stderr.decode(errors='replace')[-2000:])\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: c-remote-read-renamed rc=1 Traceback (most recent call last):\n  File \"/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-0bd-20261008-r1/tools/workspace_remote.py\", line 123, in <module>\n    main()\n  File \"/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-0bd-20261008-r1/tools/workspace_remote.py\", line 117, in main\n    result = operate(a.action, a.root / a.name, a.size, a.byte,\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-0bd-20261008-r1/tools/workspace_remote.py\", line 40, in operate\n    fd = os.open(path, os.O_RDONLY)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^\nFileNotFoundError: [Errno 2] No such file or directory: '/mnt/lima-afscdata/afs-delivery/workspace-bind-remote-0bd-20261008-r1/mount/ownerfs/workspace/_g2_case/renamed'\n\n"
+  },
+  "closed": {
+    "b-bootstrap": "PASS",
+    "c-remote": "PASS",
+    "b-on": "PASS",
+    "ctl-meta": "PASS"
+  },
+  "candidate": {
+    "product_source_commit": "0bd66ac5464eec0a188dfc79d4c264eab4276048",
+    "compiler_input_map": "866cd52272b1422f194ee14003d4cdd564f7b0196e05bbf413bf835b660de43c",
+    "afs_meta_sha256": "50350b4c18bba79713dff7edab3b41420f5f4988b2e3b861d3e0255308ad3c27",
+    "afs_node_sha256": "e5a24a56289b8a96bbff1825a636548e6de05037f5c76904ba78b8a4c4f3038d",
+    "reviewed_main": "f6f1e36d559e9e11b3748f5928412fce08bf3ba5"
+  },
+  "performance": "NOT_MEASURED",
+  "delivery": "PENDING"
+}

@@ -1,0 +1,211 @@
+
+running 182 tests
+test node::vfs::ownerfs::bind_mount::linux::tests::attaches_and_detaches_in_private_mount_namespace ... ignored, requires root Linux private mount namespace; run explicitly
+test node::vfs::ownerfs::bind_mount::linux::tests::authorized_workspace_binds_real_fuse_root_and_detaches_after_revocation ... ignored, requires root Linux private mount namespace and /dev/fuse; run explicitly
+test node::vfs::ownerfs::bind_mount::linux::tests::detach_of_unactivated_prepare_rejects_foreign_mount ... ignored, requires root Linux private mount namespace; run explicitly
+test node::vfs::ownerfs::bind_mount::linux::tests::detach_rejects_identity_drift_and_retains_claim ... ignored, requires root Linux private mount namespace; run explicitly
+test node::vfs::ownerfs::bind_mount::linux::tests::secondary_clone_detach_rejects_wrong_identity_and_flags_with_proc_hidden ... ignored, requires root Linux private mount namespace; run explicitly
+test node::vfs::ownerfs::bind_mount::linux::tests::rejects_invalid_components_before_mount_work ... ok
+test node::vfs::ownerfs::bind_mount::linux::tests::rejects_symlink_target_component ... ok
+test node::vfs::ownerfs::bind_mount::linux::tests::secondary_clone_rejects_invalid_component_before_namespace_entry ... ok
+test node::vfs::ownerfs::identity_index_perf::g2_identity_cross_root_distinct_identity ... ok
+test node::vfs::ownerfs::identity_index_perf::g2_identity_directory_rename_descendants ... ok
+test node::vfs::ownerfs::identity_index_perf::g2_identity_remaining_hardlink_alias_survives_remove ... ok
+test node::vfs::ownerfs::identity_index_perf::g2_identity_replacement_keeps_remaining_hardlink_alias ... ok
+test node::vfs::ownerfs::identity_index_perf::g2_identity_replacement_removes_stale_identity ... ok
+test node::vfs::ownerfs::identity_index_perf::g2_identity_update_record_identity_changed ... ok
+test node::vfs::ownerfs::identity_index_perf::ignored_owner_identity_index_benchmark ... ignored, diagnostic benchmark; run on Linux ARM64 with --ignored --nocapture --test-threads=1
+test node::vfs::ownerfs::identity_index_perf::g2_identity_removed_path_retains_old_record ... ok
+test node::vfs::ownerfs::catalog::tests::long_workspace_name_does_not_expand_catalog_temp_basename ... ok
+test node::vfs::ownerfs::native_home::regression_tests::duplicate_native_home_authority_preserves_older_anchor_after_newer_drop ... ok
+test node::vfs::ownerfs::native_home::regression_tests::duplicate_native_home_authority_rejects_changed_source_while_first_is_held ... ok
+test node::vfs::ownerfs::native_home::regression_tests::native_home_anchor_does_not_authorize_child_open_or_data_after_revoke ... ok
+test node::vfs::ownerfs::native_home::regression_tests::native_home_anchor_ignores_non_root_parent_and_unknown_inode ... ok
+test node::vfs::ownerfs::bind_mount::linux::tests::authorized_workspace_rejects_ordinary_owner_and_non_fuse_parent ... ok
+test node::vfs::ownerfs::native_home::regression_tests::native_home_anchor_does_not_authorize_directory_data_after_revoke ... ok
+test node::vfs::ownerfs::native_home::regression_tests::native_home_authority_rejects_each_stored_grant_field_mutation ... ok
+test node::vfs::ownerfs::native_home::regression_tests::native_home_getattr_inode_none_on_open_unlinked_file_fails_after_revoke ... ok
+test node::vfs::ownerfs::native_home::regression_tests::native_home_authority_rejects_private_context_mutations ... ok
+test node::vfs::ownerfs::native_home::regression_tests::ordinary_getattr_inode_none_on_open_unlinked_file_keeps_existing_metadata_behavior ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_authority_exports_thread_namespace_and_cloned_source_descriptor ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_anchor_covers_only_root_metadata_until_authority_drops ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_authorized_bind_retains_file_and_mmap_until_normal_drain ... ignored, requires exact Linux ARM64 private namespace, root and /dev/fuse
+test node::vfs::ownerfs::native_home_tests::native_home_authority_fails_closed_after_source_replacement ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_authority_fails_closed_after_revoke_and_invalidate ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_cached_hardlink_lookup_rebinds_after_native_unlink ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_eligible_instance_uses_zero_ttl_from_first_reply ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_explicit_remote_constructor_is_eligible ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_real_covered_root_lifecycle ... ignored, requires exact Linux ARM64 private namespace, root and /dev/fuse
+test node::vfs::ownerfs::native_home_tests::native_home_authority_fails_closed_for_wrong_owner ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_workspace_bind_mount_core_covers_real_fuse_root_and_detaches_busy ... ignored, requires exact Linux ARM64 private namespace, root and /dev/fuse
+test node::vfs::ownerfs::native_home_tests::native_home_ordinary_instance_rejects_authority_and_keeps_private_cache ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_stale_full_grant_is_rejected ... ok
+test node::vfs::ownerfs::native_home_tests::native_home_fresh_lookup_after_native_rename_opens_observed_path ... ok
+test node::vfs::ownerfs::root::tests::active_meta_root_without_catalog_fails_closed ... ok
+test node::vfs::ownerfs::root::tests::activate_reply_loss_keeps_catalog_for_recovery ... ok
+test node::vfs::ownerfs::root::tests::foreign_home_revocation_is_false_and_does_not_touch_current_home ... ok
+test node::vfs::ownerfs::root::tests::home_revocation_fences_cached_peer_grants ... ok
+test node::vfs::ownerfs::root::tests::home_revocation_is_idempotent_after_match ... ok
+test node::vfs::ownerfs::root::tests::home_revocation_refuses_matching_active_home_without_waiting_for_rootuse ... ok
+test node::vfs::ownerfs::root::tests::home_revocation_wrong_tuple_and_missing_root_do_not_revoke_current_home ... ok
+test node::vfs::ownerfs::root::tests::invalidation_prevents_new_local_operations ... ok
+test node::vfs::ownerfs::root::tests::malformed_home_revocation_is_rejected_before_touching_current_home ... ok
+test node::vfs::ownerfs::root::tests::mismatched_node_session_never_enters_cache ... ok
+test node::vfs::ownerfs::root::tests::only_activated_root_with_requested_right_can_enter ... ok
+test node::vfs::ownerfs::root::tests::old_home_session_never_enters_new_process_cache ... ok
+test node::vfs::ownerfs::root::tests::peer_access_is_validated_once_then_cached ... ok
+test node::vfs::ownerfs::root::tests::pending_root_with_unexpected_file_fails_without_deleting_data ... ok
+test node::vfs::ownerfs::root::tests::private_foundation_journal_rejects_same_id_field_boundary_injection ... ok
+test node::vfs::ownerfs::root::tests::private_foundation_fences_cached_peer_grants_without_native_authority ... ok
+test node::vfs::ownerfs::root::tests::private_foundation_journal_records_exact_command_bytes ... ok
+test node::vfs::ownerfs::root::tests::private_foundation_refuses_new_admission_and_waits_for_ordinary_rootuse_drop ... ok
+test node::vfs::ownerfs::root::tests::watch_disconnect_blocks_new_admission_without_marking_revoke_ack_done ... ok
+test node::vfs::ownerfs::structural_index_invariants::g2_structural_collision_last_alias_of_winner_keeps_remaining_active_key ... ok
+test node::vfs::ownerfs::structural_index_invariants::g2_structural_collision_rebuild_winner_is_active_and_valid ... ok
+test node::vfs::ownerfs::structural_index_invariants::g2_structural_collision_winner_identity_change_restores_remaining_winner ... ok
+test node::vfs::ownerfs::structural_index_invariants::g2_structural_indexes_track_alias_churn_and_retained_records ... ok
+test node::vfs::ownerfs::structural_index_invariants::g2_structural_rename_overwrite_rebinds_surviving_destination_alias ... ok
+test node::vfs::ownerfs::root::tests::private_foundation_wrong_tuple_does_not_refuse_current_generation ... ok
+test node::vfs::ownerfs::structural_index_invariants::g2_structural_root_reincarnation_replaces_active_root_alias ... ok
+test node::vfs::ownerfs::structural_index_invariants::g2_structural_update_record_does_not_publish_inactive_identity ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_cross_root_identity_keeps_roots_independent ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_directory_rename_updates_cached_descendants ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_identity_change_rebuilds_identity_index ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_identity_collision_keeps_active_mapping_conservative ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_overwritten_destination_keeps_surviving_alias_canonical ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_remaining_alias_rebinds_then_last_alias_retires_identity ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_root_reincarnation_preserves_canonical_root_identity ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_same_inode_rename_noop_preserves_aliases ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_repeated_alias_churn_preserves_indexes ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_same_path_replacement_by_active_identity_moves_alias_only ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_same_path_replacement_preserves_retained_old_inode ... ok
+test node::vfs::ownerfs::structural_index_perf::g2_structural_sole_path_removal_retires_active_identity_but_retains_record ... ok
+test node::vfs::ownerfs::structural_index_perf::ignored_owner_structural_index_benchmark ... ignored, diagnostic benchmark; run on Linux ARM64 with --ignored --nocapture --test-threads=1
+test node::vfs::ownerfs::structural_index_perf::g2_structural_uncached_destination_subtree_cleanup_removes_cached_children ... ok
+test node::vfs::ownerfs::subtree_index_invariants::g2_subtree_index_matches_full_scan_for_boundaries_non_utf8_and_root ... ok
+test node::vfs::ownerfs::subtree_index_invariants::g2_subtree_index_survives_multi_root_rename_and_collision_rebuild ... ok
+test node::vfs::ownerfs::subtree_index_invariants::g2_subtree_index_survives_root_replacement_and_direct_rebuild ... ok
+test node::vfs::ownerfs::subtree_index_invariants::g2_subtree_index_tracks_rename_destination_purge_and_churn ... ok
+test node::vfs::ownerfs::subtree_index_perf::g2_subtree_component_boundary_keeps_sibling_prefixes ... ok
+test node::vfs::ownerfs::subtree_index_perf::g2_subtree_cross_root_same_names_are_isolated ... ok
+test node::vfs::ownerfs::subtree_index_perf::g2_subtree_nested_cached_canonical_alias_renames_with_subtree ... ok
+test node::vfs::ownerfs::subtree_index_perf::g2_subtree_directory_overwrite_keeps_hardlink_alias_canonical ... ok
+test node::vfs::ownerfs::subtree_index_perf::g2_subtree_uncached_source_purges_stale_destination_descendants ... ok
+test node::vfs::ownerfs::subtree_index_perf::g2_subtree_non_utf8_component_moves_only_component_subtree ... ok
+test node::vfs::ownerfs::subtree_index_perf::ignored_owner_subtree_index_benchmark ... ignored, draft diagnostic benchmark; run only after B2 parent freeze on Linux ARM64
+test node::vfs::ownerfs::root::tests::startup_finishes_cleanup_after_abort_commit ... ok
+test node::vfs::ownerfs::tests::fatal_sync_error_classification_keeps_retryable_errors_unpoisoned ... ok
+test node::vfs::ownerfs::tests::cached_root_entry_allocates_fresh_inode_when_active_root_identity_changes ... ok
+test node::vfs::ownerfs::tests::expired_peer_session_reaps_only_its_home_handles ... ok
+test node::vfs::ownerfs::tests::freshly_created_root_getattr_uses_real_directory_identity ... ok
+test node::vfs::ownerfs::root::tests::startup_cancels_each_pending_create_cut_without_exposing_a_root ... ok
+test node::vfs::ownerfs::tests::linux_fuse_owner_local_home_statfs_reports_backing_capacity ... ignored, requires Linux /dev/fuse, fusermount3 and python3
+test node::vfs::ownerfs::tests::getattr_without_fh_observes_held_unlinked_inode_not_reused_path ... ok
+test node::vfs::ownerfs::tests::home_handle_is_bound_to_its_peer_root_session_and_identity ... ok
+test node::vfs::ownerfs::tests::local_create_existing_does_not_reset_owner_or_mode ... ok
+test node::vfs::ownerfs::tests::local_and_peer_create_inherit_sgid_parent ... ok
+test node::vfs::ownerfs::tests::local_and_peer_rename_enforce_sticky_destination_victim ... ok
+test node::vfs::ownerfs::tests::local_directory_listing_uses_backend_entries ... ok
+
+running 1 test
+test node::vfs::ownerfs::tests::local_create_mkdir_and_mknod_preserve_kernel_filtered_modes ... ok
+
+running 1 test
+test node::vfs::ownerfs::tests::local_hardlink_refreshes_nlink_and_shares_data ... ok
+test node::vfs::ownerfs::tests::local_flush_after_write_reaches_file_data_sync ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 610 filtered out; finished in 0.00s
+
+test node::vfs::ownerfs::tests::local_flush_after_write_reaches_file_data_sync ... ok
+test node::vfs::ownerfs::tests::local_fdatasync_eio_poison_blocks_later_barriers_and_mutations ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 610 filtered out; finished in 0.01s
+
+test node::vfs::ownerfs::tests::local_home_statfs_authority_is_separate_from_posix_traversal_mode ... ok
+test node::vfs::ownerfs::tests::local_fdatasync_eio_poison_blocks_later_barriers_and_mutations ... ok
+test node::vfs::ownerfs::tests::local_home_statfs_reports_backing_capacity_and_root_fails_closed ... ok
+test node::vfs::ownerfs::tests::local_home_statfs_requires_root_read_right ... ok
+test node::vfs::ownerfs::tests::local_home_statfs_rejects_revoked_or_invalid_root_authority ... ok
+test node::vfs::ownerfs::tests::local_killpriv_preserves_sgid_without_group_execute ... ok
+test node::vfs::ownerfs::tests::local_killpriv_truncate_setattr_and_create_existing_clear_privilege_bits ... ok
+test node::vfs::ownerfs::tests::local_killpriv_write_clears_suid_and_executable_sgid_only_after_positive_write ... ok
+test node::vfs::ownerfs::tests::local_killpriv_zero_and_failed_writes_do_not_clear_privilege_bits ... ok
+test node::vfs::ownerfs::tests::local_non_user_xattr_does_not_disable_getxattr_operation ... ok
+test node::vfs::ownerfs::tests::local_mknod_fifo_records_special_metadata_and_permissions ... ok
+test node::vfs::ownerfs::tests::local_namespace_mutations_enforce_parent_permissions_and_sticky ... ok
+test node::vfs::ownerfs::tests::local_readonly_create_does_not_require_created_file_write_access ... ok
+
+running 1 test
+
+running 1 test
+test node::vfs::ownerfs::tests::local_rename_hardlink_to_itself_keeps_source_alias_cached ... ok
+test node::vfs::ownerfs::tests::local_rename_over_linked_destination_rebinds_surviving_alias ... ok
+test node::vfs::ownerfs::tests::local_osync_eio_poison_is_reported_by_followup_flush ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 610 filtered out; finished in 0.00s
+
+test node::vfs::ownerfs::tests::local_osync_eio_poison_is_reported_by_followup_flush ... ok
+test node::vfs::ownerfs::tests::local_root_and_file_round_trip_without_per_write_meta ... ok
+test node::vfs::ownerfs::tests::local_setattr_rejects_non_owner_chmod ... ok
+test node::vfs::ownerfs::tests::local_setattr_updates_mode_and_times ... ok
+test node::vfs::ownerfs::tests::local_odsync_write_reaches_file_data_sync_before_return ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 610 filtered out; finished in 0.02s
+
+test node::vfs::ownerfs::tests::local_odsync_write_reaches_file_data_sync_before_return ... ok
+test node::vfs::ownerfs::tests::local_symlink_readlink_roundtrip ... ok
+test node::vfs::ownerfs::tests::local_user_xattr_roundtrip_and_remove ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_01_root_use_zero_retains_real_local_file ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_02_release_clears_only_owned_file ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_03_opendir_releasedir_real_lifetime ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_05_real_remote_slot_grant_and_session_binding ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_04_append_writable_retains_real_handle ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_06_peer_home_reap_fences_before_zero ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_08_real_managed_lock_missing_generation_is_unknown ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_07_cached_peer_fence_is_non_authorizing ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_10_native_authority_real_anchor_drop ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_11_unobserved_native_and_kernel_classes_block_success ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_09_stale_tuple_and_other_root_isolation ... ok
+test node::vfs::ownerfs::tests::n2c_pf1_12_real_admitted_handle_insertion_race_fails_closed ... ok
+test node::vfs::ownerfs::tests::namespace_remove_checks_search_and_sticky_source_or_destination ... ok
+test node::vfs::ownerfs::tests::old_fd_survives_unlink_and_same_name_recreate ... ok
+test node::vfs::ownerfs::tests::owner_closed_scope_capacity_preserves_live_locks_and_cleanup ... ok
+test node::vfs::ownerfs::tests::owner_lock_interrupt_before_registration_and_closed_session_do_not_revive ... ok
+test node::vfs::ownerfs::tests::owner_cancelled_waits_do_not_leak_routed_slots ... ok
+test node::vfs::ownerfs::tests::owner_peer_waiter_scope_binds_root_epoch_and_process ... ok
+test node::vfs::ownerfs::tests::owner_locks_share_inode_identity_across_handles_and_unlink ... ok
+test node::vfs::ownerfs::tests::owner_remote_session_cleanup_retries_only_unacknowledged_targets ... ok
+test node::vfs::ownerfs::tests::owner_posix_fd_access_and_flock_conflict_namespaces_are_distinct ... ok
+test node::vfs::ownerfs::tests::peer_hardlink_uses_caller_permissions_and_refreshes_nlink ... ok
+test node::vfs::ownerfs::tests::peer_mknod_uses_caller_permissions_and_parent_identity ... ok
+test node::vfs::ownerfs::tests::peer_rename_hardlink_to_itself_keeps_source_alias_cached ... ok
+test node::vfs::ownerfs::tests::peer_namespace_mutations_enforce_parent_permissions_and_sticky ... ok
+test node::vfs::ownerfs::tests::peer_rename_over_linked_destination_rebinds_surviving_alias ... ok
+test node::vfs::ownerfs::tests::peer_rename_uncached_hardlink_destination_keeps_source_alias_cached ... ok
+test node::vfs::ownerfs::tests::peer_symlink_uses_caller_permissions_and_parent_identity ... ok
+test node::vfs::ownerfs::tests::peer_user_xattr_roundtrip_uses_original_caller_permissions ... ok
+test node::vfs::ownerfs::tests::remote_flush_hard_error_is_retained_by_caller_handle ... ok
+test node::vfs::ownerfs::tests::remote_flush_runs_once_after_write_and_release_only_cleans_up ... ok
+test node::vfs::ownerfs::tests::remote_fsync_hard_error_is_retained_by_caller_handle ... ok
+test node::vfs::ownerfs::tests::remote_home_statfs_fails_closed_until_ownerfiles_rpc_exists ... ok
+test node::vfs::ownerfs::tests::remote_lookup_refreshes_cached_grant_after_home_restart ... ok
+test node::vfs::ownerfs::tests::remote_open_receives_kernel_killpriv_cause ... ok
+test node::vfs::ownerfs::tests::remote_open_refreshes_cached_grant_after_home_restart ... ok
+test node::vfs::ownerfs::tests::remote_resize_flush_error_is_retained_by_caller_handle ... ok
+test node::vfs::ownerfs::tests::remote_resize_only_marks_handle_dirty_for_flush ... ok
+test node::vfs::ownerfs::tests::remote_write_receives_kernel_killpriv_cause ... ok
+test node::vfs::ownerfs::tests::rename_across_roots_returns_exdev_io_error ... ok
+test node::vfs::ownerfs::tests::rename_no_replace_moves_when_destination_absent_and_preserves_existing_destination ... ok
+test node::vfs::ownerfs::tests::rename_uncached_source_purges_cached_destination_path ... ok
+test node::vfs::ownerfs::tests::owner_blocked_lock_wakes_on_unlock_and_authority_invalidation ... ok
+test node::vfs::ownerfs::tests::setattr_authorization_allows_owner_uid_noop_and_member_chgrp ... ok
+test node::vfs::ownerfs::tests::renamed_directory_keeps_cached_descendant_inodes_at_new_path ... ok
+test node::vfs::ownerfs::tests::stale_open_with_truncate_does_not_modify_recreated_path ... ok
+test node::vfs::ownerfs::tests::startup_recovery_hydrates_root_entries_from_local_catalog ... ok
+test node::vfs::ownerfs::tests::write_sync_mode_distinguishes_odsync_from_osync ... ok
+test node::vfs::ownerfs::tests::writable_created_mode_zero_handle_can_ftruncate_but_readonly_cannot ... ok
+test node::vfs::ownerfs::tests::independent_remote_file_handles_write_without_global_owner_lock ... ok
+test node::vfs::ownerfs::tests::release_waits_for_same_handle_and_marks_it_closed ... ok
+
+test result: ok. 170 passed; 0 failed; 12 ignored; 0 measured; 429 filtered out; finished in 0.27s
+

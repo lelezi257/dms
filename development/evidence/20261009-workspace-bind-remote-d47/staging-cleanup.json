@@ -1,0 +1,47 @@
+{
+  "allocated_bytes": 47579136,
+  "files": 27,
+  "logical_bytes": 47527636,
+  "original_payload_and_failures_retained": true,
+  "status": "PASS",
+  "roles": {
+    "b": {
+      "allocated_bytes": 45056,
+      "available_bytes": 21320036352,
+      "files": 8,
+      "logical_bytes": 32182,
+      "scope": "only run-owned archive/restoration verified staging; prefix/state/logs/lifecycles retained",
+      "status": "PASS"
+    },
+    "build": {
+      "allocated_bytes": 15810560,
+      "logical_bytes": 15808368,
+      "status": "PASS"
+    },
+    "c": {
+      "allocated_bytes": 45056,
+      "available_bytes": 36878573568,
+      "files": 8,
+      "logical_bytes": 31854,
+      "scope": "only run-owned archive/restoration verified staging; prefix/state/logs/lifecycles retained",
+      "status": "PASS"
+    },
+    "ctl": {
+      "allocated_bytes": 15867904,
+      "available_bytes": 1976365056,
+      "files": 9,
+      "logical_bytes": 15846864,
+      "scope": "only run-owned archive/restoration verified staging; prefix/state/logs/lifecycles retained",
+      "status": "PASS"
+    },
+    "host": {
+      "allocated_bytes": 15810560,
+      "logical_bytes": 15808368,
+      "status": "PASS"
+    }
+  },
+  "full_receipt": {
+    "path": "evidence/afs-delivery/workspace-bind-remote-d47-20261009-r1/staging-cleanup.json",
+    "sha256": "1ad41300f3f15a26a11f6277f52aeda4649f8b45f2af3e4ff71a4ac74e0eb2fa"
+  }
+}

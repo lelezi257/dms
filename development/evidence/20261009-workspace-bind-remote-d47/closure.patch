@@ -1,0 +1,30 @@
+--- closure.py
++++ closure.py
+@@ -3,10 +3,10 @@
+ import argparse, hashlib, importlib.util, json, os, platform, stat, sys, traceback
+ from pathlib import Path
+ 
+-FIXTURE='workspace-bind-remote-ttl-20261008-r1'
++FIXTURE='owner-remote-write-bytes-20261008-r1'
+ V={'ctl':'/mnt/lima-afsctlstate','a':'/mnt/lima-afsadata','b':'/mnt/lima-afsbdata','c':'/mnt/lima-afscdata'}
+-HELPER_SHA='4f8e217a22d7ee71fd7dccd0153ed9867101f7b52dd88e99bf438c7a1a5119d9'
+-SOURCE='b80dab66e9d819cad821c9b30edbf97c795c0c3e'
++HELPER_SHA='6ab1982ace3c184df01a612951f05db67e33c3be87562a7ffb49b264afaccef2'
++SOURCE='d47eec28360ba60e92d95c9f0775c8ecce53ef2e'
+ def require(ok,why):
+  if not ok:raise ValueError(why)
+ def sha(p):
+@@ -40,11 +40,11 @@
+  require(platform.system()=='Linux' and platform.machine()=='aarch64' and os.geteuid()==0,'Linux ARM64 root required')
+  require(platform.node()=='lima-afs-accept-'+args.role,'wrong guest')
+  initial=read(args.initial_json);result['initial_sha256']=sha(args.initial_json);result['protected']=protected(initial,args.mode=='closed')
+- root=Path(V[args.role])/'afs-delivery'/FIXTURE;name='meta' if args.role=='ctl' else 'node';exe=root/'prefix/bin'/('afs-'+name);cfg=root/'etc'/(name+'.toml');m=tool(root);f=m.Fixture(args.role,FIXTURE,{'meta': '15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2', 'node': 'b3335fb29212802798e81a0bf8bd8f1c1421d5a0dcf605e8a7e3b59969050a86'},ceiling_bytes=(128 if args.role=='ctl' else 256)*2**20,floor_bytes=512*2**20 if args.role=='ctl' else 2**30 if args.role=='a' else 4*2**30)
++ root=Path(V[args.role])/'afs-delivery'/FIXTURE;name='meta' if args.role=='ctl' else 'node';exe=root/'prefix/bin'/('afs-'+name);cfg=root/'etc'/(name+'.toml');m=tool(root);f=m.Fixture(args.role,FIXTURE,{'meta': '650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58', 'node': 'd14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4'},ceiling_bytes=(256 if args.role=='ctl' else 512)*2**20,floor_bytes=512*2**20 if args.role=='ctl' else 2**30 if args.role=='a' else 4*2**30)
+  m.safe(cfg,root);m.safe(exe,root);m.validate_elf(exe,f.sha[name]);require(m.tomllib.loads(cfg.read_text())==f.expected(),'config not frozen exact R3')
+  es=exe.stat();result['frozen']={'root':str(root),'config':str(cfg),'config_sha256':sha(cfg),'executable':str(exe),'executable_sha256':sha(exe),'executable_dev':es.st_dev,'executable_ino':es.st_ino,'fixture_sha256':HELPER_SHA}
+  if args.mode=='capture':
+-  lifecycles=list((root/'run').glob(name+'.lifecycle.*'));require(len(lifecycles)==1,'not one fresh lifecycle');life=lifecycles[0];child=fields(life/'child');ready=fields(life/'ready')
++  lifecycles=list((root/'run').glob(name+'.lifecycle.*'));live_lifecycles=[p for p in lifecycles if (p/'child').exists() and (p/'ready').exists() and not (p/'exit').exists()];require(len(live_lifecycles)==1,'not one active lifecycle '+repr([str(p) for p in live_lifecycles]));life=live_lifecycles[0];child=fields(life/'child');ready=fields(life/'ready')
+   require(child.get('lifecycle')==str(life) and child.get('exe')==str(exe) and child.get('config')==str(cfg) and child.get('boot_id')==initial['boot_id'],'wrong lifecycle binding')
+   live=process(int(child['pid']));sup=process(int(child['supervisor_pid']));require(live['starttick']==child['start_ticks'] and live['exe']==str(exe) and live['sha256']==f.sha[name] and live['argv']==[str(exe),'--config',str(cfg),''] and live['ppid']==sup['pid'],'actual child mismatch')
+   require(ready=={'supervisor_pid':str(sup['pid'])} and '__supervise' in sup['argv'] and str(life) in sup['argv'] and str(exe) in sup['argv'] and str(cfg) in sup['argv'],'actual supervisor mismatch')

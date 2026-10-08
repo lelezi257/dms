@@ -1,0 +1,47 @@
+{
+  "raw_root": "evidence/afs-delivery/workspace-bind-remote-d47-20261009-r1",
+  "archive": {
+    "bytes": 226903,
+    "elf_excluded": true,
+    "files": 663,
+    "path": "evidence/archives/20261009-workspace-bind-remote-d47/records.tar.gz",
+    "sha256": "f783ca7245be10dad229e377c67932feffe0bcffe2ff6bd121ac66a9a0f44c41"
+  },
+  "selected_sources": {
+    "run.py": {
+      "path": "evidence/afs-delivery/workspace-bind-remote-d47-20261009-r1/run.py",
+      "sha256": "2f055d4b8b6dcd54d93d37c86c1454ace5b92dd6ca9a9684779cc29578619c83"
+    },
+    "collect.py": {
+      "path": "evidence/afs-delivery/workspace-bind-remote-d47-20261009-r1/collect.py",
+      "sha256": "8a28ee853a0634e006d13928da02a9c4c31404acc1ae5210041f10aefeee5081"
+    },
+    "audit.py": {
+      "path": "evidence/afs-delivery/workspace-bind-remote-d47-20261009-r1/audit.py",
+      "sha256": "435f6e37a7c686e5718a12437f06f0a635107e5ea924f4c17275e89dc4b62992"
+    },
+    "restore.py": {
+      "path": "evidence/afs-delivery/workspace-bind-remote-d47-20261009-r1/restore.py",
+      "sha256": "f5f5c4abcf83a1f443d15a8662236e99535ead920c11333a6fd69b679d494dc7"
+    },
+    "cleanup.py": {
+      "path": "evidence/afs-delivery/workspace-bind-remote-d47-20261009-r1/cleanup.py",
+      "sha256": "0812ff2a0222e1c97570f99ff5471fbc5777e32e4d3a1764c8e3ee4184d3e74d"
+    },
+    "archive-index.json": {
+      "path": "evidence/afs-delivery/workspace-bind-remote-d47-20261009-r1/archive-index.json",
+      "sha256": "1e33e198f7fe5807c6c435fc0d94738e58cc715778cb95285944f15e842deb3a"
+    },
+    "archive-restoration-command.json": {
+      "path": "evidence/afs-delivery/workspace-bind-remote-d47-20261009-r1/archive-restoration-command.json",
+      "sha256": "674e288ff6241ed1d056ca8ee79407dee02fed8166f0987ab1d2389d0fac05e2"
+    },
+    "staging-cleanup.json": {
+      "path": "evidence/afs-delivery/workspace-bind-remote-d47-20261009-r1/staging-cleanup.json",
+      "sha256": "1ad41300f3f15a26a11f6277f52aeda4649f8b45f2af3e4ff71a4ac74e0eb2fa"
+    }
+  },
+  "source_main": "94193b59068183c980f865d50dad57555e871bd5",
+  "not_in_git": "raw commands/logs, full inventory and ELF; fixed published package recovers excluded Meta",
+  "history": "original package/old tests/failures unchanged; no automatic inheritance"
+}

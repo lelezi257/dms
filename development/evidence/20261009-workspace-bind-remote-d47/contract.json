@@ -1,0 +1,54 @@
+{
+  "additional_bytes": {
+    "b": 268435456,
+    "c": 268435456,
+    "ctl": 134217728
+  },
+  "budgets": {
+    "b": 536870912,
+    "c": 536870912,
+    "ctl": 268435456
+  },
+  "candidate": {
+    "binaries": {
+      "afs-meta": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
+      "afs-node": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4"
+    },
+    "compiler_input_map": "ec7e2de5ea5e5b83883725fe4175b819af75cd4713c25e0479bb275ff5bab300",
+    "driver_sha256": "3a4f4bad37dbb305bd4bfd7083a74a80b536cc04719d93a783d74c9f50395d18",
+    "helper_hashes": {
+      "common": "d19937cac0146045eacd750c8a4465095ed76bc095e7d451b3e37fe329fa8153",
+      "driver": "3a4f4bad37dbb305bd4bfd7083a74a80b536cc04719d93a783d74c9f50395d18",
+      "inventory": "dc85fbd9a96d5f7079004d89c3f192e3bd4ea30ace6a6d8a3c55cad7627dba8b",
+      "observer": "cbdb5f39675e11c72d77650a9c1d7f326b40e684847141c1fa7dac3dc2a50e75",
+      "probe": "ba9d8a1b24eb06ca688f040d20029b7a49dfb7807da41431d6d1a3ef4154c70a"
+    },
+    "observer_sha256": "cbdb5f39675e11c72d77650a9c1d7f326b40e684847141c1fa7dac3dc2a50e75",
+    "package_name": "afs-0.1.0-g2-bind-d47eec2-linux-aarch64.tar.gz",
+    "package_sha256": "3c479347bd2e93a46f1aa484daf4901ae07bf818cbfbb5e7dc76ac506b574a89",
+    "packaging_inputs_sha256": "5b35f701982e452f83fb4ba98696a6d4fda22c7e0f555dde0e1a0bd18f99eaa0",
+    "source_commit": "d47eec28360ba60e92d95c9f0775c8ecce53ef2e"
+  },
+  "driver_sha256": "2f055d4b8b6dcd54d93d37c86c1454ace5b92dd6ca9a9684779cc29578619c83",
+  "exit": "all semantic operations PASS, exact three actual wait0, original protected process/mount inventory, original 64MiB payload identity/content retained, original stopped ELF/config/helper restored",
+  "floor_bytes": {
+    "b": 4294967296,
+    "c": 4294967296,
+    "ctl": 536870912
+  },
+  "g1": "8/8 CLOSED; unchanged",
+  "g2_original_counts": "12/0/15 unchanged",
+  "helper_sha256": {
+    "admission.py": "e6e0ad9428eebd72ebb5ab4a0f28f6985382684009b4a3669a3c58634e9bf905",
+    "closure.py": "2e2dfbb5ff905f46edfcc890b2f6b75cfb7d1ed75ce24bcb7943ba52278d46ae",
+    "owner_fixture.py": "6ab1982ace3c184df01a612951f05db67e33c3be87562a7ffb49b264afaccef2"
+  },
+  "log_cap_bytes": 67108864,
+  "performance": "NOT_MEASURED; historical d14+oldMeta measurements not relabelled",
+  "probe_sha256": "ba9d8a1b24eb06ca688f040d20029b7a49dfb7807da41431d6d1a3ef4154c70a",
+  "reused": "historical standards, bind eight small core cases, current-pair independent installed normal recovery; no replay",
+  "scope": "combined fs=all on Meta/B/C, B physical ext4 Home workspace bind ON, C remote FUSE; native/remote fresh-open grow/shrink/create/rename/delete, permissions and errno, normal all-stop",
+  "source_main": "94193b59068183c980f865d50dad57555e871bd5",
+  "task": "G2.12/G2.14/G2.15 current-pair functional regression",
+  "trace": false
+}

@@ -1,0 +1,22 @@
+[
+  {
+    "path": "evidence/afs-delivery/owner-remote-write-server-pair-20261008-r1/run-pair.py",
+    "sha256": "56b020465f4cc0b42e3988e67ef58bbda73af4cc452404ad396db894abb35a03"
+  },
+  {
+    "path": "evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/performance/paired_remote_read.py",
+    "sha256": "875fa5ff560dcaa9bfd8a060c230b02a732dfd62a4931f0f9ac19d3825d1e8d8"
+  },
+  {
+    "path": "evidence/afs-delivery/owner-remote-owned-write-20261008-r1/performance/owner_remote_owned_write.py",
+    "sha256": "2c2fb84966e1e193f60915c506fda10c69bfeba9dc331ca78f1d93fbe85b9d76"
+  },
+  {
+    "path": "source/development/acceptance/probes/workspace_remote.py",
+    "sha256": "ba9d8a1b24eb06ca688f040d20029b7a49dfb7807da41431d6d1a3ef4154c70a"
+  },
+  {
+    "path": "source/development/acceptance/probes/dfs_r3_fixture.py",
+    "sha256": "5cbae9bc10b2ecc5c268fd33114ed37e7b14473c70b17edfa01c5185ddf7c094"
+  }
+]

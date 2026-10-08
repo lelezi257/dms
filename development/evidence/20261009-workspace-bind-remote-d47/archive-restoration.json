@@ -1,0 +1,1 @@
+{"status": "PASS_ACTUAL_LINUX_ARCHIVE_RESTORATION", "archive_sha256": "f783ca7245be10dad229e377c67932feffe0bcffe2ff6bd121ac66a9a0f44c41", "restored_records": 662, "tool_deltas": 2, "tool_references": 5, "excluded_meta_recovered_from_published_package": true, "product_replayed": false}

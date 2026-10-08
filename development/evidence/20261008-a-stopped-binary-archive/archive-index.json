@@ -1,0 +1,88 @@
+{
+  "binary_archive": {
+    "path": "evidence/afs-delivery/a-stopped-binary-archive-20261008-r1/original-binaries.tar.gz",
+    "sha256": "b0a1584e8ee9002400897f6709053f848797666a8c84d321c052dde17e8aa674",
+    "bytes": 220499827,
+    "restored_on": "afs-build Linux ext4",
+    "restored_files": 4
+  },
+  "record_archive": {
+    "path": "evidence/afs-delivery/a-stopped-binary-archive-20261008-r1/maintenance-records.tar.gz",
+    "sha256": "01fded00c0337adfecacdea5416958c8c520dda55f98bd7c5c5ff929c262ddf0",
+    "bytes": 10941,
+    "members": [
+      {
+        "path": "archive.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "before.json",
+        "sha256": "6e98f74eeff257c715a075361182edcbdab1605b8e107e6d27f7a06c1e54ac95",
+        "bytes": 17413
+      },
+      {
+        "path": "before.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "before.stdout",
+        "sha256": "6e98f74eeff257c715a075361182edcbdab1605b8e107e6d27f7a06c1e54ac95",
+        "bytes": 17413
+      },
+      {
+        "path": "binary-manifest.json",
+        "sha256": "7e1a931ab69a9eb62e045569b45c2c88d435ef873084eacd087e565973b51e85",
+        "bytes": 1281
+      },
+      {
+        "path": "commands.json",
+        "sha256": "d13c4401a35bc6eda91dad3789ca0802d86224b28b33cdeaa96d19d35783d688",
+        "bytes": 429
+      },
+      {
+        "path": "inventory.py",
+        "sha256": "0b1a5d18e94f0d2bcb470a97697a1b590343617179a60f5bfa50d10c54bfa6c6",
+        "bytes": 3450
+      },
+      {
+        "path": "removal-result.json",
+        "sha256": "9dd15d19f03ab90193b2cbfcf25c996d90bb550ced3420f93822e2e3098ceec0",
+        "bytes": 22165
+      },
+      {
+        "path": "removal.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "removal.stdout",
+        "sha256": "9dd15d19f03ab90193b2cbfcf25c996d90bb550ced3420f93822e2e3098ceec0",
+        "bytes": 22165
+      },
+      {
+        "path": "remove.py",
+        "sha256": "acaae9be0a21b948c6df0d4f76989670fb7dcb9957672e6213e660d491f12f55",
+        "bytes": 2769
+      },
+      {
+        "path": "restore-result.json",
+        "sha256": "57910048df7a2476d7f3f4b251ec6966b193ce623d8aae918cf1d9e8083d0714",
+        "bytes": 1609
+      },
+      {
+        "path": "restore.py",
+        "sha256": "ec807be953c1c7d67db54d9bd367c7b9ff453782370cb77b6bde12f9e2d2301c",
+        "bytes": 2339
+      },
+      {
+        "path": "restore.stderr",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    ]
+  },
+  "restoration_mapping": "restore-map.json preserves each original absolute path, SHA, size, mode, uid/gid and prior inode. Original guest case roots contain ARCHIVED-BINARIES.json; original logs/config/state remain in place.",
+  "scripts": "Unique one-off maintenance scripts are retained in the external record archive by SHA; none added to product or copied into Git."
+}

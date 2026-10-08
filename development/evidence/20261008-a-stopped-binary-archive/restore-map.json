@@ -1,0 +1,50 @@
+[
+  {
+    "path": "/mnt/lima-afsadata/afs-delivery/p2-shutdown-v48/bin/afs-meta",
+    "bytes": 266263136,
+    "allocated": 266268672,
+    "dev": 64785,
+    "inode": 1577446,
+    "mode": 493,
+    "uid": 0,
+    "gid": 0,
+    "nlink": 1,
+    "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312"
+  },
+  {
+    "path": "/mnt/lima-afsadata/afs-delivery/p2-shutdown-v48/bin/afs-node",
+    "bytes": 296441824,
+    "allocated": 296448000,
+    "dev": 64785,
+    "inode": 1577444,
+    "mode": 493,
+    "uid": 0,
+    "gid": 0,
+    "nlink": 1,
+    "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39"
+  },
+  {
+    "path": "/mnt/lima-afsadata/afs-delivery/p2-shutdown-v48b/bin/afs-meta",
+    "bytes": 266263136,
+    "allocated": 266268672,
+    "dev": 64785,
+    "inode": 1577475,
+    "mode": 493,
+    "uid": 0,
+    "gid": 0,
+    "nlink": 1,
+    "sha256": "f96b6a06047da02bf186ea8d89457ee74c454d6c437915f5c32a20a9b909f312"
+  },
+  {
+    "path": "/mnt/lima-afsadata/afs-delivery/p2-shutdown-v48b/bin/afs-node",
+    "bytes": 296441824,
+    "allocated": 296448000,
+    "dev": 64785,
+    "inode": 1577473,
+    "mode": 493,
+    "uid": 0,
+    "gid": 0,
+    "nlink": 1,
+    "sha256": "f84b641409d1f60de5e811122f0e7e2694d31b581823d75b3406996a1b875f39"
+  }
+]

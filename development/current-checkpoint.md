@@ -1,3 +1,5 @@
+**环境维护（2026-10-08）：** [A四份旧ELF已完整归档并实际Linux恢复后移除](evidence/20261008-a-stopped-binary-archive/README.md)，实际可用1.50→2.55GiB；七memory Meta/FDB及原挂载/27非二进制文件身份保留。未改当前d14产品/候选/配置或运行测试；DFS原阻塞记录不改，暂缓决定不自动撤销，继续Owner远端。G1/G2验收计数不变。
+
 **G2.15 current retained candidate (2026-10-08):** Node d14e3182 /160-input map ec7e2de5 now matches current source. [One valid small WRITE pair](evidence/20261008-owner-remote-write-server-pair/README.md) retained under preset criteria; final MooseFS target pending. b80 trial remains a separate historical delivery.
 
 **当前出口（2026-10-08，G2.15）：** 远端写一次839→d14对照189.875→199.831MiB/s（+5.24%）、独立pwrite p95 7.050→6.951ms（-1.40%），达到测前保留线，Owner-only TCP公开API入站256KiB帧改动保留；p99+5.85%及轮次波动完整留数，不称稳定广泛提升。功能限定PASS／测量COMPLETE／正式Moose1.2/.8仍PENDING。 复用原64MiB同inode，B/C512MiB、ctl256MiB预算贯穿准入/运行/退出，采样峰值B264,790,016B、盘余21,269,839,872B，容量PASS；五actualwait0/原mount及保护进程不变。160输入与已过四测试/构建候选完全一致，Linux身份/fmt及537保存证据核验、1690raw+27guest实际恢复PASS；严格Clippy既有失败和19,493B/5ERRO/60WARN保留。无第三方/环境修补/新包；旧FAIL_BUDGET不改。G1历史8/8关闭、原G2仍12/0/15，DFS写按用户暂缓。下一Owner远端核心的一项剩余产品成本，复用有效基线、不重跑本项或扩资格矩阵。 [本轮版本与证据](evidence/20261008-owner-remote-write-server-pair/README.md)。

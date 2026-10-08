@@ -1,0 +1,16 @@
+{
+  "status": "PASS_ACTUAL_LINUX_RESTORE",
+  "system": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+  "archive_sha256": "bb136e8fbff8d37249431670334824980ed9ec065ecf13d704da8b8e63e816a6",
+  "counts": {
+    "raw_members": 100,
+    "guest_members": 93,
+    "compiler_files": 158,
+    "packaging_files": 13,
+    "qualified_tools_files": 2
+  },
+  "failed_audit_and_receipts_retained": true,
+  "no_product_reexecution": true,
+  "no_private_TLS_or_product_ELF_in_archive": true,
+  "temporary_restore_removed": true
+}

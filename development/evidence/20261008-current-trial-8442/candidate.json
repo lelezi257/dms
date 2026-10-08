@@ -1,0 +1,12 @@
+{
+  "source_commit": "8442b55ec25b018aad0898bd0f8679232e393f09",
+  "compiler_input_map": "d053a333988e9fa7fc11efc51b94a7272e841f26f3aca7351f64a015f160a16a",
+  "package_sha256": "31ba38e0d6a34431492b5994c2accbc91583131dcdfab90735fe05d2af9731bd",
+  "package_name": "afs-0.1.0-g2-main-8442b55-linux-aarch64.tar.gz",
+  "binaries": {
+    "afs-meta": "e2bbf9bcfa6d99e0674f8f55455441cfad3b5f154ac9b73862f7e48fe0ffd77b",
+    "afs-node": "2094eadc23cc8f57e165b080330686dbd8886f871ee3a9ddcaf61b09657660f0"
+  },
+  "driver_sha256": "d19937cac0146045eacd750c8a4465095ed76bc095e7d451b3e37fe329fa8153",
+  "observer_sha256": "6705d8030769b8860f481637a479675bbe31faafa80b437afc6b683fec1f9336"
+}

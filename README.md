@@ -1,5 +1,7 @@
 # AFS
 
+**当前普通default-OFF试用候选8442：** [安装与中心正常重启恢复证据](development/evidence/20261008-current-trial-8442/README.md)、[操作指南](docs/guides/trial.md)。正式性能与完整bind仍待验；新包不能继承f03标准/三副本实跑结论。
+
 AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [same-mount visibility and close-to-open consistency](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
 
 AFS has two backends:

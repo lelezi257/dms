@@ -1,0 +1,80 @@
+{
+  "candidate": {
+    "binaries": {
+      "afs-meta": "e2bbf9bcfa6d99e0674f8f55455441cfad3b5f154ac9b73862f7e48fe0ffd77b",
+      "afs-node": "2094eadc23cc8f57e165b080330686dbd8886f871ee3a9ddcaf61b09657660f0"
+    },
+    "compiler_input_map": "d053a333988e9fa7fc11efc51b94a7272e841f26f3aca7351f64a015f160a16a",
+    "driver_sha256": "d19937cac0146045eacd750c8a4465095ed76bc095e7d451b3e37fe329fa8153",
+    "observer_sha256": "6705d8030769b8860f481637a479675bbe31faafa80b437afc6b683fec1f9336",
+    "package_name": "afs-0.1.0-g2-main-8442b55-linux-aarch64.tar.gz",
+    "package_sha256": "31ba38e0d6a34431492b5994c2accbc91583131dcdfab90735fe05d2af9731bd",
+    "source_commit": "8442b55ec25b018aad0898bd0f8679232e393f09"
+  },
+  "capacity": {
+    "allocated_bytes": 235106304,
+    "ceiling_bytes": 536870912,
+    "floor_bytes": 1073741824,
+    "free_bytes": 6339956736,
+    "mount_tree_excluded": "/var/tmp/afs-current-trial-8442-20261008-r1/mount"
+  },
+  "checks": 43,
+  "fresh_runtime": true,
+  "local_file_meta_restarted": {
+    "meta_pid_after": 112669,
+    "meta_pid_before": 112024
+  },
+  "log_levels": {
+    "ERRO": 26,
+    "WARN": 12
+  },
+  "logs": {
+    "meta.log": {
+      "bytes": 599,
+      "sha256": "469a27cde80e9c3ee4e3c883ddf64a6d3b855f44f92fc7fdd7cc4d23bdf823ba"
+    },
+    "node.log": {
+      "bytes": 9709,
+      "sha256": "3869d9cb2f5439229ed22eb7d952316db282cf35c7fcebfd50a04e6586ef31fe"
+    }
+  },
+  "node_and_mounts_stable": true,
+  "not_full_posix": true,
+  "off_switches": {
+    "meta_native": false,
+    "meta_workspace_bind": false,
+    "node_native": false,
+    "node_workspace_bind": false
+  },
+  "package": {
+    "bytes": 14453702,
+    "dir_count": 6,
+    "file_count": 16
+  },
+  "performance_verdict": "PENDING_NO_COMPARATOR_OR_OPERATION_LATENCY",
+  "protected": {
+    "elfs": 50,
+    "mount_rows": 26,
+    "processes": 1
+  },
+  "r1_grpc_generated_and_effective": true,
+  "receipts": {
+    "receipt_count": 3,
+    "unique_pids": 6
+  },
+  "recovery_bytes_each": 67108864,
+  "runtime_text": {
+    "bytes": 256000,
+    "member_count": 93,
+    "sha256": "330e62018439048f7ac9e93101997ee1258d75afda9d85c99c08a734c364ca26"
+  },
+  "six_pids_gone": true,
+  "source_inputs": {
+    "compiler_files": 158,
+    "package_files": 13,
+    "packaging_source_commit": "e7bc3dce768573ee1798de68e355f12e1437426e"
+  },
+  "status": "PASS_INDEPENDENT_LINUX_STORED_AUDIT",
+  "system": "Linux-6.8.0-142-generic-aarch64-with-glibc2.39",
+  "three_actual_wait0": true
+}

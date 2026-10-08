@@ -1,0 +1,8 @@
+{
+  "status": "PASS_RESTORED_RETAINED_PRODUCTION",
+  "compiler_inputs": 160,
+  "map_sha256": "81c30c952df0da3d9411fa94839a3d6ed217dcada7ea15b541933b096c51c215",
+  "main": "7589acb2e2d796b8dbf6b4fdf297a78b4167bf3e",
+  "source_clean": true,
+  "prior_read_gain_unchanged": true
+}

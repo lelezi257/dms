@@ -1,0 +1,15 @@
+{
+  "status": "PASS_LINUX_RELEASE_BUILD_ONLY",
+  "source_base": "7589acb2e2d796b8dbf6b4fdf297a78b4167bf3e",
+  "source_identity": "7589acb2e2d796b8dbf6b4fdf297a78b4167bf3e+patch:854ec68fddb6330ba2b0382bf0ebf6b5794d546751546f27370bc3b2ee744fb8",
+  "compiler_inputs": 160,
+  "compiler_input_map": "ec7e2de5ea5e5b83883725fe4175b819af75cd4713c25e0479bb275ff5bab300",
+  "patch_sha256": "854ec68fddb6330ba2b0382bf0ebf6b5794d546751546f27370bc3b2ee744fb8",
+  "node_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-server-build-20261008-r1/candidate-node",
+  "afs_node_sha256": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+  "node_bytes": 25121416,
+  "baseline_node_sha256": "839e14d93e7fb50099988a739eaeba1fafbdce83860c0328b8c0b91f7b4e6063",
+  "performance": "NOT_RUN_PENDING_USER_FIXTURE_CHOICE",
+  "deployment": "NOT_RUN",
+  "retained_in_product": false
+}

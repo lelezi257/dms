@@ -1,6 +1,6 @@
 # G2.15 Owner-only server frame candidate — pending measurement
 
-**Source checks passed within scope; performance NOT_RUN; candidate not retained in production.** This is supporting work for G2.15, not a new closed product/performance item. [Frozen plan](frozen-plan.md), [provenance](provenance.json).
+**Source checks passed within scope; performance NOT_RUN; candidate not retained in production.** Subsequent [Linux release build](../20261008-owner-remote-write-server-build/README.md) produced a fixed ELF without deployment or measurement. This is supporting work for G2.15, not a new closed product/performance item. [Frozen plan](frozen-plan.md), [provenance](provenance.json).
 
 The single-file candidate uses public tonic `Server::max_frame_size(256*1024)` only for runtime `ownerfs && !dfs`, via a small builder helper shared with production Node startup. It applies to every RPC on that Owner-only TCP listener, including control requests; it is not a method-specific WRITE setting. DFS-only, combined and disabled profiles keep16KiB. TLS, UDS, Meta, windows, timeouts, peer pools, freshness, errors and fdatasync are unchanged. No dependency/vendor edits.
 

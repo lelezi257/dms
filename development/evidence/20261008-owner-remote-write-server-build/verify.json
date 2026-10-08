@@ -1,0 +1,16 @@
+{
+  "status": "PASS_LINUX_ELF_AND_RESTORED_INPUTS",
+  "linux": "Linux",
+  "arch": "aarch64",
+  "elf_machine": "AArch64",
+  "elf_bytes": 25121416,
+  "elf_sha256": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+  "restored_inputs": 160,
+  "restored_map_sha256": "81c30c952df0da3d9411fa94839a3d6ed217dcada7ea15b541933b096c51c215",
+  "build_disk": {
+    "total": 90407686144,
+    "used": 69668679680,
+    "free": 20722229248
+  },
+  "scope": "ELF/source identity only; no deployment or performance measurement"
+}

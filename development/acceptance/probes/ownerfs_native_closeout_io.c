@@ -12,7 +12,8 @@
 #include <unistd.h>
 
 /* Experimental buffered IO, fixed total bytes regardless of thread count.
- * Validation after a write is outside its timer; read comparison is inside.
+ * Per-operation intervals end after the syscall/count check, before content validation.
+ * Content validation remains required and is included in the whole-task timer.
  * One final file barrier is inside the task timer, after all threads join. */
 static int fd, threads, writing, random_io, byte_value;
 static uint64_t file_bytes, io_bytes, block_bytes, operations, *latencies;
@@ -41,8 +42,8 @@ static void *worker(void *argument) {
         ssize_t size = writing ? pwrite(fd, buffer, block_bytes, (off_t)offset(index))
                                : pread(fd, buffer, block_bytes, (off_t)offset(index));
         require(size == (ssize_t)block_bytes, "IO count");
-        if (!writing) require(!memcmp(buffer, expected, block_bytes), "read content");
         latencies[index] = now(CLOCK_MONOTONIC) - begin;
+        if (!writing) require(!memcmp(buffer, expected, block_bytes), "read content");
     }
     free(buffer); free(expected); return NULL;
 }
@@ -151,7 +152,7 @@ int main(int argc, char **argv) {
         /* Keep every observed interval for independent pooled percentiles.
          * Sorting and serialization are outside the measured IO task. */
         printf(",\"latency_interval\":\"%s\",\"latency_order\":\"sorted\",\"latency_samples_ns\":[",
-               writing ? "pwrite+count-check" : "pread+count+content-check");
+               writing ? "pwrite+count-check" : "pread+count-check");
         for (uint64_t index = 0; index < operations; ++index)
             printf("%s%llu", index ? "," : "", (unsigned long long)latencies[index]);
         printf("]");

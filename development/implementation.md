@@ -16,7 +16,7 @@ The [three-stage goal table](trial-release-goals.md) is authoritative. The finit
 
 OwnerFs workspace bind mount functionality and performance remain independent existing G2 tasks. Ordinary distribution config defaults OFF; the identified current trial provides explicit host ON steps. Never enable stale remote caching, weaken authority/permissions/errors/persistence or call a FUSE-self bind a bypass. No full POSIX or deferred combinations are inferred from finite ON success.
 
-**当前出口（2026-10-08，G2.23）：** DFS独立复制链最多四路并行候选完成受影响Linux检查/trace修正构建，但A盘启动前少540,160,000B，功能运行/测量NOT_RUN，性能BLOCKED/PENDING；未安装夹具或启动/停止旧服务，未改预算/修环境。按用户选择暂缓，生产复制代码恢复84af，完整补丁/ELF及144raw归档和实际Linux源码恢复保留，不能把代码/工具就绪算功能或性能通过。G1历史8/8关闭、原G2仍12/0/15，b80有限ON交付、READ+31.84%/DFS读+16%保持原身份；两个失败WRITE方向不重试。下一OwnerFs远端READ输出所有权一个成本，保留授权/校验/关闭语义，不扩矩阵。[版本、阻塞、恢复和下一项](evidence/20261008-dfs-replica-batch-parallel/README.md)。
+**当前出口（2026-10-08，G2.14）：** bind ON远端READ输出所有权单次64MiB/C1试改，吞吐366.844→360.850MiB/s（-1.63%），独立pread p95 5.630→5.339ms（-5.16%），未过测前双保留线；限定功能PASS/测量COMPLETE/优化REJECTED，四产品文件恢复main原160输入，补丁/tests/ELF及负面数据可恢复。不重跑此方向。仅合入独立时延探针边界修正及对应维护工具/测试；历史含oracle时延不重标。DFS容量项按用户选择暂缓，G1历史8/8关闭、原G2仍12/0/15，b80 ON交付及既有READ/DFS读改善保持原身份，正式Moose/3FS仍待验。下一定位远端请求/服务处理主要成本，不重复复制微调。[版本、测量和恢复证据](evidence/20261008-owner-remote-read-payload/README.md)。
 
 ## Architecture boundaries
 

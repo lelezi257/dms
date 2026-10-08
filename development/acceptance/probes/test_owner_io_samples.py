@@ -62,7 +62,7 @@ class IoSamples(unittest.TestCase):
         result = self.run_probe("samples", cache="hot")
         self.assertEqual(result.returncode, 0, result.stderr)
         value = json.loads(result.stdout)
-        self.check_samples(value, "pread+count+content-check")
+        self.check_samples(value, "pread+count-check")
         self.assertTrue(value["residency_observed"])
         self.assertEqual(value["resident_before_bytes"], 1048576)
         self.assertEqual(value["cache_requested"], "hot")

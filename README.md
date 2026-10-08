@@ -1,6 +1,6 @@
 # AFS
 
-**当前交付：bind ON有限场景试用已发布。** [ON试用包](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6)及[启用/支持范围](docs/guides/trial.md)保持b80身份；G2.12有限出口关闭。[保留的远端READ优化](development/evidence/20261008-owner-remote-read-bytes/README.md)吞吐+31.84%，[DFS读优化](development/evidence/20261008-dfs-read-version-cache/README.md)B/C约+16%，正式Moose/3FS性能仍待验。两个WRITE复制试改已失败撤回并保留数据；[DFS写并行候选](development/evidence/20261008-dfs-replica-batch-parallel/README.md)在容量启动前阻塞，按用户选择暂缓并恢复生产。下一OwnerFs远端READ输出所有权；普通本地FUSE及复杂可靠性后置。G1历史8/8保持关闭，不把构建或整理证据当作产品验收完成。
+**当前交付：bind ON有限场景试用已发布。** [b80 ON试用](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6)保持原身份；G2.12有限出口关闭。既有远端READ+31.84%、DFS读约+16%限定保留；[最新远端READ输出所有权候选](development/evidence/20261008-owner-remote-read-payload/README.md)单次吞吐-1.63%/独立p95-5.16%，未过预设保留线已撤回，结果及可恢复源码保留，不重跑此方向。DFS写对照因容量按用户选择暂缓。正式Moose双目标/3FS仍待验，下一远端请求/服务成本；G1历史8/8关闭，普通本地及复杂可靠性后置。
 
 AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [same-mount visibility and close-to-open consistency](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
 

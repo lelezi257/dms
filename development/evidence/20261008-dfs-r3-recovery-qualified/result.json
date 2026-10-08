@@ -1,0 +1,361 @@
+{
+  "status": "PASS_SAVED_LIMITED_NORMAL_R3_RECOVERY",
+  "checks_passed": 506,
+  "current_runtime_status": "PASS_LIMITED_NORMAL_R3_RECOVERY",
+  "prior_runtime_status": "FAIL",
+  "post_restart_readers": 3,
+  "actual_wait0_incarnations": 5,
+  "protected_processes": 12,
+  "log_rows": [
+    {
+      "role": "ctl",
+      "path": "logs/meta.log",
+      "start_byte": 888,
+      "whole_bytes": 1480,
+      "new_bytes": 592,
+      "ERRO": 0,
+      "WARN": 0,
+      "TRACE": 0
+    },
+    {
+      "role": "a",
+      "path": "logs/node.log",
+      "start_byte": 3788,
+      "whole_bytes": 6213,
+      "new_bytes": 2425,
+      "ERRO": 0,
+      "WARN": 9,
+      "TRACE": 0
+    },
+    {
+      "role": "b",
+      "path": "logs/node.log",
+      "start_byte": 3287,
+      "whole_bytes": 5982,
+      "new_bytes": 2695,
+      "ERRO": 0,
+      "WARN": 9,
+      "TRACE": 0
+    },
+    {
+      "role": "c",
+      "path": "logs/node.log",
+      "start_byte": 3020,
+      "whole_bytes": 5446,
+      "new_bytes": 2426,
+      "ERRO": 0,
+      "WARN": 9,
+      "TRACE": 0
+    }
+  ],
+  "sampled_peak_allocated_bytes": 600387584,
+  "not_crash_or_performance_qualification": true,
+  "checks_index": {
+    "archive_member": "audit-result.json",
+    "sha256": "b9ef1bff17b440ce0dffe61ccf091f2f64644be3b3673febf99af56835252f4c",
+    "checks": 506
+  },
+  "runtime": {
+    "status": "PASS_LIMITED_NORMAL_R3_RECOVERY",
+    "failure": null,
+    "closed_roles": {
+      "c": "PASS",
+      "b": "PASS",
+      "a": "PASS",
+      "ctl": "PASS"
+    },
+    "identity": {
+      "product_source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+      "compiler_input_map": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
+      "afs_meta_sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+      "afs_node_sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+      "io_sha256": "c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804"
+    },
+    "not_crash_or_performance": true
+  },
+  "prior_failed_runtime": {
+    "archive": {
+      "archive_path": "evidence/afs-delivery/dfs-r3-meta-recovery-f03-20261008-r1/raw-records.tar.gz",
+      "archive_sha256": "24e433e87e886764d880adb4ba0c838d182b6d781c64025bccb221379519df60",
+      "archive_bytes": 383410,
+      "member_count": 600,
+      "member_bytes": 1871918,
+      "members_path": "evidence/afs-delivery/dfs-r3-meta-recovery-f03-20261008-r1/raw-members.json",
+      "members_sha256": "fa586ae8c172eb34a141c1bd86ed17e01b6252eb437aad658c8424100b36d191",
+      "nested_guest_records": "audit-result.json guest_records; four original gzip exports",
+      "includes": "first FAIL, runtime commands and results, post-closure WAL/catalog metadata, log originals, actual closures, all first failed script variants via small reversible delta",
+      "excludes": "payload, ELF, TLS private keys, VM images, duplicate maintained tool copies",
+      "not_data_volume_backup": true,
+      "parent_archive": "parent-evidence.json"
+    },
+    "runtime": {
+      "status": "FAIL",
+      "failure": {
+        "error": "RuntimeError('ctl-after-restart-meta rc=1 ')",
+        "traceback": "Traceback (most recent call last):\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-meta-recovery-f03-20261008-r1/host.py\", line 61, in run\n    replicas('after-restart');readers('after-restart');budget('after-restart')\n    ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-meta-recovery-f03-20261008-r1/host.py\", line 16, in replicas\n    root=ROOT['ctl'];m=json.loads(h.vm('ctl',label+'-meta',['python3','-B',root+'/stage/replica-check.py','meta','--meta-store',root+'/state/meta/meta-store']));save(label+'-meta.json',m);assert m['status']=='PASS';reports={}\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-multinode-7e6-20261007-r1/host-run.py\", line 18, in vm\n    def vm(role,name,args,**kw):return record(role+'-'+name,['limactl','shell','--workdir=/','afs-accept-'+role,'sudo',*args],**kw)\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-multinode-7e6-20261007-r1/host-run.py\", line 16, in record\n    if check and r.returncode:raise RuntimeError(name+' rc='+str(r.returncode)+' '+r.stderr.decode(errors='replace')[-2000:])\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: ctl-after-restart-meta rc=1 \n"
+      },
+      "closed_roles": {
+        "c": "PASS",
+        "b": "PASS",
+        "a": "PASS",
+        "ctl": "PASS"
+      },
+      "identity": {
+        "product_source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+        "compiler_input_map": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
+        "afs_meta_sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+        "afs_node_sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+        "io_sha256": "c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804"
+      },
+      "not_crash_or_performance": true
+    },
+    "restore": {
+      "status": "PASS_ACTUAL_LINUX_RESTORE",
+      "outer_files_extracted_and_sha_checked": 600,
+      "guest_records_extracted_and_sha_checked": 51,
+      "failed_scripts_reconstructed_and_sha_checked": 2,
+      "new_maintained_tool_versions_reconstructed_and_sha_checked": 2,
+      "archive_sha256": "24e433e87e886764d880adb4ba0c838d182b6d781c64025bccb221379519df60",
+      "payload_excluded_preserved_on_original_VMs": true
+    }
+  },
+  "budgets": {
+    "admission": {
+      "total": 594608128,
+      "roles": {
+        "ctl": {
+          "allocated_bytes": 100491264,
+          "free_bytes": 3055321088,
+          "ceiling_bytes": 134217728,
+          "floor_bytes": 536870912
+        },
+        "a": {
+          "allocated_bytes": 164700160,
+          "free_bytes": 1936846848,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 1073741824
+        },
+        "b": {
+          "allocated_bytes": 164708352,
+          "free_bytes": 23270604800,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        },
+        "c": {
+          "allocated_bytes": 164708352,
+          "free_bytes": 38359048192,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        }
+      }
+    },
+    "before-start": {
+      "total": 594608128,
+      "roles": {
+        "ctl": {
+          "allocated_bytes": 100491264,
+          "free_bytes": 3055321088,
+          "ceiling_bytes": 134217728,
+          "floor_bytes": 536870912
+        },
+        "a": {
+          "allocated_bytes": 164700160,
+          "free_bytes": 1936846848,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 1073741824
+        },
+        "b": {
+          "allocated_bytes": 164708352,
+          "free_bytes": 23270604800,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        },
+        "c": {
+          "allocated_bytes": 164708352,
+          "free_bytes": 38359048192,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        }
+      }
+    },
+    "before-restart": {
+      "total": 597680128,
+      "roles": {
+        "ctl": {
+          "allocated_bytes": 102596608,
+          "free_bytes": 3053215744,
+          "ceiling_bytes": 134217728,
+          "floor_bytes": 536870912
+        },
+        "a": {
+          "allocated_bytes": 165027840,
+          "free_bytes": 1936519168,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 1073741824
+        },
+        "b": {
+          "allocated_bytes": 165027840,
+          "free_bytes": 23270285312,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        },
+        "c": {
+          "allocated_bytes": 165027840,
+          "free_bytes": 38358728704,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        }
+      }
+    },
+    "after-restart": {
+      "total": 600371200,
+      "roles": {
+        "ctl": {
+          "allocated_bytes": 104329216,
+          "free_bytes": 3051483136,
+          "ceiling_bytes": 134217728,
+          "floor_bytes": 536870912
+        },
+        "a": {
+          "allocated_bytes": 165347328,
+          "free_bytes": 1936199680,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 1073741824
+        },
+        "b": {
+          "allocated_bytes": 165347328,
+          "free_bytes": 23269965824,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        },
+        "c": {
+          "allocated_bytes": 165347328,
+          "free_bytes": 38358409216,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        }
+      }
+    },
+    "final": {
+      "total": 600387584,
+      "roles": {
+        "ctl": {
+          "allocated_bytes": 104333312,
+          "free_bytes": 3051479040,
+          "ceiling_bytes": 134217728,
+          "floor_bytes": 536870912
+        },
+        "a": {
+          "allocated_bytes": 165351424,
+          "free_bytes": 1936195584,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 1073741824
+        },
+        "b": {
+          "allocated_bytes": 165351424,
+          "free_bytes": 23269961728,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        },
+        "c": {
+          "allocated_bytes": 165351424,
+          "free_bytes": 38358405120,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        }
+      }
+    }
+  },
+  "capture_summary": {
+    "before-restart": {
+      "authority_at_unix_ms": 1791419250492,
+      "meta_version": 27,
+      "historical_receipts": 51,
+      "serving_nodes": {
+        "dfs-a-r3": {
+          "lease_epoch": 3,
+          "expires_at_unix_ms": 1791419278878,
+          "storage_devices": [
+            {
+              "catalog_revision": 8,
+              "device_epoch": 1791410307411919418,
+              "device_id": "local-0",
+              "failure_domain": "dfs-a-r3"
+            }
+          ]
+        },
+        "dfs-b-r3": {
+          "lease_epoch": 3,
+          "expires_at_unix_ms": 1791419279685,
+          "storage_devices": [
+            {
+              "catalog_revision": 16,
+              "device_epoch": 1791410308327492389,
+              "device_id": "local-0",
+              "failure_domain": "dfs-b-r3"
+            }
+          ]
+        },
+        "dfs-c-r3": {
+          "lease_epoch": 3,
+          "expires_at_unix_ms": 1791419280054,
+          "storage_devices": [
+            {
+              "catalog_revision": 16,
+              "device_epoch": 1791410308671922507,
+              "device_id": "local-0",
+              "failure_domain": "dfs-c-r3"
+            }
+          ]
+        }
+      },
+      "file_version_id": "819dd726-74bc-44ca-9759-01369ff70524-version-11",
+      "layout_root_id": "819dd726-74bc-44ca-9759-01369ff70524-layout-11"
+    },
+    "after-restart": {
+      "authority_at_unix_ms": 1791419267127,
+      "meta_version": 32,
+      "historical_receipts": 54,
+      "serving_nodes": {
+        "dfs-a-r3": {
+          "lease_epoch": 3,
+          "expires_at_unix_ms": 1791419288915,
+          "storage_devices": [
+            {
+              "catalog_revision": 8,
+              "device_epoch": 1791410307411919418,
+              "device_id": "local-0",
+              "failure_domain": "dfs-a-r3"
+            }
+          ]
+        },
+        "dfs-b-r3": {
+          "lease_epoch": 3,
+          "expires_at_unix_ms": 1791419289737,
+          "storage_devices": [
+            {
+              "catalog_revision": 16,
+              "device_epoch": 1791410308327492389,
+              "device_id": "local-0",
+              "failure_domain": "dfs-b-r3"
+            }
+          ]
+        },
+        "dfs-c-r3": {
+          "lease_epoch": 3,
+          "expires_at_unix_ms": 1791419290108,
+          "storage_devices": [
+            {
+              "catalog_revision": 16,
+              "device_epoch": 1791410308671922507,
+              "device_id": "local-0",
+              "failure_domain": "dfs-c-r3"
+            }
+          ]
+        }
+      },
+      "file_version_id": "819dd726-74bc-44ca-9759-01369ff70524-version-11",
+      "layout_root_id": "819dd726-74bc-44ca-9759-01369ff70524-layout-11"
+    }
+  }
+}

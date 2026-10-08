@@ -1,0 +1,20 @@
+{
+  "new_tools": {
+    "dfs_r3_recovery.py": "f8f02eac9df7207051e7f44d96cc8c629ccdf00b53a8e0b6db8d3612b2d551f9",
+    "test_dfs_r3_recovery.py": "77b7c9422026971e6d356807e9ae247f5af7d3025a4f4ccaf38e7ba3980f0a27",
+    "dfs_r3_replica.py": "692a92f3ee050ebe15322ed2d0e54ece63c6baf355c6e8bbafca398f90c37cd5",
+    "test_dfs_r3_replica.py": "4ad6e86cffab2ba0c1106e9944d81be78587565865b5fd2d319319345d22f524",
+    "probes/dfs_r3_fixture.py": "5816c9e4022a05d7a1665d90694c022e08dc6341615fc01c425cc7d235c66929"
+  },
+  "existing_tools": {
+    "dfs_r3_small.py": "2ffb043d15f00312be2898aa48f8959c9970ae8b07ff10d5d86520514221bd2e",
+    "dfs_manyread_small.py": "e0875b743eea419ee27bc9df5677f0af421d70f590076d44e13b79b6d38248c8",
+    "dfs_r3_fixture.py": "5816c9e4022a05d7a1665d90694c022e08dc6341615fc01c425cc7d235c66929",
+    "orderly-runtime-checks.py": "538122ed608735cfe11cfc89667a4ab28b2855cefeb62394596725289df4d957",
+    "dfs_unique_io": "c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804"
+  },
+  "observer": {
+    "closure-check.py": "2d2f0d0912c1b2efec94515af7b775d78f9f153149e84d0c396d6195092b0cd8",
+    "replica-check.py": "6da949960e82a9a756a285e8aa2378f81635588e12f5e0820556b4bee14d2d05"
+  }
+}

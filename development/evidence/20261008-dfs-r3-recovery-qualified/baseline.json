@@ -1,0 +1,12 @@
+{
+  "status": "EXPECTED_RED_LINUX_REGRESSION",
+  "observer_sha256": "6da949960e82a9a756a285e8aa2378f81635588e12f5e0820556b4bee14d2d05",
+  "original_observer_path": "evidence/afs-delivery/dfs-r3-sync-f03-20261008-r1/replica-check.py",
+  "tests_sha256": "89fdba35efa8f12db207dce9f53e399167d85cbd054c03cc3fd9eccebd37a7c6",
+  "distinct_tests": 9,
+  "rc": 1,
+  "failures": 10,
+  "errors": 3,
+  "raw_stdout": "guards-before.stdout",
+  "raw_stderr": "guards-before.stderr"
+}

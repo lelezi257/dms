@@ -1,0 +1,17 @@
+{
+  "new-meta": {
+    "path": "/var/tmp/afs-dfs-create-contention-20261007-r1/target/release/afs-meta",
+    "sha256": "50350b4c18bba79713dff7edab3b41420f5f4988b2e3b861d3e0255308ad3c27",
+    "bytes": 15883696
+  },
+  "new-node": {
+    "path": "/var/tmp/afs-dfs-create-contention-20261007-r1/target/release/afs-node",
+    "sha256": "e5a24a56289b8a96bbff1825a636548e6de05037f5c76904ba78b8a4c4f3038d",
+    "bytes": 25135344
+  },
+  "issuer": {
+    "path": "/var/tmp/afs-dfs-create-contention-20261007-r1/target/release/examples/afs-root-command-meta",
+    "sha256": "1fb59423036416714be1be8e2e64ceb4431af388c1b114f3122ae57f2fb87b5a",
+    "bytes": 14252328
+  }
+}

@@ -1,0 +1,277 @@
+{
+  "classification": {
+    "current_needs_regression": [
+      "Any claim that the 8442 package/ELFs themselves passed DFS R3 one-writer/two-reader or R3 Meta-only restart requires a current run. Existing 8442 evidence is R1/local-file/gRPC/OFF install and 64MiB recovery, not R3."
+    ],
+    "do_not_upgrade": [
+      "Do not upgrade to current8442 R3 PASS, full POSIX, performance, 3FS parity, simultaneous syscall overlap, crash durability, large/long case, or full E2E completion."
+    ],
+    "history_actual_PASS": [
+      "f03 DFS synchronous one-writer/two-reader functional/content/closure proof",
+      "f03 DFS R3 normal Meta-only restart/readback proof"
+    ],
+    "limited_reusable_for_8442": [
+      "The historical DFS R3 proofs remain usable as unchanged DFS implementation evidence and as scoped support for G2.21/G2.08 reasoning because relevant DFS/protocol/local-file files are unchanged and f03→8442 changes are ownerfs/control/example-only for this path. They should be cited with original f03 package/ELF identity."
+    ]
+  },
+  "current_8442_evidence": {
+    "affected_RootCommand_RootManager_tests": {
+      "classification": "current_actual_PASS_for_changed_ownerfs/control_surface_not_DFS_R3_runtime",
+      "readme_scope": "59 scoped Rust tests: 21 batch/control/store, 22 RootManager, 2 worker, 8 Meta contracts, 4 issuer, 2 certificate; plus receipt guards per README",
+      "saved_data_audit": {
+        "checks": 46,
+        "driver_checks": 58,
+        "status": "PASS"
+      }
+    },
+    "default_OFF_install_and_R1_recovery": {
+      "candidate": {
+        "binaries": {
+          "afs-meta": "e2bbf9bcfa6d99e0674f8f55455441cfad3b5f154ac9b73862f7e48fe0ffd77b",
+          "afs-node": "2094eadc23cc8f57e165b080330686dbd8886f871ee3a9ddcaf61b09657660f0"
+        },
+        "compiler_input_map": "d053a333988e9fa7fc11efc51b94a7272e841f26f3aca7351f64a015f160a16a",
+        "driver_sha256": "d19937cac0146045eacd750c8a4465095ed76bc095e7d451b3e37fe329fa8153",
+        "observer_sha256": "6705d8030769b8860f481637a479675bbe31faafa80b437afc6b683fec1f9336",
+        "package_name": "afs-0.1.0-g2-main-8442b55-linux-aarch64.tar.gz",
+        "package_sha256": "31ba38e0d6a34431492b5994c2accbc91583131dcdfab90735fe05d2af9731bd",
+        "source_commit": "8442b55ec25b018aad0898bd0f8679232e393f09"
+      },
+      "checks": 43,
+      "classification": "current_actual_PASS_but_R1_only_not_R3",
+      "local_file_meta_restarted": {
+        "meta_pid_after": 112669,
+        "meta_pid_before": 112024
+      },
+      "not_full_posix": true,
+      "off_switches": {
+        "meta_native": false,
+        "meta_workspace_bind": false,
+        "node_native": false,
+        "node_workspace_bind": false
+      },
+      "r1_grpc_generated_and_effective": true,
+      "receipts": {
+        "receipt_count": 3,
+        "unique_pids": 6
+      },
+      "recovery_bytes_each": 67108864,
+      "status": "PASS_INDEPENDENT_LINUX_STORED_AUDIT"
+    },
+    "trusted_prior_standard_impact_boundary": {
+      "classification": "read_for_boundary_only_not_recomputed",
+      "off_path_risk": "low_to_moderate: RootCommand watcher is ON-gated, but RootManager admission code is common and must be considered affected; targeted RootManager/RootCommand tests already cover the new guards",
+      "status": "PASS_READONLY_IMPACT_REVIEW"
+    }
+  },
+  "evidence_refs": [
+    "source/development/evidence/20261008-dfs-r3-sync/README.md",
+    "source/development/evidence/20261008-dfs-r3-sync/result.json",
+    "source/development/evidence/20261008-dfs-r3-sync/source-check.json",
+    "source/development/evidence/20261008-dfs-r3-recovery-qualified/README.md",
+    "source/development/evidence/20261008-dfs-r3-recovery-qualified/result.json",
+    "source/development/evidence/20261008-dfs-r3-recovery-qualified/source-check.json",
+    "source/development/evidence/20261008-current-trial-8442/README.md",
+    "source/development/evidence/20261008-current-trial-8442/independent-stored-audit.json",
+    "source/development/evidence/20261008-workspace-bind-root-command/README.md",
+    "evidence/afs-delivery/standard-impact-8442-20261008-r1/impact-review.json",
+    "source/development/trial-release-goals.md:G2.08/G2.21 entries",
+    "source/development/issues.md:CHECKPOINT-05/CHECKPOINT-06"
+  ],
+  "historical_proofs": {
+    "f03_R3_Meta_only_restart": {
+      "classification": "history_actual_PASS_and_limited_reusable_for_unchanged_normal_Meta_restart_semantics",
+      "config_semantics": [
+        "fixed f03/7bfc installed release",
+        "local-file Meta",
+        "bind/workspace switches OFF",
+        "original dfs-r3-sync VM/data/config/ELF reused",
+        "Meta-only normal restart; Node/supervisor/mount/UDS identities unchanged"
+      ],
+      "not_reused_as": [
+        "crash/power-loss durability",
+        "complete ReplicaAck history",
+        "current8442_R3 runtime PASS",
+        "full POSIX",
+        "3FS/performance qualification"
+      ],
+      "result_summary": {
+        "actual_wait0_incarnations": 5,
+        "after_restart_serving_nodes": [
+          "dfs-a-r3",
+          "dfs-b-r3",
+          "dfs-c-r3"
+        ],
+        "before_restart_serving_nodes": [
+          "dfs-a-r3",
+          "dfs-b-r3",
+          "dfs-c-r3"
+        ],
+        "checks_passed": 506,
+        "final_total_allocated_bytes": 600387584,
+        "post_restart_readers": 3,
+        "runtime_status": "PASS_LIMITED_NORMAL_R3_RECOVERY",
+        "status": "PASS_SAVED_LIMITED_NORMAL_R3_RECOVERY"
+      },
+      "source_identity": {
+        "afs_meta_sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+        "afs_node_sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+        "compiler_input_map": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
+        "io_sha256": "c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804",
+        "product_source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c"
+      }
+    },
+    "f03_sync_dual_reader": {
+      "classification": "history_actual_PASS_and_limited_reusable_for_unchanged_DFS_R3_content_semantics",
+      "config_semantics": [
+        "fixed f03/7bfc ordinary package",
+        "local-file Meta",
+        "default OFF",
+        "synchronous desired3/sync3/distinct R3 gRPC DFS",
+        "single 64MiB counter file",
+        "A writer confirmed after fdatasync/close and directory fsyncs; B/C read same confirmed file"
+      ],
+      "not_reused_as": [
+        "current8442_R3_runtime_PASS",
+        "simultaneous syscall overlap proof",
+        "3FS performance parity",
+        "per-operation latency qualification",
+        "large/long/crash reliability"
+      ],
+      "result_summary": {
+        "actual_wait0": 4,
+        "bytes": 67108864,
+        "checks": 288,
+        "distinct_chunks": 16,
+        "joint_dispatch_rounds": 5,
+        "limits": [
+          "joint dispatch verified; actual cross-VM syscall interval overlap unobserved",
+          "cache and RPC topology unqualified",
+          "no per-operation arrays or p50/p95/p99",
+          "no qualifying 3FS comparator; timings diagnostic only",
+          "three VMs share one physical host",
+          "no crash/restart/large/long acceptance claim"
+        ],
+        "physical_observations": 48,
+        "status": "PASS_LIMITED_SYNC_CONTENT_AND_CLOSURE_AUDIT"
+      },
+      "source_identity": {
+        "afs_meta_sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+        "afs_node_sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+        "compiler_input_map": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
+        "io_sha256": "c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804",
+        "product_source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c"
+      }
+    }
+  },
+  "recommended_next_smallest_followup": {
+    "needed_only_if": "the project needs a current-8442 R3 label rather than limited historical reuse",
+    "stop_condition": "If the bounded run passes, record current8442 limited R3 functional+normal-Meta-restart PASS only. If environment or capacity blocks, preserve evidence and stop the affected item.",
+    "test_shape": "Run one bounded current8442 default-OFF DFS R3 functional/restart smoke in the existing qualified environment: A writes one 64MiB confirmed file with fdatasync/close+directory barriers, B and C each fresh-open/read/EOF/SHA it, capture desired3/sync3/distinct serving-node physical proof for 16 chunks/48 files, then perform one normal Meta-only restart and fresh A/B/C readback with Node/mount identities unchanged. Keep it functional only: no 5-round timing, no 3FS comparator, no full standard suite, no crash/power-loss matrix."
+  },
+  "residual_gaps": [
+    "No current8442 R3 multi-node runtime was executed in this review.",
+    "No VM, Cargo, build, suite rerun, product edit, commit or Page edit was performed.",
+    "Current8442 existing runtime proof is R1/gRPC/local-file/OFF only; it does not validate configured R3 or multi-node read routing.",
+    "Historical f03 timing in the sync proof is diagnostic only and lacks qualifying 3FS comparison, per-operation arrays/p50/p95/p99 and observed syscall overlap.",
+    "Historical f03 R3 restart proof is normal Meta-only process restart, not crash/power-loss durability or complete ReplicaAck-history proof."
+  ],
+  "scope": {
+    "actions_not_performed": [
+      "VM commands",
+      "Cargo/build/test/suite rerun",
+      "product/source/maintained-tool edits",
+      "commit or page update",
+      "performance or 3FS qualification"
+    ],
+    "actions_performed": [
+      "read-only source diff intersection check for node/config/Cargo/RootManager/GrpcRootMeta",
+      "read existing f03 DFS R3 sync and R3 Meta-only restart evidence",
+      "read current8442 default-OFF 43-check recovery evidence",
+      "read trusted standard-impact report only as prior scope boundary"
+    ],
+    "current_candidate": {
+      "afs_meta_sha256": "e2bbf9bcfa6d99e0674f8f55455441cfad3b5f154ac9b73862f7e48fe0ffd77b",
+      "afs_node_sha256": "2094eadc23cc8f57e165b080330686dbd8886f871ee3a9ddcaf61b09657660f0",
+      "compiler_input_map": "d053a333988e9fa7fc11efc51b94a7272e841f26f3aca7351f64a015f160a16a",
+      "package_sha256": "31ba38e0d6a34431492b5994c2accbc91583131dcdfab90735fe05d2af9731bd",
+      "source_commit": "8442b55ec25b018aad0898bd0f8679232e393f09"
+    },
+    "historical_base": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "main_reviewed": "9d7cbced91791de9351b60c4f4e74259178de765"
+  },
+  "source_intersection_facts": [
+    {
+      "claim": "f03→8442 changes to src/node.rs are OwnerFs workspace-bind RootCommand control only. The diff has no DFS path change; its only dfs text hit is the existing node.ready log context.",
+      "evidence": [
+        "git diff f03..8442 -- src/node.rs; grep hits: RootCommand/experimental_ownerfs_workspace_bind added, dfs only in unchanged node.ready log",
+        "source/src/node.rs@8442 lines 1101-1103, 1730-1768, 1913-2016"
+      ],
+      "id": "S1"
+    },
+    {
+      "claim": "src/node/rpc/meta.rs adds GrpcRootMeta::poll_root_command_batch using OwnerRootsClient and RootCommandBatch parsing. Existing ordinary DFS meta methods are not changed by this diff; GrpcDfsMeta remains outside the added consumer path.",
+      "evidence": [
+        "source/src/node/rpc/meta.rs@8442 lines 164-173 and 2304-2510",
+        "diff grep shows DFS mentions only in context near domain_dfs_read_grant"
+      ],
+      "id": "S2"
+    },
+    {
+      "claim": "src/config.rs only widens read_certificate_der visibility for explicit service launchers; Cargo.toml only adds the afs-root-command-meta test/support example. Neither changes DFS runtime semantics or package default product binaries.",
+      "evidence": [
+        "git diff f03..8442 -- src/config.rs Cargo.toml",
+        "workspace-bind-root-command README records default release artifact list contains only afs-meta/afs-node"
+      ],
+      "id": "S3"
+    },
+    {
+      "claim": "RootManager/Home revocation and phase guards are OwnerFs-only and can affect ordinary OwnerFs OFF admission, but do not sit on DFS execution. Existing current affected tests cover this area for the 8442 compiler map.",
+      "evidence": [
+        "source/src/node/vfs/ownerfs/root.rs@8442 HomeRootRevocation/revoke_matching_home/enter_root tests",
+        "source/development/evidence/20261008-workspace-bind-root-command/README.md: 59 scoped Rust tests, including 22 RootManager"
+      ],
+      "id": "S4"
+    },
+    {
+      "claim": "The core DFS files and local-file Meta store/protocol files most relevant to the historical DFS proofs are byte-identical between f03 and 8442. This supports limited reuse, not a full current R3 qualification by itself.",
+      "evidence": [
+        "unchanged_relevant_blobs section"
+      ],
+      "id": "S5"
+    }
+  ],
+  "status": "PASS_READONLY_DFS_IMPACT_REVIEW",
+  "unchanged_relevant_blobs": [
+    {
+      "f03_blob": "3fa8b1e6070bebe48819892a29fa54522100f09a",
+      "path": "src/dfs.rs",
+      "same": true,
+      "target_8442_blob": "3fa8b1e6070bebe48819892a29fa54522100f09a"
+    },
+    {
+      "f03_blob": "648d38037619431791dda63e9493a6ffea21913c",
+      "path": "src/meta/dfs.rs",
+      "same": true,
+      "target_8442_blob": "648d38037619431791dda63e9493a6ffea21913c"
+    },
+    {
+      "f03_blob": "e7b72a92328ec67404bae2d431c40ce07398901d",
+      "path": "src/meta/store/local_file.rs",
+      "same": true,
+      "target_8442_blob": "e7b72a92328ec67404bae2d431c40ce07398901d"
+    },
+    {
+      "f03_blob": "9ee0cb3989e59d6fe1b532a7719796a082015134",
+      "path": "src/node/vfs/dfs.rs",
+      "same": true,
+      "target_8442_blob": "9ee0cb3989e59d6fe1b532a7719796a082015134"
+    },
+    {
+      "f03_blob": "25f449aec020c47716011f4b053cf717716c2aca",
+      "path": "common/protocol/proto/meta.proto",
+      "same": true,
+      "target_8442_blob": "25f449aec020c47716011f4b053cf717716c2aca"
+    }
+  ]
+}

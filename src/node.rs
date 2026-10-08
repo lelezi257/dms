@@ -1098,7 +1098,10 @@ async fn run_node(
             })
             .await??,
         );
-        if cfg.experimental_ownerfs_workspace_bind {
+        if workspace_bind_root_commands_enabled(
+            cfg.experimental_ownerfs_workspace_bind,
+            cfg.experimental_native_workspace,
+        ) {
             workspace_bind_root_control = Some((root_meta, roots.clone()));
         }
         let owner = if cfg.experimental_native_workspace || cfg.experimental_ownerfs_workspace_bind
@@ -1910,6 +1913,11 @@ async fn run_node(
     Ok(())
 }
 
+#[cfg(feature = "ownerfs")]
+fn workspace_bind_root_commands_enabled(host: bool, managed: bool) -> bool {
+    host || managed
+}
+
 /// In-session progress only: no persisted cursor or revoke ACK is produced.
 /// A matching command rejects admission before Services starts normal closure.
 #[cfg(feature = "ownerfs")]
@@ -2140,6 +2148,21 @@ impl Drop for WorkspaceBindWorker {
 mod workspace_bind_root_command_tests {
     use super::*;
     use rpc::meta::{RootCommand, RootCommandBatch, RootCommandRecoveryReason, RootCommandType};
+
+    #[test]
+    fn workspace_bind_root_command_default_off_does_not_start_control() {
+        assert!(!workspace_bind_root_commands_enabled(false, false));
+    }
+
+    #[test]
+    fn workspace_bind_root_command_host_only_receives_control() {
+        assert!(workspace_bind_root_commands_enabled(true, false));
+    }
+
+    #[test]
+    fn workspace_bind_root_command_managed_only_receives_control() {
+        assert!(workspace_bind_root_commands_enabled(false, true));
+    }
 
     fn command(id: &str, revision: u64) -> RootCommand {
         RootCommand {

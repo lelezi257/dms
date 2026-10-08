@@ -1,3 +1,5 @@
+**2026-10-08 后续独立整改（事实）：** 原host-only消费资格遗漏了互斥的managed-runc开关，已改为任一启用模式接入相同认证consumer；双OFF及精确Home/fail-closed策略保留。真实runc新ELF拒绝/正常关闭限定证据见[本项](evidence/20261008-workspace-runc-root-command/README.md)。以下原host实施计划和证据保留原版本。
+
 # Workspace bind RootCommand receipt and refusal
 
 Decision: one small host-ON functionality item; default OFF, G1 historical8/8 and G2 aggregate counts remain unchanged. This is separate from physical Home identity polling, registration heartbeat, full revoke/ACK and performance. Core stays in `src/node/vfs/ownerfs/bind_mount.rs`; runc adapter is unchanged.

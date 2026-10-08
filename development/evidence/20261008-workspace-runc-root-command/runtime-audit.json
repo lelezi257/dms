@@ -1,0 +1,80 @@
+{
+  "status": "PASS",
+  "checks": 23,
+  "check_names": [
+    "actual-runtime-limited-pass",
+    "71-complete-driver-predicates",
+    "actual-container-ext4-physical-home",
+    "source-inode-match",
+    "security-mount-flags",
+    "container-read-executed",
+    "actual-exec-command",
+    "no-watchdog-or-timeout",
+    "returned-commands-accounted",
+    "actual-complete-proof-identity-preserved",
+    "real-Store-RPC-refusal-events",
+    "actual-wait-113806",
+    "actual-wait-113990",
+    "actual-wait-114812",
+    "actual-wait-114559",
+    "all-nine-observed-PIDs-gone",
+    "saved-and-live-protected-inventory",
+    "node-runc-OFF.toml-exact-switches",
+    "node-runc-ON.toml-exact-switches",
+    "host-observer-private-export-not-visible",
+    "sampled-final-budget",
+    "rootfs-pinned-after-run",
+    "official-runc-pinned-after-run"
+  ],
+  "driver_predicates": 71,
+  "actual_waits": {
+    "zero": 3,
+    "refusal_one": 1
+  },
+  "pids": [
+    113806,
+    113790,
+    113990,
+    113974,
+    114812,
+    114796,
+    114559,
+    114543,
+    114975
+  ],
+  "protected_processes": 1,
+  "protected_mounts": 26,
+  "proof": {
+    "path": "/opt/workspace-runc-root-command-20261008-r3/state/node/ownerfs/root-776f726b7370616365-e1/runc-root-command-proof",
+    "size": 4096,
+    "sha256": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
+    "dev": 64769,
+    "ino": 830221,
+    "mode": 33188,
+    "uid": 0,
+    "gid": 0
+  },
+  "logs": {
+    "meta.log": {
+      "bytes": 661,
+      "levels": {
+        "ERRO": 0,
+        "WARN": 0,
+        "INFO": 4,
+        "DEBG": 0,
+        "TRCE": 0
+      }
+    },
+    "node.log": {
+      "bytes": 2690,
+      "levels": {
+        "ERRO": 3,
+        "WARN": 1,
+        "INFO": 8,
+        "DEBG": 0,
+        "TRCE": 0
+      }
+    }
+  },
+  "scope": "actual managed container receipt/refusal/normal closure only; private export not independently visible to host observer"
+}

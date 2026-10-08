@@ -1,0 +1,32 @@
+{
+  "root-command-affected": {
+    "exit": 0
+  },
+  "managed-control-regression-green": {
+    "exit": 0
+  },
+  "dfs-only-check": {
+    "exit": 0
+  },
+  "managed-control-regression-red": {
+    "exit": 101
+  },
+  "default-release": {
+    "exit": 0
+  },
+  "native-startup-affected": {
+    "exit": 0
+  },
+  "owner-only-check": {
+    "exit": 0
+  },
+  "fmt": {
+    "exit": 0
+  },
+  "affected-clippy": {
+    "exit": 0
+  },
+  "issuer-release": {
+    "exit": 0
+  }
+}

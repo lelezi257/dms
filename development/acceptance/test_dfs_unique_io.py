@@ -130,6 +130,30 @@ class DfsUniqueIoQualificationTests(unittest.TestCase):
         self.assertNotEqual(failed.returncode, 0)
         self.assertEqual(failed.stdout, "")
 
+    def test_complete_read_intervals_are_measured_separately_from_oracle(self) -> None:
+        payload = self.root / 'read-intervals.bin'
+        write = parse_success(self.run_probe('write', str(payload)))
+        self.assertNotIn('read_timing', write)
+        read = parse_success(self.run_probe('read', str(payload)))
+        validate_io_result(read, 'seq-read', 'close')
+        timing = read['read_timing']
+        self.assertEqual(timing['schema'], 'complete-read-v1')
+        self.assertEqual(timing['clock'], 'CLOCK_MONOTONIC')
+        self.assertEqual(timing['boundary'], 'full_read_1MiB_excluding_content_oracle')
+        self.assertEqual(timing['task_end_ns'] - timing['task_begin_ns'], read['wall_ns'])
+        self.assertEqual(len(timing['reads']), OPERATIONS)
+        spans = [timing['open'], timing['fstat'], *timing['reads'], timing['eof'], timing['close']]
+        previous = timing['task_begin_ns']
+        for start, end in spans:
+            self.assertGreaterEqual(start, previous)
+            self.assertGreater(end, start)
+            self.assertLessEqual(end, timing['task_end_ns'])
+            previous = end
+        self.assertEqual(timing['close'][1] - timing['close'][0], read['barrier_ns'])
+        # Real C output must also satisfy the maintained receiver contract.
+        import dfs_r3_small
+        dfs_r3_small.validate_sample(read, 'read')
+
     def test_appended_eof_byte_fails_read(self) -> None:
         payload = self.root / "appended.bin"
         parse_success(self.run_probe("write", str(payload)))

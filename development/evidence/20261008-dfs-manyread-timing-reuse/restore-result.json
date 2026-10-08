@@ -1,0 +1,6 @@
+{
+  "status": "PASS_ACTUAL_LINUX_EXT4_ARCHIVE_EXTRACTION",
+  "members": 13,
+  "archive_sha256": "98562265a96a9314df85317070c0969bb8b20c207889ab97a3a04e2869dfb3e5",
+  "product_rerun": false
+}

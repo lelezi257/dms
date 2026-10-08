@@ -57,6 +57,43 @@ class CurrentDatasetGuards(unittest.TestCase):
             with self.subTest(key=key), self.assertRaisesRegex(ValueError, 'mismatch'):
                 probe.validate_identity(dict(candidate, **{key: '0' * len(candidate[key])}), candidate)
 
+    def timed_sample(self):
+        row = self.local_rounds()[1]['result']
+        spans = [[10 + i * 10, 15 + i * 10] for i in range(68)]
+        row['barrier_ns'] = 5
+        row['read_timing'] = dict(schema='complete-read-v1', clock='CLOCK_MONOTONIC',
+                                 boundary='full_read_1MiB_excluding_content_oracle',
+                                 task_begin_ns=0, task_end_ns=row['wall_ns'],
+                                 open=spans[0], fstat=spans[1], reads=spans[2:66],
+                                 eof=spans[66], close=spans[67])
+        return row
+
+    def test_explicit_read_timing_accepts_complete_spans_and_legacy_without_schema(self):
+        row = self.timed_sample()
+        probe.validate_sample(row, 'read')
+        del row['read_timing']
+        probe.validate_sample(row, 'read')
+
+    def test_read_timing_rejects_partial_schema_clock_or_task_boundaries(self):
+        for mutation in ({'schema': 'unknown'}, {'clock': 'CLOCK_REALTIME'},
+                         {'boundary': 'including_oracle'}, {'task_begin_ns': True},
+                         {'task_end_ns': 1}, {'reads': []}, {'close': None}):
+            row = self.timed_sample()
+            row['read_timing'].update(mutation)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                probe.validate_sample(row, 'read')
+
+    def test_read_timing_rejects_reversed_overlapping_bool_or_outside_spans(self):
+        for span in ([10, 5], [True, 16], [10, 10], [1, 2], [1_000_000_000, 1_000_000_001]):
+            row = self.timed_sample()
+            row['read_timing']['reads'][1] = span
+            with self.subTest(span=span), self.assertRaises(ValueError):
+                probe.validate_sample(row, 'read')
+        row = self.timed_sample()
+        row['barrier_ns'] = 99
+        with self.assertRaisesRegex(ValueError, 'close timing'):
+            probe.validate_sample(row, 'read')
+
     def test_explicit_candidate_missing_or_malformed_cannot_fall_back(self):
         candidate = dict(self.identity, product_source_commit='a' * 40)
         for key in candidate:

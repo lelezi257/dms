@@ -1,0 +1,63 @@
+{
+  "archive_path": "evidence/afs-delivery/dfs-manyread-timing-reuse-20261008-r1/raw-evidence.tar.gz",
+  "sha256": "98562265a96a9314df85317070c0969bb8b20c207889ab97a3a04e2869dfb3e5",
+  "bytes": 9601,
+  "members": {
+    "probe-build.stdout": {
+      "sha256": "515830a106e508dbaa5f66cceb28c447626d4cada245c130ebe64b9e1681f1ca",
+      "bytes": 324
+    },
+    "audit.py": {
+      "sha256": "7e7d97585863c14b663aa5b4087a89e2f552e43547707c34df0caaa1cb801eb3",
+      "bytes": 8445
+    },
+    "result.json": {
+      "sha256": "4d598e16eb728009698758e3f073853830db99d67efca60b4ed2da89a28c05d5",
+      "bytes": 6982
+    },
+    "tests.stderr": {
+      "sha256": "452721a35ec353a6ee5c077a59bbe6d1b03e18af1f882834221f7af67b98fcfd",
+      "bytes": 5105
+    },
+    "tests.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "probe-build.stderr": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "tool-inputs.json": {
+      "sha256": "cf07d397c288582cff4e6bac17e68c7225a6cb2a953c30779d9989aa11b3febd",
+      "bytes": 901
+    },
+    "probe-read.json": {
+      "sha256": "efae2734bdc2d9cab6786c5d5073d01ed07cb89c0c66bc89ff64b92b402def2e",
+      "bytes": 2857
+    },
+    "command.json": {
+      "sha256": "94bd06297d2a282e9ab3433219244f809c12ac1889d48a331f0e7312eafe76cc",
+      "bytes": 357
+    },
+    "red.stderr": {
+      "sha256": "079baf9a760ec649844bf4eff14a11022d7827be24700d726e96d2df1523d42d",
+      "bytes": 914
+    },
+    "plan.md": {
+      "sha256": "c4777c8728f1a0a36910eaa2aa3a7f2fcd725010d1e194b7412ca85369228847",
+      "bytes": 1594
+    },
+    "probe-validation-result.json": {
+      "sha256": "27129f05572d957681a029faf2b3c9fb6ebeb56692ad6be34813fd84b55750e5",
+      "bytes": 1221
+    },
+    "red.stdout": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  },
+  "probe_elf_path": "evidence/afs-delivery/dfs-manyread-timing-reuse-20261008-r1/dfs_unique_io",
+  "probe_elf_sha256": "88105651f1ef6dce49b8dc9e22f467448f9a9ae62140a1b92b78abf7c0c1d462",
+  "original_packet": "../20261008-dfs-r3-sync/archive-index.json",
+  "no_source_snapshots": true
+}

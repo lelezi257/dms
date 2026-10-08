@@ -76,6 +76,33 @@ def validate_sample(value, operation):
     sync.validate_io_result(value, 'seq-' + operation, 'fdatasync' if operation == 'write' else 'close')
     require(value.get('dataset') == DATASET, 'uniform or unknown dataset cannot prove this case')
     require(type(value.get('wall_ns')) is int and value['wall_ns'] > 0, 'invalid C timer')
+    if 'read_timing' in value:
+        require(operation == 'read', 'read timing on non-read sample')
+        validate_read_timing(value)
+
+
+def validate_read_timing(value):
+    """Accept a complete explicit schema; never infer intervals from throughput."""
+    timing = value['read_timing']
+    require(isinstance(timing, dict) and timing.get('schema') == 'complete-read-v1' and
+            timing.get('clock') == 'CLOCK_MONOTONIC' and
+            timing.get('boundary') == 'full_read_1MiB_excluding_content_oracle',
+            'invalid read timing schema/clock/boundary')
+    begin, end = timing.get('task_begin_ns'), timing.get('task_end_ns')
+    require(type(begin) is int and type(end) is int and 0 <= begin < end and
+            end - begin == value['wall_ns'], 'invalid read task interval')
+    reads = timing.get('reads')
+    require(isinstance(reads, list) and len(reads) == 64, 'expected 64 logical read intervals')
+    spans = [timing.get('open'), timing.get('fstat'), *reads,
+             timing.get('eof'), timing.get('close')]
+    previous = begin
+    for span in spans:
+        require(isinstance(span, list) and len(span) == 2 and
+                all(type(t) is int for t in span) and previous <= span[0] < span[1] <= end,
+                'invalid or unordered read interval')
+        previous = span[1]
+    require(timing['close'][1] - timing['close'][0] == value.get('barrier_ns'),
+            'close timing differs from barrier observation')
 
 
 def prepare(args):

@@ -1,0 +1,32 @@
+{
+  "red": {
+    "exit": 1,
+    "test": "test_complete_read_intervals_are_measured_separately_from_oracle",
+    "reason": "old real C output lacks read_timing (KeyError)",
+    "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr": "079baf9a760ec649844bf4eff14a11022d7827be24700d726e96d2df1523d42d"
+  },
+  "green": {
+    "exit": 0,
+    "linux_tests": 31,
+    "modules": [
+      "test_dfs_unique_io",
+      "test_dfs_r3_small",
+      "test_dfs_cohort_relay"
+    ],
+    "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr": "452721a35ec353a6ee5c077a59bbe6d1b03e18af1f882834221f7af67b98fcfd"
+  },
+  "probe_build": {
+    "exit": 0,
+    "scope": "Linux ext4 helper validation, not AFS",
+    "stdout": "515830a106e508dbaa5f66cceb28c447626d4cada245c130ebe64b9e1681f1ca",
+    "stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "historical_packet": {
+    "linux_verified_members": 700,
+    "checks": 2229,
+    "sha256": "656abbabd6fadb16ce841d0dcca26dc6dc8a7cd2f0d5556b20c179de3d2967e6"
+  },
+  "no_new_perf_acceptance": true
+}

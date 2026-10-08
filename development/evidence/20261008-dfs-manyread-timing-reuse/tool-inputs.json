@@ -1,0 +1,20 @@
+{
+  "source_base": "0bd66ac5464eec0a188dfc79d4c264eab4276048",
+  "changed_tool_inputs": {
+    "development/acceptance/probes/dfs_unique_io.c": "6867146ab2a0bc6cbdfc777224aa77f19420374fdaaa1a610922cbc0d51bb67a",
+    "development/acceptance/dfs_r3_small.py": "8100e99d760bfa51c8c8f530c62e55e925f0af92b19c0dcd06491a69a8389b23",
+    "development/acceptance/test_dfs_unique_io.py": "625b52ba21010912645bfaf964a185ad63f03b9a7c3f423554fde22e2c8fb0a4",
+    "development/acceptance/test_dfs_r3_small.py": "ed231275d1f6cdf33b069441b0d816edfe01cd50eaf86c961a6db6a46fbac91b"
+  },
+  "compiler_inputs_changed": false,
+  "new_probe_elf_sha256": "88105651f1ef6dce49b8dc9e22f467448f9a9ae62140a1b92b78abf7c0c1d462",
+  "linux_compile_flags": [
+    "cc",
+    "-std=c11",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror"
+  ],
+  "candidate_meta_node": "unchanged from 0bd; no Rust/product build or runtime this item"
+}

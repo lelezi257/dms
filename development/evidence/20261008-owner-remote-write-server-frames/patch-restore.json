@@ -1,0 +1,13 @@
+{
+  "status": "PASS_ACTUAL_LINUX_PATCH_RESTORE",
+  "root": "/var/tmp/afs-owner-server-frame-patch-qt1rkicj",
+  "candidate_node_source_sha256": "b3e7bccd40febeecfc2086ac3722293a00a269d5d206c3ac664d718e903c0f25",
+  "patch_sha256": "854ec68fddb6330ba2b0382bf0ebf6b5794d546751546f27370bc3b2ee744fb8",
+  "production_restore": {
+    "status": "PASS_RESTORED_RETAINED_COMPILER_INPUTS",
+    "files": 160
+  },
+  "production_map": "81c30c952df0da3d9411fa94839a3d6ed217dcada7ea15b541933b096c51c215",
+  "performance": "NOT_RUN_PENDING_USER_FIXTURE_CHOICE",
+  "retained_in_product": false
+}

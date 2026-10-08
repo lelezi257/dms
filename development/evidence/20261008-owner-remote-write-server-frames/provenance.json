@@ -1,0 +1,11 @@
+{
+  "raw_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-server-frames-20261008-r1",
+  "base_main": "461407c4439f247f1e4abdd5fcd99cff2ec19f50",
+  "compiler_inputs": 160,
+  "candidate_map_sha256": "ec7e2de5ea5e5b83883725fe4175b819af75cd4713c25e0479bb275ff5bab300",
+  "patch_sha256": "854ec68fddb6330ba2b0382bf0ebf6b5794d546751546f27370bc3b2ee744fb8",
+  "patch_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-server-frames-20261008-r1/candidate-node-server-frames.patch",
+  "runtime": "NOT_RUN",
+  "release": "NOT_BUILT",
+  "production": "restored exact160-map81c30c95; source-only candidate remains external"
+}

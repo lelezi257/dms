@@ -1,0 +1,38 @@
+{
+  "actual_wait": {
+    "child": {
+      "boot_id": "469bd4a4-d98a-4288-bac4-de6b700b9ff4",
+      "config": "/mnt/lima-afscdata/afs-delivery/owner-remote-read-frames-20261008-r1/etc/node.toml",
+      "exe": "/mnt/lima-afscdata/afs-delivery/owner-remote-read-frames-20261008-r1/prefix/bin/afs-node",
+      "lifecycle": "/mnt/lima-afscdata/afs-delivery/owner-remote-read-frames-20261008-r1/run/node.lifecycle.MojYQh",
+      "pid": "20093",
+      "start_ticks": "5908181",
+      "supervisor_pid": "20077"
+    },
+    "exit": {
+      "boot_id": "469bd4a4-d98a-4288-bac4-de6b700b9ff4",
+      "config": "/mnt/lima-afscdata/afs-delivery/owner-remote-read-frames-20261008-r1/etc/node.toml",
+      "exe": "/mnt/lima-afscdata/afs-delivery/owner-remote-read-frames-20261008-r1/prefix/bin/afs-node",
+      "exit_code": "0",
+      "lifecycle": "/mnt/lima-afscdata/afs-delivery/owner-remote-read-frames-20261008-r1/run/node.lifecycle.MojYQh",
+      "pid": "20093",
+      "start_ticks": "5908181",
+      "supervisor_pid": "20077"
+    },
+    "ready": {
+      "supervisor_pid": "20077"
+    }
+  },
+  "allocated_bytes": 147382272,
+  "ceiling_bytes": 268435456,
+  "excess_bytes": 0,
+  "free_bytes": 36878639104,
+  "old_mounts_exact": true,
+  "original_run_qualification": "FAIL_BUDGET; not waived/retested",
+  "pids_gone": [
+    20093,
+    20077
+  ],
+  "protected_processes": 0,
+  "status": "PASS_LIFECYCLE_ONLY"
+}

@@ -1,0 +1,5 @@
+{
+  "error": "RuntimeError('b-diag-home-closed failed: ')",
+  "status": "FAIL_OR_BLOCKED",
+  "time_ns": 1791454839733450000
+}

@@ -1,0 +1,216 @@
+{
+  "status": "PASS_SAVED_PARTIAL_EVIDENCE_ONLY",
+  "checks_passed": 137,
+  "original_runtime_status": "FAIL",
+  "post_restart_reads": "NOT_RUN",
+  "actual_wait0_incarnations": 5,
+  "protected_processes": 12,
+  "log_rows": [
+    {
+      "role": "ctl",
+      "path": "logs/meta.log",
+      "start_byte": 296,
+      "whole_bytes": 888,
+      "new_bytes": 592,
+      "ERRO": 0,
+      "WARN": 0,
+      "TRACE": 0
+    },
+    {
+      "role": "a",
+      "path": "logs/node.log",
+      "start_byte": 2184,
+      "whole_bytes": 3788,
+      "new_bytes": 1604,
+      "ERRO": 0,
+      "WARN": 5,
+      "TRACE": 0
+    },
+    {
+      "role": "b",
+      "path": "logs/node.log",
+      "start_byte": 1414,
+      "whole_bytes": 3287,
+      "new_bytes": 1873,
+      "ERRO": 0,
+      "WARN": 5,
+      "TRACE": 0
+    },
+    {
+      "role": "c",
+      "path": "logs/node.log",
+      "start_byte": 1416,
+      "whole_bytes": 3020,
+      "new_bytes": 1604,
+      "ERRO": 0,
+      "WARN": 5,
+      "TRACE": 0
+    }
+  ],
+  "sampled_peak_allocated_bytes": 593879040,
+  "does_not_prove_complete_recovery_or_live_postclosure_authority": true,
+  "checks_index": {
+    "archive_member": "audit-result.json",
+    "sha256": "0d30c0bf609be7ee5b27aa1ebe88151830cb15989d89f0e920d851387de2c474",
+    "checks": 137
+  },
+  "runtime": {
+    "status": "FAIL",
+    "failure": {
+      "error": "RuntimeError('ctl-after-restart-meta rc=1 ')",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-meta-recovery-f03-20261008-r1/host.py\", line 61, in run\n    replicas('after-restart');readers('after-restart');budget('after-restart')\n    ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-meta-recovery-f03-20261008-r1/host.py\", line 16, in replicas\n    root=ROOT['ctl'];m=json.loads(h.vm('ctl',label+'-meta',['python3','-B',root+'/stage/replica-check.py','meta','--meta-store',root+'/state/meta/meta-store']));save(label+'-meta.json',m);assert m['status']=='PASS';reports={}\n                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-multinode-7e6-20261007-r1/host-run.py\", line 18, in vm\n    def vm(role,name,args,**kw):return record(role+'-'+name,['limactl','shell','--workdir=/','afs-accept-'+role,'sudo',*args],**kw)\n                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-multinode-7e6-20261007-r1/host-run.py\", line 16, in record\n    if check and r.returncode:raise RuntimeError(name+' rc='+str(r.returncode)+' '+r.stderr.decode(errors='replace')[-2000:])\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: ctl-after-restart-meta rc=1 \n"
+    },
+    "closed_roles": {
+      "c": "PASS",
+      "b": "PASS",
+      "a": "PASS",
+      "ctl": "PASS"
+    },
+    "identity": {
+      "product_source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+      "compiler_input_map": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
+      "afs_meta_sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+      "afs_node_sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+      "io_sha256": "c49c216316b25baa3e17e95dd8f3346da9c496e16ac3bb5e5138534296648804"
+    },
+    "not_crash_or_performance": true
+  },
+  "original_observer_failure": {
+    "dataset": "counter-1m-v1",
+    "error": "ValueError('expected 3 Ready Durable copies for blake3-00b51a9401caf4d4e7b6d11932c7aacceea6e5ae6a15b5133eab0e4d7c974ae7-4194304, found 6')",
+    "limits": {
+      "does_not_claim_original_replica_ack_persistence": true,
+      "does_not_move_chunk_payloads": true,
+      "expected_bytes": 67108864,
+      "expected_chunk_bytes": 4194304,
+      "expected_chunks": 16,
+      "expected_copies_per_chunk": 3,
+      "read_only": true
+    },
+    "meta_elf_sha256": "c7447bcfac7e3f8bf605446ade5e11be74f1333709a8f7bb5378b1d6ee7506fd",
+    "mode": "meta",
+    "node_elf_sha256": "3b1f1dce187a6285814c03b9024cdfc5f2dec990a73cba9cc13b3dc9ef402d36",
+    "observer_sha256": "6da949960e82a9a756a285e8aa2378f81635588e12f5e0820556b4bee14d2d05",
+    "source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "status": "FAIL",
+    "traceback": "Traceback (most recent call last):\n  File \"/mnt/lima-afsctlstate/afs-delivery/dfs-r3-sync-f03-20261008-r1/stage/replica-check.py\", line 356, in mode_meta\n    manifest = build_manifest(args.meta_store, args.expected_sha256)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/mnt/lima-afsctlstate/afs-delivery/dfs-r3-sync-f03-20261008-r1/stage/replica-check.py\", line 308, in build_manifest\n    fail(f\"expected {EXPECTED_COPIES} Ready Durable copies for {cid}, found {len(ready)}\")\n  File \"/mnt/lima-afsctlstate/afs-delivery/dfs-r3-sync-f03-20261008-r1/stage/replica-check.py\", line 41, in fail\n    raise ValueError(message)\nValueError: expected 3 Ready Durable copies for blake3-00b51a9401caf4d4e7b6d11932c7aacceea6e5ae6a15b5133eab0e4d7c974ae7-4194304, found 6\n"
+  },
+  "budgets": {
+    "admission": {
+      "total": 591974400,
+      "roles": {
+        "ctl": {
+          "allocated_bytes": 98607104,
+          "free_bytes": 3057205248,
+          "ceiling_bytes": 134217728,
+          "floor_bytes": 536870912
+        },
+        "a": {
+          "allocated_bytes": 164442112,
+          "free_bytes": 1937104896,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 1073741824
+        },
+        "b": {
+          "allocated_bytes": 164462592,
+          "free_bytes": 23270850560,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        },
+        "c": {
+          "allocated_bytes": 164462592,
+          "free_bytes": 38359293952,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        }
+      }
+    },
+    "before-start": {
+      "total": 591974400,
+      "roles": {
+        "ctl": {
+          "allocated_bytes": 98607104,
+          "free_bytes": 3057205248,
+          "ceiling_bytes": 134217728,
+          "floor_bytes": 536870912
+        },
+        "a": {
+          "allocated_bytes": 164442112,
+          "free_bytes": 1937104896,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 1073741824
+        },
+        "b": {
+          "allocated_bytes": 164462592,
+          "free_bytes": 23270850560,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        },
+        "c": {
+          "allocated_bytes": 164462592,
+          "free_bytes": 38359293952,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        }
+      }
+    },
+    "before-restart": {
+      "total": 593768448,
+      "roles": {
+        "ctl": {
+          "allocated_bytes": 100208640,
+          "free_bytes": 3055603712,
+          "ceiling_bytes": 134217728,
+          "floor_bytes": 536870912
+        },
+        "a": {
+          "allocated_bytes": 164511744,
+          "free_bytes": 1937035264,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 1073741824
+        },
+        "b": {
+          "allocated_bytes": 164524032,
+          "free_bytes": 23270789120,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        },
+        "c": {
+          "allocated_bytes": 164524032,
+          "free_bytes": 38359232512,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        }
+      }
+    },
+    "final": {
+      "total": 593879040,
+      "roles": {
+        "ctl": {
+          "allocated_bytes": 100306944,
+          "free_bytes": 3055505408,
+          "ceiling_bytes": 134217728,
+          "floor_bytes": 536870912
+        },
+        "a": {
+          "allocated_bytes": 164515840,
+          "free_bytes": 1937031168,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 1073741824
+        },
+        "b": {
+          "allocated_bytes": 164528128,
+          "free_bytes": 23270785024,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        },
+        "c": {
+          "allocated_bytes": 164528128,
+          "free_bytes": 38359228416,
+          "ceiling_bytes": 268435456,
+          "floor_bytes": 4294967296
+        }
+      }
+    }
+  }
+}

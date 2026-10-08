@@ -1,3 +1,5 @@
+**2026-10-08 当前新增（事实/决策）：** 固定f03/7bfc复用停止的local-file/R3夹具，仅Meta正常重启，三Node/挂载/UDS身份不变、重启前A/B/C全64MiB SHA/EOF与48物理份通过，五actualwait0/12保护进程和预算闭合。原观察器重启后把同三节点跨epoch六历史回执计成六副本而FAIL，后续物理检查/读回NOT_RUN；post-closure实体及代码支持观察器判据不匹配，不称产品六物理副本或恢复PASS。Linux6独立guards/137保存数据检查、600raw/51guest及工具/失败脚本实际恢复通过；所有首失败保留，无产品修补/重跑/环境变更。G1历史8/8、G2总数/defaultOFF不变。下一独立小项：副本观察器跨epoch唯一serving-node/设备/catalog-floor/失效authority针对性覆盖，再补受影响R3正常恢复读回；f03 R1和旧标准直接复用，7e6 R3保持历史，点优化/3FS资格/复杂可靠性后置。 [版本、FAIL及证据](../development/evidence/20261008-dfs-r3-meta-recovery/README.md)。 以下保留原时点。
+
 # AFS 交付验收规范
 
 **2026-10-07用户最新分级决策：** [三阶段独立验收主表](../development/trial-release-goals.md)决定当前交付范围、顺序与性能目标。G1内测试用出口已完成；新候选标准回归和核心性能独立列G2；复杂/长时/全矩阵与etcd/Redis列G3。下文完整用例目录不是每个小case或G1的统一前置。普通OwnerFs本地和远端核心读写统一按[普通OwnerFs性能准则](../development/ownerfs-performance-criteria.md)验收：吞吐>=同条件MooseFS的1.2倍，操作时延<=同条件MooseFS的0.8倍，两项分别测量且同时满足；正确性/权限/持久语义不豁免。

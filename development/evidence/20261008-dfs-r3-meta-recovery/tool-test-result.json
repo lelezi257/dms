@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "distinct_tests": 6,
+  "platform": "Linux afs-build",
+  "argv": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "--",
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "/workspace/dms/source/development/acceptance",
+    "-p",
+    "test_dfs_r3_recovery.py",
+    "-v"
+  ],
+  "result_origin": "native exec tool output before admission; six named tests passed / Ran 6 tests / OK; this metadata is not a verbatim stdout capture",
+  "rerun": false,
+  "tools": {
+    "dfs_r3_recovery.py": "f8f02eac9df7207051e7f44d96cc8c629ccdf00b53a8e0b6db8d3612b2d551f9",
+    "test_dfs_r3_recovery.py": "77b7c9422026971e6d356807e9ae247f5af7d3025a4f4ccaf38e7ba3980f0a27",
+    "probes/dfs_r3_fixture.py": "5816c9e4022a05d7a1665d90694c022e08dc6341615fc01c425cc7d235c66929"
+  }
+}

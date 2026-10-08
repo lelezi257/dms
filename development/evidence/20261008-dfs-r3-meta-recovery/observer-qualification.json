@@ -1,0 +1,39 @@
+{
+  "status": "NEEDS_TARGETED_OBSERVER_REGRESSION",
+  "facts": {
+    "historical_receipts": "src/meta/dfs.rs:726-745 repair appends new CopyIds while retaining old evidence; CopyId contains Node epoch at4652",
+    "authority_projection": "src/meta/dfs.rs:4993-5035 Ready/Durable old receipt can project current same-device live Node; cross-epoch device catalog floor must cover ACK floor",
+    "logical_count": "src/meta/dfs.rs:3413-3437 serving copies deduplicated by node_id",
+    "catalog_ACK": "src/node/chunk.rs:443-447 immutable healthy retry does not add file;516-528 ACK uses whole catalog revision",
+    "existing_regressions": [
+      "src/meta/dfs.rs:5474",
+      "src/meta/dfs.rs:5520",
+      "src/meta/dfs.rs:6493",
+      "src/meta/dfs.rs:5798",
+      "src/meta/dfs.rs:5820",
+      "src/meta/dfs.rs:6039",
+      "src/node/chunk.rs:1102",
+      "src/meta/store.rs:2649"
+    ]
+  },
+  "postclosure": {
+    "version": 23,
+    "copy_rows": 51,
+    "placements": 16,
+    "one_chunk_receipts": 6,
+    "distinct_nodes": 3,
+    "epochs": [
+      1,
+      2
+    ],
+    "same_device_epoch_per_node": true,
+    "completed_repair_task_revision": 20
+  },
+  "inference": "six records are allowed historical receipts; creation fits completed repair report, exact triggering request not established here",
+  "limitations": [
+    "postclosure snapshot cannot prove failure-time live authority",
+    "fresh-open after-restart payload reads NOT_RUN",
+    "no observer correction, product repair or runtime rerun in this item",
+    "need cross-epoch dedup plus device/catalog/durable/content guards before next recovery run"
+  ]
+}

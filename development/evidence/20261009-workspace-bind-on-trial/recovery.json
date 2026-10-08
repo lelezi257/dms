@@ -1,0 +1,296 @@
+{
+  "scope": "Full orderly stop/restart of Meta and Node; R1 installed combined profile",
+  "before": {
+    "meta": {
+      "pid": 118710,
+      "starttick": 21816116,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
+      "executable": {
+        "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-meta",
+        "device": 64769,
+        "inode": 25279
+      },
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": {
+        "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.tIc3cP",
+        "child": {
+          "pid": "118710",
+          "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-meta",
+          "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/meta.toml",
+          "start_ticks": "21816116",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.tIc3cP",
+          "supervisor_pid": "118694"
+        },
+        "ready": {
+          "supervisor_pid": "118694"
+        },
+        "supervisor": {
+          "pid": 118694,
+          "starttick": 21816109,
+          "exe": "/usr/bin/bash",
+          "sha256": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015",
+          "argv": [
+            "bash",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-processctl",
+            "__supervise",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-meta",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/meta.toml",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.tIc3cP",
+            ""
+          ]
+        }
+      }
+    },
+    "node": {
+      "pid": 119378,
+      "starttick": 21816177,
+      "sha256": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+      "executable": {
+        "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+        "device": 64769,
+        "inode": 25292
+      },
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": {
+        "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.LE9J3G",
+        "child": {
+          "pid": "119378",
+          "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+          "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/node.toml",
+          "start_ticks": "21816177",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.LE9J3G",
+          "supervisor_pid": "119362"
+        },
+        "ready": {
+          "supervisor_pid": "119362"
+        },
+        "supervisor": {
+          "pid": 119362,
+          "starttick": 21816170,
+          "exe": "/usr/bin/bash",
+          "sha256": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015",
+          "argv": [
+            "bash",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-processctl",
+            "__supervise",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/node.toml",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.LE9J3G",
+            ""
+          ]
+        }
+      }
+    },
+    "mounts": {
+      "ownerfs": {
+        "filesystems": [
+          {
+            "target": "/var/tmp/afs-installed-bind-d47-20261009-r1/mount/ownerfs",
+            "source": "afs-ownerfs",
+            "fstype": "fuse",
+            "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+            "id": 80
+          }
+        ]
+      },
+      "dfs": {
+        "filesystems": [
+          {
+            "target": "/var/tmp/afs-installed-bind-d47-20261009-r1/mount/dfs",
+            "source": "afs-dfs",
+            "fstype": "fuse",
+            "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+            "id": 88
+          }
+        ]
+      }
+    }
+  },
+  "after": {
+    "meta": {
+      "pid": 119988,
+      "starttick": 21816589,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
+      "executable": {
+        "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-meta",
+        "device": 64769,
+        "inode": 25279
+      },
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": {
+        "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.sEStNn",
+        "child": {
+          "pid": "119988",
+          "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-meta",
+          "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/meta.toml",
+          "start_ticks": "21816589",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.sEStNn",
+          "supervisor_pid": "119972"
+        },
+        "ready": {
+          "supervisor_pid": "119972"
+        },
+        "supervisor": {
+          "pid": 119972,
+          "starttick": 21816582,
+          "exe": "/usr/bin/bash",
+          "sha256": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015",
+          "argv": [
+            "bash",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-processctl",
+            "__supervise",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-meta",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/meta.toml",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.sEStNn",
+            ""
+          ]
+        }
+      }
+    },
+    "node": {
+      "pid": 120241,
+      "starttick": 21816605,
+      "sha256": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+      "executable": {
+        "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+        "device": 64769,
+        "inode": 25292
+      },
+      "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+      "lifecycle": {
+        "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.BmSbqf",
+        "child": {
+          "pid": "120241",
+          "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+          "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/node.toml",
+          "start_ticks": "21816605",
+          "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+          "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.BmSbqf",
+          "supervisor_pid": "120225"
+        },
+        "ready": {
+          "supervisor_pid": "120225"
+        },
+        "supervisor": {
+          "pid": 120225,
+          "starttick": 21816598,
+          "exe": "/usr/bin/bash",
+          "sha256": "af955ef55333c8fc9c5aa50df91ad1a629d9a79a9afa125cd5e9629585f78015",
+          "argv": [
+            "bash",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-processctl",
+            "__supervise",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/node.toml",
+            "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.BmSbqf",
+            ""
+          ]
+        }
+      }
+    },
+    "mounts": {
+      "ownerfs": {
+        "filesystems": [
+          {
+            "target": "/var/tmp/afs-installed-bind-d47-20261009-r1/mount/ownerfs",
+            "source": "afs-ownerfs",
+            "fstype": "fuse",
+            "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+            "id": 80
+          }
+        ]
+      },
+      "dfs": {
+        "filesystems": [
+          {
+            "target": "/var/tmp/afs-installed-bind-d47-20261009-r1/mount/dfs",
+            "source": "afs-dfs",
+            "fstype": "fuse",
+            "options": "rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other",
+            "id": 88
+          }
+        ]
+      }
+    }
+  },
+  "dfs_write": {
+    "base_seed": "installed-off-dfs:base:67108864",
+    "case_id": "installed-off-dfs",
+    "coverage": [
+      "streaming-write",
+      "fsync",
+      "close-reopen",
+      "streaming-read",
+      "EOF",
+      "create-openflags-read-write-append-truncate-rename-unlink",
+      "chmod-mode",
+      "basic-fcntl-lock",
+      "basic-mmap-msync"
+    ],
+    "created_unix": 1791501054,
+    "data_file": "g1-stream.bin",
+    "elapsed_seconds": 2.483358,
+    "mount": "/var/tmp/afs-installed-bind-d47-20261009-r1/mount/dfs",
+    "mount_info": {
+      "fstype": "fuse",
+      "source": "afs-dfs",
+      "target": "/var/tmp/afs-installed-bind-d47-20261009-r1/mount/dfs"
+    },
+    "not_full_posix": true,
+    "patches": [
+      {
+        "length": 524288,
+        "offset": 5242880,
+        "seed": "installed-off-dfs:patch-a"
+      },
+      {
+        "length": 1048576,
+        "offset": 17825792,
+        "seed": "installed-off-dfs:patch-b"
+      },
+      {
+        "length": 786432,
+        "offset": 65011712,
+        "seed": "installed-off-dfs:patch-tail"
+      }
+    ],
+    "reference": false,
+    "schema": "afs.g1.trial.selfcheck.v1",
+    "sha256": "e03565250488acb476c6584b41dd367eafa88531320e61c934e836d8f22a0678",
+    "size": 67108864,
+    "status": "PASS",
+    "stream_block": 1048576,
+    "total_elapsed_seconds": 2.486982,
+    "workspace": "installed-off"
+  },
+  "dfs_read": {
+    "case_id": "installed-off-dfs",
+    "data_file": "g1-stream.bin",
+    "elapsed_seconds": 1.050405,
+    "input_manifest": "/var/tmp/afs-installed-bind-d47-20261009-r1-results/dfs-write.json",
+    "mount": "/var/tmp/afs-installed-bind-d47-20261009-r1/mount/dfs",
+    "mount_info": {
+      "fstype": "fuse",
+      "source": "afs-dfs",
+      "target": "/var/tmp/afs-installed-bind-d47-20261009-r1/mount/dfs"
+    },
+    "reference": false,
+    "schema": "afs.g1.trial.read-result.v1",
+    "sha256": "e03565250488acb476c6584b41dd367eafa88531320e61c934e836d8f22a0678",
+    "size": 67108864,
+    "status": "PASS",
+    "total_elapsed_seconds": 1.054259,
+    "workspace": "installed-off"
+  },
+  "result": {
+    "scope": "Full orderly Meta+Node stop/restart, not Meta-only/crash",
+    "owner_bytes": 65536,
+    "owner_sha256": "a0a24a08a87ed054cd2e20aa994bcd25e5266f8c5435011ac4982987f4e3a370",
+    "dfs_bytes": 67108864,
+    "dfs_sha256": "e03565250488acb476c6584b41dd367eafa88531320e61c934e836d8f22a0678",
+    "bind_source_identity_retained": true
+  }
+}

@@ -1,4 +1,4 @@
-**当前出口（2026-10-08，G2.15）：** 远端写一次839→d14对照189.875→199.831MiB/s（+5.24%）、独立pwrite p95 7.050→6.951ms（-1.40%），达到测前保留线，Owner-only TCP公开API入站256KiB帧改动保留；p99+5.85%及轮次波动完整留数，不称稳定广泛提升。功能限定PASS／测量COMPLETE／正式Moose1.2/.8仍PENDING。 复用原64MiB同inode，B/C512MiB、ctl256MiB预算贯穿准入/运行/退出，采样峰值B264,790,016B、盘余21,269,839,872B，容量PASS；五actualwait0/原mount及保护进程不变。160输入与已过四测试/构建候选完全一致，Linux身份/fmt及537保存证据核验、1690raw+27guest实际恢复PASS；严格Clippy既有失败和19,493B/5ERRO/60WARN保留。无第三方/环境修补/新包；旧FAIL_BUDGET不改。G1历史8/8关闭、原G2仍12/0/15，DFS写按用户暂缓。下一Owner远端核心的一项剩余产品成本，复用有效基线、不重跑本项或扩资格矩阵。 [本轮版本与证据](../development/evidence/20261008-owner-remote-write-server-pair/README.md)。
+**当前出口（2026-10-09，G2.27更新ON交付分项）：** d47/160输入包两次Linux字节一致；新Meta650/保留Node d14在现有无编译器ext4环境按包内指南启用真实Home workspace bind ON，uid501读写/uid502拒绝、Owner64KiB与DFS64MiB正常全停重启读回及五actualwait0限定PASS。独立保存数据审计和实际归档恢复通过；GitHub新包发布待完成。[版本、范围及证据](../development/evidence/20261009-workspace-bind-on-trial/README.md)。本轮仅集中交付已保留READ/WRITE/DFS读改进，不新增产品优化或性能成绩；G2.27最终性能出口仍PENDING，G1历史8/8关闭、原G2 12/0/15不变。标准/授权/远端历史证据保持原身份；组合安装不是Owner-only性能资格。Moose对照准入仍阻塞、DFS写按用户暂缓；下一回Owner远端核心性能。普通本地、复杂可靠性/大规模、多Meta/etcd/Redis后置。
 
 以下日期记录保留原版本与结论。
 

@@ -1,0 +1,7 @@
+{
+  "original_sha256": "8b9fe2c4e404fa2ffbd5a24c48fea722ce9bcbfd4eb8e7b1ec649c1a5c3678aa",
+  "current_sha256": "c16c2da9f40cd1001727b280dd98beb2a6e633f2f9f7231d6506250fbeee5146",
+  "reason": "Effective print-config has ownerfs/dfs boolean fields; fs is CLI input, not serialized key",
+  "original_failure": "commands/saved-data-audit.stderr",
+  "scope": "saved evidence only; no product/runtime rerun"
+}

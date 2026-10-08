@@ -1,4 +1,4 @@
-**当前 G2.14（2026-10-08）：** d14候选 bind ON/B Home/C远端一次64MiB/C1读，功能限定PASS／Owner侧测量COMPLETE：416.250925MiB/s，独立pread p50/p95/p99为1.821228/5.166909/7.134337ms，320原始间隔。六轮Home实际取数各64MiB、内容/权限/errno及正式阶段三actualwait0通过；首驱动warmup失败另保留三wait0，未刷分。Moose因旧官方服务文件uid501不满足root所有权门禁，启动前BLOCKED，比较NOT_RUN、正式1.2/.8双目标PENDING；不是容量阻塞，无产品改动或改善结论。 [版本、原始证据和失败](evidence/20261008-owner-remote-direct-read/README.md)。G1历史8/8和原G2 12/0/15不变；b80 ON交付保留原身份。下一：等待Moose隔离部署选择，独立Owner远端工作继续，DFS仍暂缓。
+**当前出口（2026-10-09，G2.27更新ON交付分项）：** d47/160输入包两次Linux字节一致；新Meta650/保留Node d14在现有无编译器ext4环境按包内指南启用真实Home workspace bind ON，uid501读写/uid502拒绝、Owner64KiB与DFS64MiB正常全停重启读回及五actualwait0限定PASS。独立保存数据审计和实际归档恢复通过；GitHub新包发布待完成。[版本、范围及证据](evidence/20261009-workspace-bind-on-trial/README.md)。本轮仅集中交付已保留READ/WRITE/DFS读改进，不新增产品优化或性能成绩；G2.27最终性能出口仍PENDING，G1历史8/8关闭、原G2 12/0/15不变。标准/授权/远端历史证据保持原身份；组合安装不是Owner-only性能资格。Moose对照准入仍阻塞、DFS写按用户暂缓；下一回Owner远端核心性能。普通本地、复杂可靠性/大规模、多Meta/etcd/Redis后置。
 
 **环境维护（2026-10-08）：** [A四份旧ELF已完整归档并实际Linux恢复后移除](evidence/20261008-a-stopped-binary-archive/README.md)，实际可用1.50→2.55GiB；七memory Meta/FDB及原挂载/27非二进制文件身份保留。未改当前d14产品/候选/配置或运行测试；DFS原阻塞记录不改，暂缓决定不自动撤销，继续Owner远端。G1/G2验收计数不变。
 

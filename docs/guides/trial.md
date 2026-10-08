@@ -1,13 +1,13 @@
-# OwnerFs workspace bind ON 试用：b80
+# OwnerFs workspace bind ON 试用：d47
 
-当前 Linux ARM64 包版本 `0.1.0-g2-bind-b80dab6`，产品源码
-`b80dab66e9d819cad821c9b30edbf97c795c0c3e`。`manifest.json` 固定产品版本、
+当前 Linux ARM64 包版本 `0.1.0-g2-bind-d47eec2`，产品源码
+`d47eec28360ba60e92d95c9f0775c8ecce53ef2e`。`manifest.json` 固定产品版本、
 编译特性及 Meta/Node ELF SHA256；本指南和打包工具的提交、SHA另行记录，必须与编译输入映射核对。
 普通生成配置仍默认 OFF；本次场景按下列步骤明确打开 **OwnerFs workspace bind mount**。
 容器/runc只是可选使用者，启用宿主bind不依赖容器或测试探针。
 
 [当前验收表](https://github.com/lelezi257/dms/blob/main/development/trial-release-goals.md)和
-[b80真实B-Home宿主ON/C远端FUSE及正常恢复证据](https://github.com/lelezi257/dms/blob/149e8725e4fbb420f28b50452be57fb4ac562dd6/development/evidence/20261008-workspace-bind-remote/README.md)
+[b80历史B-Home宿主ON/C远端FUSE及正常恢复证据](https://github.com/lelezi257/dms/blob/149e8725e4fbb420f28b50452be57fb4ac562dd6/development/evidence/20261008-workspace-bind-remote/README.md)
 分别记录功能、测量、性能、交付。该证据不是本包的独立安装证明；包的验证状态以其随附证据索引为准。
 [8442 OFF原指南](https://github.com/lelezi257/dms/blob/149e8725e4fbb420f28b50452be57fb4ac562dd6/docs/guides/trial.md)、
 [历史f03包](https://github.com/lelezi257/dms/releases/tag/afs-trial-f03dc2b)保留原版本/范围/判据，不能作为当前ON包安装结论。
@@ -21,7 +21,7 @@ Linux ARM64、FUSE3与`/dev/fuse`、本地ext4，管理员具备正常FUSE及bin
 
 ```sh
 sha256sum -c SHA256SUMS
-package_dir=afs-0.1.0-g2-bind-b80dab6-linux-aarch64
+package_dir=afs-0.1.0-g2-bind-d47eec2-linux-aarch64
 tar -xzf "$package_dir.tar.gz"
 cd "$package_dir"
 sha256sum -c SHA256SUMS
@@ -39,7 +39,7 @@ ldd bin/afs-node
 示例使用管理员预先分配的uid/gid501，实际部署须替换为工作负载的合法身份。
 
 ```sh
-trial_root=/var/tmp/afs-trial-bind-b80
+trial_root=/var/tmp/afs-trial-bind-d47
 test ! -e "$trial_root" || exit 1
 sudo ./install.sh --prefix "$trial_root/prefix" --config-dir "$trial_root/etc" \
   --state-dir "$trial_root/state" --run-dir "$trial_root/run" \
@@ -92,18 +92,30 @@ Home底层真实`state/node/ownerfs/root-…-e…`覆盖本Home的FUSE一级目�
 C保持宿主bind与实验容器开关OFF，通过C的OwnerFs FUSE访问B的workspace。
 不要在非Home C给同一workspace开启bind，授权失败必须保留其真实错误。
 
-已验证当前固定Home场景：4/64KiB双向写-close/新open的SHA/长度/EOF、native rename后的
+b80历史固定Home场景已验证：4/64KiB双向写-close/新open的SHA/长度/EOF、native rename后的
 新名字与旧ENOENT、远端删除/native ENOENT、chmod000/0600、uid502拒绝及EEXIST不破坏内容。
-这是小规模功能范围，不是完整POSIX、远端性能达标或任意多workspace拓扑。
+这是按原版本保留的小规模功能范围，不能自动升级为本包运行结论；当前包的安装、核心恢复及远端证据分别以随附TRIAL_MANIFEST.json为准，不代表完整POSIX、远端性能达标或任意多workspace拓扑。
 
 ## 正常停止、排空和local-file恢复
 
 停止前让应用关闭FD/mmap、停止写入并完成所需文件及父目录持久屏障，然后`ctl stop all`。
 保留状态、配置、日志和processctl退出回执，不靠杀进程、删挂载或删状态宣布关闭。
 确认监督者实际wait0、bind/FUSE与UDS消失，再用同一配置`ctl start all`，新打开确认数据。
-当前证据覆盖Meta与两Node全服务正常停止后重启；不等于在线Meta-only重启或崩溃恢复。
+b80历史证据覆盖Meta与两Node全服务正常停止后重启；新包独立安装/恢复以随附索引为准；不等于在线Meta-only重启或崩溃恢复。
 ON控制面失联/授权失败按现有策略fail-closed，须等待引用排空；不要绕过Home/root/epoch核验。
 需要关闭该功能时，先排空并正常停Node，将宿主开关显式改false后再启动。
+
+## 已保留优化与配置范围
+
+本包Node与当前160项编译输入完全对应，保留Owner远端读、写及DFS读的有限优化。
+[Owner读前后对照](https://github.com/lelezi257/dms/blob/d47eec28360ba60e92d95c9f0775c8ecce53ef2e/development/evidence/20261008-owner-remote-read-frames/README.md)、
+[Owner写前后对照](https://github.com/lelezi257/dms/blob/3cd0e9907fabbdf77fd9e29b209e1220506d5fe2/development/evidence/20261008-owner-remote-write-server-pair/README.md)、
+[DFS读前后对照](https://github.com/lelezi257/dms/blob/a734091cb866869e6ead0cde553e6129be88250b/development/evidence/20261008-dfs-read-version-cache/README.md)
+保留各自候选、比较条件、波动和负面数据；不把自对照改善当作MooseFS/3FS目标达标。
+默认single配置启用OwnerFs与DFS；Owner写入站帧优化只适用于Owner-only Node。
+需要复现该小性能场景时，应在启动前将对应Node配置的`fs`明确设为`"ownerfs"`，
+按同一配置记录和比较条件执行；不能把combined模式安装验证当作Owner-only性能验证。
+Meta/Node ELF与编译输入来源分别记录，沿用旧证据不能改写其二进制身份。
 
 ## 支持边界与性能状态
 

@@ -1,0 +1,12 @@
+{
+  "archive_path": "evidence/archives/20261009-workspace-bind-on-trial/records.tar.gz",
+  "archive_sha256": "dd23d8d744a5c67c843f301ba2d55a885daa45e5368da98a971f8b9f95f8c0a5",
+  "archive_bytes": 70733,
+  "regular_files": 291,
+  "guest_files": 161,
+  "excluded": "package/ELFs/payload/private TLS keys; duplicated unchanged helper sources. Observer reconstructed from fixed old base plus observer.patch; compiler/packaging tools referenced by SHA.",
+  "package": {
+    "path": "evidence/afs-delivery/workspace-bind-on-trial-d47-20261009-r1/afs-0.1.0-g2-bind-d47eec2-linux-aarch64.tar.gz",
+    "sha256": "3c479347bd2e93a46f1aa484daf4901ae07bf818cbfbb5e7dc76ac506b574a89"
+  }
+}

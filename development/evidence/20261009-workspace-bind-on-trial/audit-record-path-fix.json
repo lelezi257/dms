@@ -1,0 +1,7 @@
+{
+  "original_sha256": "4df5e2b23ef0060c6fa8ac32226a803358427df25878bce7b06f5f020a22ac9c",
+  "current_sha256": "8cc4d140ab45a4f8b9617fce0d33d63027288687112ca89e672941681e41e8d4",
+  "original_failure": "commands/saved-data-audit-mount-sequence.stderr",
+  "reason": "Run.command stores command streams directly in results; commands.json is an index",
+  "scope": "saved data only, no runtime replay"
+}

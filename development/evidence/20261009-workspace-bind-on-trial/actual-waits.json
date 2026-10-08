@@ -1,0 +1,158 @@
+{
+  "bootstrap": {
+    "node": {
+      "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.poUyyy",
+      "child": {
+        "pid": "118902",
+        "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+        "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/node.toml",
+        "start_ticks": "21816133",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.poUyyy",
+        "supervisor_pid": "118886"
+      },
+      "ready": {
+        "supervisor_pid": "118886"
+      },
+      "exit": {
+        "pid": "118902",
+        "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+        "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/node.toml",
+        "start_ticks": "21816133",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.poUyyy",
+        "supervisor_pid": "118886",
+        "exit_code": "0"
+      },
+      "child_supervisor_gone": true,
+      "pids": [
+        118902,
+        118886
+      ]
+    }
+  },
+  "first-all": {
+    "meta": {
+      "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.tIc3cP",
+      "child": {
+        "pid": "118710",
+        "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-meta",
+        "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/meta.toml",
+        "start_ticks": "21816116",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.tIc3cP",
+        "supervisor_pid": "118694"
+      },
+      "ready": {
+        "supervisor_pid": "118694"
+      },
+      "exit": {
+        "pid": "118710",
+        "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-meta",
+        "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/meta.toml",
+        "start_ticks": "21816116",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.tIc3cP",
+        "supervisor_pid": "118694",
+        "exit_code": "0"
+      },
+      "child_supervisor_gone": true,
+      "pids": [
+        118710,
+        118694
+      ]
+    },
+    "node": {
+      "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.LE9J3G",
+      "child": {
+        "pid": "119378",
+        "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+        "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/node.toml",
+        "start_ticks": "21816177",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.LE9J3G",
+        "supervisor_pid": "119362"
+      },
+      "ready": {
+        "supervisor_pid": "119362"
+      },
+      "exit": {
+        "pid": "119378",
+        "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+        "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/node.toml",
+        "start_ticks": "21816177",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.LE9J3G",
+        "supervisor_pid": "119362",
+        "exit_code": "0"
+      },
+      "child_supervisor_gone": true,
+      "pids": [
+        119378,
+        119362
+      ]
+    }
+  },
+  "final": {
+    "meta": {
+      "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.sEStNn",
+      "child": {
+        "pid": "119988",
+        "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-meta",
+        "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/meta.toml",
+        "start_ticks": "21816589",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.sEStNn",
+        "supervisor_pid": "119972"
+      },
+      "ready": {
+        "supervisor_pid": "119972"
+      },
+      "exit": {
+        "pid": "119988",
+        "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-meta",
+        "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/meta.toml",
+        "start_ticks": "21816589",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/meta.lifecycle.sEStNn",
+        "supervisor_pid": "119972",
+        "exit_code": "0"
+      },
+      "child_supervisor_gone": true,
+      "pids": [
+        119988,
+        119972
+      ]
+    },
+    "node": {
+      "path": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.BmSbqf",
+      "child": {
+        "pid": "120241",
+        "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+        "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/node.toml",
+        "start_ticks": "21816605",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.BmSbqf",
+        "supervisor_pid": "120225"
+      },
+      "ready": {
+        "supervisor_pid": "120225"
+      },
+      "exit": {
+        "pid": "120241",
+        "exe": "/var/tmp/afs-installed-bind-d47-20261009-r1/prefix/bin/afs-node",
+        "config": "/var/tmp/afs-installed-bind-d47-20261009-r1/etc/node.toml",
+        "start_ticks": "21816605",
+        "boot_id": "57e1dc25-0d6c-4738-ba94-015bc45428dd",
+        "lifecycle": "/var/tmp/afs-installed-bind-d47-20261009-r1/run/node.lifecycle.BmSbqf",
+        "supervisor_pid": "120225",
+        "exit_code": "0"
+      },
+      "child_supervisor_gone": true,
+      "pids": [
+        120241,
+        120225
+      ]
+    }
+  }
+}

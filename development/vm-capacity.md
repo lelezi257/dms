@@ -58,3 +58,5 @@ K 轮若在内容/副本/结果保存、正常关闭后复用同一可再生空�
 [容量、完整身份检查、初始拒绝与备份恢复索引](evidence/20261007-vm-capacity-maintenance/README.md)。原 acceptance.lock 仍 PREPARING，保留原 SHA，不在此次维护中伪造正式环境锁。
 
 For serial small Owner comparisons, reuse the existing payload. After complete raw-record archive recovery and actual Linux restoration/SHA checks of retained host ELF inputs, remove only the run-specific temporary transfer and staged ELF paths. Keep prefix binaries, original data/state/logs and earlier failed evidence. Record exact removed paths/bytes and post-cleanup capacity; do not leave a new pair of ELF staging copies per round. [Executed example](evidence/20261008-owner-remote-write-server-pair/staging-cleanup.json).
+
+2026-10-09集中ON交付沿用现有micro512MiB预算/1GiB保留量，采样最终168,525,824B、无TRACE，日志8,401B。归档/实际恢复后清理本轮23份可恢复构建/传输/解压暂存，释放125,321,216分配字节；安装数据/日志/结果及保护库存保留。[实际回收与范围](evidence/20261009-workspace-bind-on-trial/staging-cleanup.json)。A/ctl扩容仍按用户决定暂缓；此回收不等于已完成其历史占用治理。磁盘余量不足与用例目录预算超限分别报告。

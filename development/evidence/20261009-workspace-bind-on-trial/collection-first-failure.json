@@ -1,0 +1,5 @@
+{
+  "error": "collector wrapper called nonexistent h.save after both guest collection and budget commands returned zero",
+  "scope": "host result saving only; no guest/product rerun",
+  "recovery": "final-budget.json saved from the original final-budget.stdout"
+}

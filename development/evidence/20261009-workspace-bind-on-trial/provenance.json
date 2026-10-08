@@ -1,0 +1,34 @@
+{
+  "product_source_commit": "d47eec28360ba60e92d95c9f0775c8ecce53ef2e",
+  "compiler_input_map": "ec7e2de5ea5e5b83883725fe4175b819af75cd4713c25e0479bb275ff5bab300",
+  "compiler_input_files": 160,
+  "compiler_inputs": "archive raw/compiler-inputs.json; Linux audit compares all160 current source files",
+  "meta": {
+    "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
+    "build": "commands/meta-release-current: Linux cargo build --offline --release --bin afs-meta, exit0",
+    "warnings": "two existing dead_code warnings, not repaired"
+  },
+  "node": {
+    "sha256": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+    "build_origin": "7589acb2e2d796b8dbf6b4fdf297a78b4167bf3e+patch:854ec68fddb6330ba2b0382bf0ebf6b5794d546751546f27370bc3b2ee744fb8",
+    "reuse": "160 current compiler inputs exactly match retained candidate; four targeted tests/release build reused from 20261008-owner-remote-write-server-pair/linux-validation.json; no recompilation or broad test inheritance"
+  },
+  "packaging_inputs_sha256": "5b35f701982e452f83fb4ba98696a6d4fda22c7e0f555dde0e1a0bd18f99eaa0",
+  "packaged_guide_sha256": "15f4f2bf2bbf07caef4d5e9ded862c8978e4e6a26608df4e8e1447c63d0bc1a8",
+  "helper_hashes": {
+    "driver": "3a4f4bad37dbb305bd4bfd7083a74a80b536cc04719d93a783d74c9f50395d18",
+    "observer": "cbdb5f39675e11c72d77650a9c1d7f326b40e684847141c1fa7dac3dc2a50e75",
+    "inventory": "dc85fbd9a96d5f7079004d89c3f192e3bd4ea30ace6a6d8a3c55cad7627dba8b",
+    "common": "d19937cac0146045eacd750c8a4465095ed76bc095e7d451b3e37fe329fa8153",
+    "probe": "ba9d8a1b24eb06ca688f040d20029b7a49dfb7807da41431d6d1a3ef4154c70a"
+  },
+  "observer_delta": {
+    "base_path": "evidence/afs-delivery/workspace-bind-on-trial-b80-20261008-r1/observer.py",
+    "base_sha256": "afb42364dcedda25c8fbf9b643a77b9309b1b3084800226e10ffde4a882a3207",
+    "updated_sha256": "cbdb5f39675e11c72d77650a9c1d7f326b40e684847141c1fa7dac3dc2a50e75",
+    "scope": "admit only; prior closed branch unused for ON full-stop recovery; driver and independent saved-data audit own closure"
+  },
+  "strict_clippy": "prior two dead_code failures retained; not rerun/claimed fixed",
+  "git_handoff_sha256": "ad5e9ce000b662800511263b185e4fc1a2619a6539f06f335dc14c88c9f3d441",
+  "acceptance_lock_sha256": "ef32cf92fa548a801f57d339a4473e8866c695556205cd5e544797bc8392d6d2"
+}

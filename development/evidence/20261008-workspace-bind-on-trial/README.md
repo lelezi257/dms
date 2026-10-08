@@ -9,7 +9,7 @@ Compiled product b80/map ea809fa7 and exact Meta/Node ELFs match the preceding
 [real B bind ON/C remote functional and normal recovery evidence](../20261008-workspace-bind-remote/README.md).
 No Cargo build, remote matrix, performance rerun or recovery rerun was performed for this packaging node.
 
-The [packaged guide](../../../docs/guides/trial.md) is SHA256
+The [packaged guide at its original commit](https://github.com/lelezi257/dms/blob/c0f3f790cca6e74e21e0b2623d9cc35e15e197f5/docs/guides/trial.md) is SHA256
 `0233b68bb051fc9c66ee8fbdd77d10fe97659c06b13ec2d6fcffa6b237e2802c`.
 Packaging started at main149 with that then-uncommitted guide; the exact12 packaging file hashes,
 including the guide, are fixed in [packaging inputs](packaging-inputs.json).

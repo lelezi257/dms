@@ -1,0 +1,40 @@
+{
+  "status": "PASS_PUBLISHED_ON_TRIAL_AND_REMOTE_ASSET_DIGESTS",
+  "release_url": "https://github.com/lelezi257/dms/releases/tag/afs-bind-d47eec2",
+  "release_id": 407336757,
+  "tag": "afs-bind-d47eec2",
+  "tag_commit": "0dea97aaaf2cfd752b99920d46132caae0a6d239",
+  "product_source_commit": "d47eec28360ba60e92d95c9f0775c8ecce53ef2e",
+  "prerelease": true,
+  "assets": {
+    "afs-0.1.0-g2-bind-d47eec2-linux-aarch64.tar.gz": {
+      "bytes": 14424959,
+      "sha256": "3c479347bd2e93a46f1aa484daf4901ae07bf818cbfbb5e7dc76ac506b574a89",
+      "github_digest": "sha256:3c479347bd2e93a46f1aa484daf4901ae07bf818cbfbb5e7dc76ac506b574a89",
+      "browser_download_url": "https://github.com/lelezi257/dms/releases/download/afs-bind-d47eec2/afs-0.1.0-g2-bind-d47eec2-linux-aarch64.tar.gz",
+      "asset_id": 623273597
+    },
+    "SHA256SUMS": {
+      "bytes": 274,
+      "sha256": "ff7125076a1a80a6beed091c9d63a87ec3be7ea169cc9096f9f798261ed23dcb",
+      "github_digest": "sha256:ff7125076a1a80a6beed091c9d63a87ec3be7ea169cc9096f9f798261ed23dcb",
+      "browser_download_url": "https://github.com/lelezi257/dms/releases/download/afs-bind-d47eec2/SHA256SUMS",
+      "asset_id": 623273598
+    },
+    "GUIDE.md": {
+      "bytes": 9194,
+      "sha256": "15f4f2bf2bbf07caef4d5e9ded862c8978e4e6a26608df4e8e1447c63d0bc1a8",
+      "github_digest": "sha256:15f4f2bf2bbf07caef4d5e9ded862c8978e4e6a26608df4e8e1447c63d0bc1a8",
+      "browser_download_url": "https://github.com/lelezi257/dms/releases/download/afs-bind-d47eec2/GUIDE.md",
+      "asset_id": 623273599
+    },
+    "TRIAL_MANIFEST.json": {
+      "bytes": 2568,
+      "sha256": "2592838d7c47d889330739a0488750d4bdeb046b8a25e0c1690e464c16d52ebb",
+      "github_digest": "sha256:2592838d7c47d889330739a0488750d4bdeb046b8a25e0c1690e464c16d52ebb",
+      "browser_download_url": "https://github.com/lelezi257/dms/releases/download/afs-bind-d47eec2/TRIAL_MANIFEST.json",
+      "asset_id": 623273596
+    }
+  },
+  "new_tag_only": true
+}

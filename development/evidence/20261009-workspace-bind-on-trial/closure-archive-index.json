@@ -1,0 +1,7 @@
+{
+  "archive_path": "evidence/archives/20261009-workspace-bind-on-trial/closure-supplement.tar.gz",
+  "archive_sha256": "d50b9ee68cb5f3b1e53756548d1a9f639d930d10edbb732d16d7d0d2eec48793",
+  "archive_bytes": 22619,
+  "regular_files": 50,
+  "scope": "Additional restore/cleanup/publication commands, scripts and receipts only; base291 files remain immutable, package/ELFs/payload and repeated observer/guide excluded"
+}

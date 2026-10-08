@@ -1,6 +1,6 @@
 # AFS
 
-**当前交付：d47更新ON试用包完成本地安装与正常全停恢复，发布待完成。** [当前包与限定证据](development/evidence/20261009-workspace-bind-on-trial/README.md)、[明确ON指南](docs/guides/trial.md)。保留Owner远端READ/WRITE和DFS读优化，正式Moose1.2/.8与DFS/3FS性能仍待验；新版本不自动继承历史全集。已发布[b80历史ON包](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6)及原结论保留，G1历史8/8、G2 12/0/15不变。
+**当前交付：[d47更新ON试用包已发布](https://github.com/lelezi257/dms/releases/tag/afs-bind-d47eec2)。** Linux ARM64，无编译器安装、真实Home bind ON及正常全停local-file恢复限定通过。 [当前包与限定证据](development/evidence/20261009-workspace-bind-on-trial/README.md)、[明确ON指南](docs/guides/trial.md)。保留Owner远端READ/WRITE和DFS读优化，正式Moose1.2/.8与DFS/3FS性能仍待验；新版本不自动继承历史全集。已发布[b80历史ON包](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6)及原结论保留，G1历史8/8、G2 12/0/15不变。
 
 AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [same-mount visibility and close-to-open consistency](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
 

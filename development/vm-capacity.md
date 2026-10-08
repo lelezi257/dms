@@ -52,3 +52,5 @@ K 轮若在内容/副本/结果保存、正常关闭后复用同一可再生空�
 - 实际扩容或恢复失败立即保存证据、停止该盘操作并求助；不重建、重新格式化或反复修补。维护 PASS 不等于产品功能、RDMA或性能 PASS。B/C 本次重启后的 `rdma link`为空，本次没有前态证明或 RDMA恢复资格；当前 gRPC 小项不因此冒称 RDMA通过。
 
 [容量、完整身份检查、初始拒绝与备份恢复索引](evidence/20261007-vm-capacity-maintenance/README.md)。原 acceptance.lock 仍 PREPARING，保留原 SHA，不在此次维护中伪造正式环境锁。
+
+For serial small Owner comparisons, reuse the existing payload. After complete raw-record archive recovery and actual Linux restoration/SHA checks of retained host ELF inputs, remove only the run-specific temporary transfer and staged ELF paths. Keep prefix binaries, original data/state/logs and earlier failed evidence. Record exact removed paths/bytes and post-cleanup capacity; do not leave a new pair of ELF staging copies per round. [Executed example](evidence/20261008-owner-remote-write-server-pair/staging-cleanup.json).

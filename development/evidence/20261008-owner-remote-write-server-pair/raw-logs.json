@@ -1,0 +1,26 @@
+{
+  "ERRO": 5,
+  "WARN": 60,
+  "bytes": 19493,
+  "items": [
+    {
+      "ERRO": 0,
+      "WARN": 0,
+      "bytes": 592,
+      "path": "logs/meta.log"
+    },
+    {
+      "ERRO": 1,
+      "WARN": 4,
+      "bytes": 4059,
+      "path": "logs/node.log"
+    },
+    {
+      "ERRO": 4,
+      "WARN": 56,
+      "bytes": 14842,
+      "path": "logs/node.log"
+    }
+  ],
+  "scope": "all retained fixture logs, includes historical lines; no failure discarded"
+}

@@ -1,0 +1,22 @@
+{
+  "status": "PASS_SAVED_DATA_AUDIT",
+  "checks": 537,
+  "function": "LIMITED_PASS",
+  "measurement": "COMPLETE",
+  "retention": "PASS",
+  "formal_moose": "PENDING",
+  "actual_wait0": 5,
+  "throughput_ratio": 1.0524370175090387,
+  "p95_ratio": 0.985980524937034,
+  "sampled_peak_allocated": {
+    "ctl": 97800192,
+    "b": 264790016,
+    "c": 197668864
+  },
+  "minimum_backing_free": {
+    "ctl": 1977356288,
+    "b": 21269839872,
+    "c": 36828377088
+  },
+  "scope": "saved receipts and per-round observations; not continuous peak proof or full POSIX"
+}

@@ -1,0 +1,13 @@
+{
+  "baseline_main": "46ef3f613306c667b5375f5cbedf601d99025c1d",
+  "baseline_node": "839e14d93e7fb50099988a739eaeba1fafbdce83860c0328b8c0b91f7b4e6063",
+  "candidate_node": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+  "meta_node": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+  "compiler_map": "ec7e2de5ea5e5b83883725fe4175b819af75cd4713c25e0479bb275ff5bab300",
+  "patch": "../20261008-owner-remote-write-server-frames/archive-index.json",
+  "raw": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-server-pair-20261008-r1",
+  "probe_sha256": "c87a5fd84384871a69379b572ab512b69b1f0c8a6632aca4a44c72ac3d91e3ee",
+  "g1": "8/8 historical closed",
+  "g2_original": "12 limited complete /0bind in progress /15pending",
+  "new_delivery": false
+}

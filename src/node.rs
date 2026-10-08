@@ -39,6 +39,21 @@ use std::{
     time::{Duration, Instant},
 };
 
+const OWNER_ONLY_TCP_MAX_FRAME_SIZE: u32 = 256 * 1024;
+
+fn configure_node_tcp_server(
+    grpc_config: &afs_transport::grpc::GrpcConfig,
+    ownerfs: bool,
+    dfs: bool,
+) -> tonic::transport::Server {
+    let server = grpc_config.configure_server(tonic::transport::Server::builder());
+    if ownerfs && !dfs {
+        server.max_frame_size(OWNER_ONLY_TCP_MAX_FRAME_SIZE)
+    } else {
+        server
+    }
+}
+
 /// B-side slow-path connector. The root grant and Home location stay in the
 /// OwnerFs business layer; this adapter only turns Meta's authenticated node
 /// endpoint into a cached OwnerFiles transport client.
@@ -375,6 +390,109 @@ mod readiness_mount_tests {
             ),
             Some("42".to_owned())
         );
+    }
+}
+
+#[cfg(test)]
+mod node_tcp_server_settings_tests {
+    use super::{
+        OWNER_ONLY_TCP_MAX_FRAME_SIZE, configure_node_tcp_server,
+        rpc::{control::RdmaSessionRegistry, data::make_data_server},
+        storage::Storage,
+    };
+    use std::time::Duration;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio_stream::wrappers::TcpListenerStream;
+
+    const DEFAULT_HTTP2_MAX_FRAME_SIZE: u32 = 16 * 1024;
+    const HTTP2_SETTINGS_MAX_FRAME_SIZE: u16 = 0x5;
+
+    #[tokio::test]
+    async fn node_tcp_server_advertises_owner_only_frame_size_policy() {
+        for (ownerfs, dfs, expected) in [
+            (true, false, OWNER_ONLY_TCP_MAX_FRAME_SIZE),
+            (false, true, DEFAULT_HTTP2_MAX_FRAME_SIZE),
+            (true, true, DEFAULT_HTTP2_MAX_FRAME_SIZE),
+            (false, false, DEFAULT_HTTP2_MAX_FRAME_SIZE),
+        ] {
+            let actual = advertised_http2_max_frame_size(ownerfs, dfs).await;
+            assert_eq!(actual, expected, "ownerfs={ownerfs} dfs={dfs}");
+        }
+    }
+
+    async fn advertised_http2_max_frame_size(ownerfs: bool, dfs: bool) -> u32 {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let storage = Storage::new(temp.path().join("data")).expect("storage");
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let address = listener.local_addr().expect("local addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let grpc_config = afs_transport::grpc::GrpcConfig::default();
+        let server = tokio::spawn(async move {
+            let result = configure_node_tcp_server(&grpc_config, ownerfs, dfs)
+                .add_service(make_data_server(
+                    std::sync::Arc::new(storage),
+                    RdmaSessionRegistry::default(),
+                ))
+                .serve_with_incoming_shutdown(TcpListenerStream::new(listener), async {
+                    let _ = shutdown_rx.await;
+                })
+                .await;
+            assert!(result.is_ok(), "server failed: {result:?}");
+        });
+
+        let mut stream = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("connect");
+        stream
+            .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+            .await
+            .expect("write preface");
+        stream
+            .write_all(&[0, 0, 0, 4, 0, 0, 0, 0, 0])
+            .await
+            .expect("write empty settings");
+        let advertised = read_settings_max_frame_size(&mut stream, Duration::from_secs(3)).await;
+        drop(stream);
+        let _ = shutdown_tx.send(());
+        tokio::time::timeout(Duration::from_secs(3), server)
+            .await
+            .expect("server shutdown timeout")
+            .expect("server join");
+        advertised
+    }
+
+    async fn read_settings_max_frame_size(
+        stream: &mut tokio::net::TcpStream,
+        timeout: Duration,
+    ) -> u32 {
+        loop {
+            let mut header = [0u8; 9];
+            tokio::time::timeout(timeout, stream.read_exact(&mut header))
+                .await
+                .expect("settings frame timeout")
+                .expect("read frame header");
+            let length =
+                ((header[0] as usize) << 16) | ((header[1] as usize) << 8) | header[2] as usize;
+            let frame_type = header[3];
+            let stream_id = u32::from_be_bytes([header[5] & 0x7f, header[6], header[7], header[8]]);
+            let mut payload = vec![0; length];
+            tokio::time::timeout(timeout, stream.read_exact(&mut payload))
+                .await
+                .expect("settings payload timeout")
+                .expect("read frame payload");
+            if frame_type != 4 || stream_id != 0 {
+                continue;
+            }
+            for setting in payload.chunks_exact(6) {
+                let id = u16::from_be_bytes([setting[0], setting[1]]);
+                if id == HTTP2_SETTINGS_MAX_FRAME_SIZE {
+                    return u32::from_be_bytes([setting[2], setting[3], setting[4], setting[5]]);
+                }
+            }
+            return DEFAULT_HTTP2_MAX_FRAME_SIZE;
+        }
     }
 }
 
@@ -1515,8 +1633,11 @@ async fn run_node(
     let stop = services.stop.subscribe();
     let grpc_config = afs_transport::grpc::GrpcConfig::default();
     let grpc_security = afs_transport::grpc::SecurityManager::new(cfg.tls_config())?;
-    let grpc_server = grpc_security
-        .configure_server(grpc_config.configure_server(tonic::transport::Server::builder()))?;
+    let grpc_server = grpc_security.configure_server(configure_node_tcp_server(
+        &grpc_config,
+        cfg.ownerfs,
+        cfg.dfs,
+    ))?;
     let incoming =
         grpc_config.configure_tcp_incoming(tonic::transport::server::TcpIncoming::from(grpc));
     // 业务 Handler 在 Node，公共 transport 只提供 builder 配置和低层搬运机制。

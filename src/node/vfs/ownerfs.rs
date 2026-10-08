@@ -5170,7 +5170,7 @@ impl LocalOwnerFs {
                 entry.attributes.clone(),
                 entry.attributes.kind,
             ),
-            LookupIndexMode::SelectedReaddir => state.inode_for_selected_readdir_path(
+            LookupIndexMode::ObservedPath => state.inode_for_observed_path(
                 entry.root_id,
                 relative,
                 entry.identity,
@@ -5185,11 +5185,13 @@ impl LocalOwnerFs {
         parent: &NodeRecord,
         relative: StoragePath,
     ) -> Result<Entry> {
-        self.lookup_storage_entry_with_mode(parent, relative, LookupIndexMode::SelectedReaddir)
+        self.lookup_storage_entry_with_mode(parent, relative, LookupIndexMode::ObservedPath)
     }
 
     fn lookup_storage_entry(&self, parent: &NodeRecord, relative: StoragePath) -> Result<Entry> {
-        self.lookup_storage_entry_with_mode(parent, relative, LookupIndexMode::Ordinary)
+        // Successful lookup, like a selected readdir row, confirms an alias is
+        // usable after native rename/unlink bypassed our namespace indexes.
+        self.lookup_storage_entry_with_mode(parent, relative, LookupIndexMode::ObservedPath)
     }
 
     fn lookup_storage_entry_with_mode(
@@ -5241,7 +5243,7 @@ impl LocalOwnerFs {
                 attributes.clone(),
                 kind,
             ),
-            LookupIndexMode::SelectedReaddir => state.inode_for_selected_readdir_path(
+            LookupIndexMode::ObservedPath => state.inode_for_observed_path(
                 root_id.clone(),
                 relative,
                 identity,
@@ -5496,7 +5498,7 @@ impl OwnerState {
         inode
     }
 
-    fn inode_for_selected_readdir_path(
+    fn inode_for_observed_path(
         &mut self,
         root_id: RootId,
         relative: StoragePath,
@@ -6075,7 +6077,7 @@ struct OpenDirectoryHandle {
 #[derive(Clone, Copy)]
 enum LookupIndexMode {
     Ordinary,
-    SelectedReaddir,
+    ObservedPath,
 }
 
 fn create_open_flags_for_backend(flags: i32) -> i32 {

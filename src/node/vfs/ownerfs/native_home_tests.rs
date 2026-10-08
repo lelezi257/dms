@@ -190,6 +190,82 @@ fn lookup_root(fs: &OwnerFs, ctx: &RequestContext, name: &str) -> Result<Entry> 
 }
 
 #[test]
+fn native_home_fresh_lookup_after_native_rename_opens_observed_path() {
+    let (temp, owner, ctx, _disk) = fixture(true);
+    let root = mkdir_root(&owner, &ctx, "workspace");
+    let created = Backend::create(
+        &owner,
+        &ctx,
+        root.inode,
+        OsStr::new("old"),
+        0o600,
+        libc::O_RDWR,
+    )
+    .unwrap();
+    Backend::write(&owner, &ctx, created.handle, 0, b"confirmed").unwrap();
+    Backend::flush(&owner, &ctx, created.handle).unwrap();
+    let authority = owner
+        .native_home_export_for_current_namespace(OsStr::new("workspace"))
+        .unwrap();
+    let physical = temp.path().join(authority.data_dir().as_path());
+    fs::rename(physical.join("old"), physical.join("new")).unwrap();
+
+    let observed = Backend::lookup(&owner, &ctx, root.inode, OsStr::new("new")).unwrap();
+    assert_eq!(observed.inode, created.entry.inode);
+    assert_eq!(
+        Backend::getattr(&owner, &ctx, observed.inode, None)
+            .unwrap()
+            .size,
+        9
+    );
+    let fresh = Backend::open(&owner, &ctx, observed.inode, libc::O_RDONLY).unwrap();
+    for handle in [created.handle, fresh] {
+        let mut data = [0_u8; 9];
+        assert_eq!(
+            Backend::read(&owner, &ctx, handle, 0, &mut data).unwrap(),
+            9
+        );
+        assert_eq!(&data, b"confirmed");
+        Backend::release(&owner, &ctx, handle).unwrap();
+    }
+    assert!(Backend::lookup(&owner, &ctx, root.inode, OsStr::new("old")).is_err());
+}
+
+#[test]
+fn native_home_cached_hardlink_lookup_rebinds_after_native_unlink() {
+    let (temp, owner, ctx, _disk) = fixture(true);
+    let root = mkdir_root(&owner, &ctx, "workspace");
+    let created = Backend::create(
+        &owner,
+        &ctx,
+        root.inode,
+        OsStr::new("old"),
+        0o600,
+        libc::O_RDWR,
+    )
+    .unwrap();
+    Backend::write(&owner, &ctx, created.handle, 0, b"linked").unwrap();
+    Backend::flush(&owner, &ctx, created.handle).unwrap();
+    let authority = owner
+        .native_home_export_for_current_namespace(OsStr::new("workspace"))
+        .unwrap();
+    let physical = temp.path().join(authority.data_dir().as_path());
+    fs::hard_link(physical.join("old"), physical.join("alias")).unwrap();
+    let alias = Backend::lookup(&owner, &ctx, root.inode, OsStr::new("alias")).unwrap();
+    assert_eq!(alias.inode, created.entry.inode);
+    fs::remove_file(physical.join("old")).unwrap();
+
+    let observed = Backend::lookup(&owner, &ctx, root.inode, OsStr::new("alias")).unwrap();
+    assert_eq!(observed.inode, alias.inode);
+    let fresh = Backend::open(&owner, &ctx, observed.inode, libc::O_RDONLY).unwrap();
+    let mut data = [0_u8; 6];
+    assert_eq!(Backend::read(&owner, &ctx, fresh, 0, &mut data).unwrap(), 6);
+    assert_eq!(&data, b"linked");
+    Backend::release(&owner, &ctx, fresh).unwrap();
+    Backend::release(&owner, &ctx, created.handle).unwrap();
+}
+
+#[test]
 fn native_home_ordinary_instance_rejects_authority_and_keeps_private_cache() {
     let (_temp, fs, ctx, _disk) = fixture(false);
     let root = mkdir_root(&fs, &ctx, "ordinary");

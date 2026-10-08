@@ -1,0 +1,12 @@
+{
+  "replica-check.py": {
+    "base_path": "evidence/afs-delivery/dfs-r3-current-20261007-r1/local-only/replica-check.py",
+    "base_sha256": "6ea107f25cfada46de4b6eca828ec120f376677ccddcceacc2b188b117829b75",
+    "current_sha256": "3f76a95648f1f869bdea1affbd7cd754eb8aaa37f9fa39b2a10cc8738928dd24"
+  },
+  "closure-check.py": {
+    "base_path": "evidence/afs-delivery/dfs-r3-current-20261007-r1/local-only/closure-check.py",
+    "base_sha256": "b71e0324e1e7774b6b14831f20b81bbe64a6a3ef8e31ad9774b671fd36cf6cc8",
+    "current_sha256": "3253f86da82a0c24b2a41778f01b58f832915a930d5f508a869016f8f889f11d"
+  }
+}

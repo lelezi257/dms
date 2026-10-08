@@ -1,4 +1,4 @@
-**2026-10-08 当前新增（事实/决策）：** 新候选e6f基底/158输入mapd053a333的host bind ON生产RootCommand接收、精确Home拒绝及正常关闭限定PASS：59 Rust+5 Python针对性测试、58运行检查、46独立保存数据核验及Linux实际恢复通过。真实Store两提交/生产RPC日志匹配，Node自然wait1、Meta及bootstrap正常wait0，原4KiB/身份/权限不变；测试发行器不入普通包。Strict all-target/Owner-only Clippy被未修改文件既有lint阻塞，失败保留；受影响Clippy带既有warnings通过。Host ON控制错误fail-closed，OFF策略未改；不称生产issuer/durable ACK/full bind或性能。G1历史8/8/G2总数/defaultOFF不变。下一新候选default-OFF包复现/安装和OwnerFs+DFS local-file核心恢复，标准/八bind性能按身份复用；复杂可靠性和点优化后置。[版本、边界、原始证据](evidence/20261008-workspace-bind-root-command/README.md)。以下保留原时点记录。
+**Current entry:** G2.21 single missing-read run is closed (function PASS / measurement COMPLETE / 3FS performance PENDING). Execute G2.12 finite bind ON + remote FUSE closure next. Dated records below retain their original identity.
 
 **2026-10-08 新增限定功能（事实/决策）：** 固定f03/7bfc，真实宿主workspace bind的物理Home目录原子交换后，身份轮询使Node自然失败关闭：56.44ms观察到Node/监督者及bind/FUSE消失，原Node实际wait1/source-replaced领域码，Meta正常wait0。原inode/4KiB全SHA/0700/501:501恢复、保护进程/旧mount与容量通过；Linux6独立guards及36保存数据审计、77raw/92guest记录/9工具/5失败版本恢复通过。原驱动日志判据FAIL、传输和三审计工具失败保留，修正驱动未重跑产品；仅对已保存实际数据补充正常恢复/独立审计。无Rust/vendor/产品ELF/环境更换，非Meta RootCommand watch/ACK或full bind，G1历史8/8、G2总数/defaultOFF不变。 [证据及原失败](evidence/20261008-workspace-bind-source-replace/README.md)。下一小项：固定f03 DFS三同步副本的local-file Meta正常重启恢复，优先复用已停止小夹具/数据；f03 R1恢复已过，7e6 R3仍历史，不自动继承。普通点优化、3FS资格、大规模/长时及复杂可靠性后置。 以下保留原时点。
 
@@ -98,27 +98,18 @@ G3 is deferred. Long soak, broad random/POSIX matrices, complex fault matrices, 
 
 ## Immediate sequence
 
-Latest user override: pjdfstest targets functional completeness; after high-priority repository remediation, performance priority is the Issue42/PR43 OwnerFs workspace bind mount path (G2.12 prerequisite qualification, then G2.13). Ordinary OwnerFs read/write baselines retain data and defer targeted optimization, and the active target is now [throughput >=1.2x MooseFS plus operation latency <=0.8x MooseFS](ownerfs-performance-criteria.md). The original sequence below remains a dependency/reference map, not an instruction to optimize every ordinary case first.
+The required usage enables **OwnerFs workspace bind mount**. First deliver usable bind ON with correct remote access, then close the relevant performance gaps. Ordinary distribution defaults remain OFF; this scenario must have an explicit ON configuration and runtime evidence.
 
-| Order | Checklist item | Exit |
-| --- | --- | --- |
-| 0 | G0.03 publish checkpoint | Code and related docs are coherent on GitHub, with verification notes and known gaps |
-| 1 | G2.04 OwnerFs pjdfstest current candidate | OwnerFs complete applicable accounting or documented blocker |
-| 2 | G2.06 Owner-relevant fixed LTP subset | Frozen list, ext4 reference boundary and OwnerFs result ledger |
-| 3 | G2.07 Owner-relevant short FSx | Fixed seed/profile, no content or length mismatch |
-| 4 | G2.08 affected Owner/basic + local-file recovery | Owner local/remote basics and Meta local-file restart on current candidate |
-| 5 | G2.09 Owner local small read | Correct data, same-condition MooseFS baseline, throughput >=1.2x and operation latency <=0.8x under the frozen case |
-| 6 | G2.10 Owner local small write | Correct readback, matching durability barrier, throughput >=1.2x MooseFS and operation latency <=0.8x |
-| 7 | G2.11 Owner local delete | Correct namespace and measured comparative report |
-| 8 | G2.12/G2.13 bind function/performance | Explicit default-OFF switch, OFF regression, ON lifecycle and paired OFF/ON/ext4 numbers |
-| 9 | G2.14-G2.16 Owner remote small cases | MooseFS throughput/latency target for read/write, delete report |
-| 10 | G2.05/G2.06/G2.07 DFS standard entry | DFS pjdfstest, DFS-relevant LTP and short FSx before DFS performance claims |
-| 11 | G2.08 DFS affected basic check | DFS basics and any needed local-file recovery combination on current candidate |
-| 12 | G2.21 DFS one-writer/many-readers | Highest-priority DFS performance item, with correctness and 3FS comparison |
-| 13 | G2.22-G2.26 remaining DFS and large cases | Single read/write, multi-node, delete, 512 MiB/8 GiB records |
-| 14 | G2.27 core performance delivery | Reproducible package, selected core cases, recovery check and state report |
+1. **G2.12** finite necessary functional closure and ON scenario trial delivery; **G2.13** reuse the eight scoped core performance passes (>=0.90 native ext4), regress only affected cases.
+2. **G2.14–16** remote read/write and bind ON ↔ remote FUSE cooperation. Read/write require >=1.2x MooseFS throughput **and** <=0.8x independently measured operation latency; delete requires correctness and a comparison report.
+3. **G2.21** DFS one-writer/many-readers, matched POSIX/FUSE with three synchronous durable copies vs 3FS. The single missing-read measurement is closed; performance pending, no further baseline qualification/tool expansion in this slice.
+4. **G2.09–11** ordinary local FUSE and tuning, deferred relative to the above; read/write keep the same MooseFS dual target.
 
-This order is intentionally small-to-large. Completing a small item keeps its completed state; a later larger scale is a new item, not a reason to reopen the smaller result.
+Large/long/complex reliability, multi-Meta, etcd and Redis stay deferred. Reuse unaffected version-scoped standard/recovery/performance proofs. Once a real gap is measured, optimize one main product issue per round with same-condition before/after metrics and correctness; no endless measurement qualification or tiny-residual polishing. Package/install at the explicit ON delivery node, not every small change.
+
+Record **function / measurement / performance / delivery** independently under existing IDs. Tool readiness, evidence checks, document updates and commit counts do not close product goals or increase original stage counts. G1 historical 8/8 stays closed; current regressions belong to G2. Report only ID/exit, newly closed subclaims, actual product change/metrics, failures/evidence and next item.
+
+Finite G2.12 exits and scoped evidence are in the [existing checklist](trial-release-goals.md#g212-necessary-scenario-closure). The original task IDs remain unchanged.
 
 ## Working rules
 

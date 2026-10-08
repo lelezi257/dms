@@ -38,16 +38,9 @@ G1/g1.5 remains complete in its historical scope: OwnerFs/DFS installable trial,
 
 ### G2 current work
 
-G2 starts with Owner-first standard fallback and small cases, then enters DFS standard checks before DFS performance:
+G2 now prioritizes usable **bind ON + correct remote access**. Execute G2.12 finite necessary functions and explicit ON scenario delivery, then remote cooperation/performance (G2.14–16), then DFS one-writer/many-readers (G2.21), then ordinary local FUSE (G2.09–11). Reuse unchanged standard/recovery evidence by version/scope; supplement only affected gaps. The current DFS missing-read slice ends after one small formal run; measurement completion without qualified 3FS comparison leaves performance pending.
 
-- OwnerFs pjdfstest on the current candidate.
-- Owner-relevant fixed LTP filesystem/permission/lock subset.
-- Owner-relevant short fixed-seed FSx.
-- Affected Owner basic operation and local-file recovery combination.
-- Performance priority: container-mounted workspace access from Issue42/PR43, with explicit-switch/default-OFF functional qualification before paired OFF/ON/ext4 measurements.
-- Ordinary Owner local/remote and DFS cases may baseline and retain raw data; defer targeted tuning unless the active item needs it. Ordinary Owner read/write performance now follows [the current OwnerFs criteria](ownerfs-performance-criteria.md): throughput >=1.2x same-condition MooseFS and independently measured operation latency <=0.8x MooseFS. Unchanged passing standard results are reused with their version/scope, not rerun as performance tests.
-- DFS pjdfstest, DFS-relevant LTP/FSx and DFS affected basic checks before DFS performance claims.
-- DFS one-writer/many-readers before broader DFS performance.
+Separate function, measurement, performance and delivery under existing IDs. Tool checks and document synchronization do not close product exits. Bind eight scoped core >=0.90 ext4 results are reused unless affected. Preserve ordinary Owner throughput >=1.2x MooseFS and independently measured latency <=0.8x; do not hide current remote/local FAILs. Optimize one demonstrated product problem per round with same-condition before/after results; packaging/install is concentrated at ON delivery. The checklist contains finite required vs expansion exits.
 
 Performance cases start small, defaulting to 64 MiB unless the item says otherwise. 512 MiB and 8 GiB are separate records. Large data, long-running and complex mixed cases do not block smaller completed items.
 

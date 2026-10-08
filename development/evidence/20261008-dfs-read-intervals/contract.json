@@ -1,0 +1,75 @@
+{
+  "case": "G2.21 small same-file one confirmed writer / synchronized B+C logical-read intervals",
+  "candidate": {
+    "product_source_commit": "0bd66ac5464eec0a188dfc79d4c264eab4276048",
+    "reviewed_main": "d9279139c9b38490ee0e6044a62c620cca7b4284",
+    "compiler_input_map": "866cd52272b1422f194ee14003d4cdd564f7b0196e05bbf413bf835b660de43c",
+    "afs_meta_sha256": "50350b4c18bba79713dff7edab3b41420f5f4988b2e3b861d3e0255308ad3c27",
+    "afs_node_sha256": "e5a24a56289b8a96bbff1825a636548e6de05037f5c76904ba78b8a4c4f3038d",
+    "io_sha256": "88105651f1ef6dce49b8dc9e22f467448f9a9ae62140a1b92b78abf7c0c1d462"
+  },
+  "ordinary_carrier": {
+    "source": "f03dc2b3679c31daa51caee275fb2087413e949c",
+    "package_sha256": "7bfc6b520e551d2281790862c2968e990e376c5c490b2135f583f4da0ccc1972",
+    "scope": "unchanged installation/configuration/process tooling only; runtime selected Meta/Node replaced by pinned candidate, no new ordinary package claim"
+  },
+  "interface": "POSIX/FUSE; DFS-only; gRPC; experimental switches both OFF",
+  "data": {
+    "bytes": 67108864,
+    "block_bytes": 1048576,
+    "dataset": "counter-1m-v1",
+    "unique_4MiB_chunks": 16
+  },
+  "replicas": {
+    "desired": 3,
+    "synchronous": 3,
+    "durable_copies_per_chunk": 3
+  },
+  "write_setup": "one A initialization write; confirmation after fdatasync/close and payload-directory/root fsync, before readers; not a write-performance sample",
+  "reads": {
+    "clients": [
+      "B",
+      "C"
+    ],
+    "per_client_concurrency": 1,
+    "warmup": 1,
+    "measured_rounds": 5,
+    "logical_reads_per_round": 64,
+    "measurement_boundary": "complete full_read 1MiB including any short-read/EINTR retries; excluding content oracle, JSON, open/fstat/EOF/close",
+    "task_boundary": "open/fstat/read/oracle/EOF/close; direct whole task wall duration",
+    "clock": "guest-local CLOCK_MONOTONIC",
+    "quantiles": "nearest-rank ceil(p*N), per-reader pooled 320 logical intervals; p50/p95/p99 all retained",
+    "declared_partition": "per-reader first, then optional combined 640 diagnostic intervals; no favorable per-round selection",
+    "decision_quantile": "p95 reserved for a future qualified matched comparator, not a new ratio gate here",
+    "cache": "buffered/repeat; residency and RPC topology unqualified; do not label hot/cold without proof",
+    "concurrency_proof": "READY before START before both DONE; no measured cross-VM syscall overlap or clock mapping"
+  },
+  "budget": {
+    "ctl_ceiling_MiB": 128,
+    "node_ceiling_MiB": 256,
+    "aggregate_ceiling_MiB": 896,
+    "ctl_reserve_MiB": 512,
+    "A_reserve_MiB": 1024,
+    "B_C_reserve_MiB": 4096,
+    "service_timeout_seconds": 30,
+    "cohort_timeout_seconds": 95,
+    "cohort_drain_timeout_seconds": 35,
+    "log_level": "info",
+    "trace": false
+  },
+  "exit": {
+    "function": "full SHA/EOF, all 64 observed intervals valid each round, sixteen chunks/three distinct Ready/Durable physical copies, actual four wait0 and all owned PIDs/mounts/UDS closed, protected existing incarnations/mounts unchanged",
+    "performance": "DATA_RECORDED_DIAGNOSTIC; 3FS parity stays unaccepted without qualifying comparator",
+    "environment": "freeze admission first; real environment blocker saved and selected lane stopped without repair/retry"
+  },
+  "data_reuse_decision": "Existing historical fixtures are immutable evidence inputs. Their persisted lifecycle/state violates the existing fresh-only preflight and switching their binaries would alter historical fixture identity. One new bounded read fixture uses a single setup write; no normal-recovery or completed standard matrix rerun.",
+  "not_run": [
+    "Release retry",
+    "VM restart/resize/cleanup",
+    "3FS baseline qualification",
+    "large/long case",
+    "full POSIX",
+    "recovery matrix",
+    "point optimization"
+  ]
+}

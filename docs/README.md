@@ -15,7 +15,7 @@ keeps the full case catalog, while the goal table defines which subset is G1,
 which core standard/performance cases are G2, and which long or complex work is
 G3. G1 is complete for the historical `g1.5` trial scope; current source
 publication is a separate checkpoint and must not be described as having passed
-all G2 gates until those cases are rerun.
+all G2 gates without version-scoped evidence. Reuse unaffected passing cases; rerun only genuinely affected gaps. Current order is bind ON functionality/trial → remote cooperation/performance → DFS one-writer/many-readers → ordinary local FUSE.
 
 ## Mechanisms
 

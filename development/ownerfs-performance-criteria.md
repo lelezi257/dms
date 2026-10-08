@@ -6,6 +6,10 @@
 
 Update active goal, acceptance, execution and status documents to point to this rule. Do not rerun benchmarks just for the wording change. Reuse only evidence that already has the same comparator, operation, cache, durability and latency fields; otherwise keep the result as diagnostic or pending.
 
+## Execution Priority
+
+Required usage enables workspace bind ON. First close the finite ON functions and scenario delivery; then remote FUSE cooperation/read-write performance; then DFS one-writer/many-readers; ordinary local FUSE keeps the same dual targets but executes later. Existing gaps justify bounded product optimization, one main issue per round, with same-condition before/after metrics and correctness. Tool readiness and qualification work are not product completion.
+
 ## Current Rule
 
 Ordinary OwnerFs local and remote core read/write cases use MooseFS as the comparator.

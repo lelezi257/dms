@@ -49,7 +49,7 @@
 | S2 | 测试边界 | 完成（限定工具回归） | 维护中的验收驱动在 `tests/acceptance/`，测试探针在 `tests/support/`，普通构建不依赖测试程序。 |
 | S3 | 中文正式文档 | 完成（链接与独立复核通过） | `docs/architecture`、`docs/development`、`docs/testing`、`docs/deployment` 成为正式入口；保留可操作安装/配置/运维步骤，不保留历史流水账。 |
 | S4 | 官方 fuser | 阻塞 | 在不降低锁、取消、权限、freshness、close-to-open、错误传播和 direct-I/O mmap 协商的前提下迁移到官方发布版；当前公开 API 不足。 |
-| S5 | 候选验证 | 受影响验证完成；远端 CI 待核对 | Linux 上完成受影响构建/测试；PR 给出候选 SHA、验证和剩余限制。 |
+| S5 | 候选验证 | Linux 受影响验证完成；CI 依赖声明修复待复核 | Linux 上完成受影响构建/测试；PR 给出候选 SHA、验证和剩余限制。 |
 
 ## 不做项
 
@@ -88,3 +88,5 @@
 - 本地运行证据归档 `host-bind-f540c242-evidence.tar.gz` SHA256：`d17f198567ac98cbae1ef6dc00ee8809815b707eb83b8034397ec94ee368a7c6`。
 
 这些检查关闭的是本次快照的受影响工程子项，不新增 G1/G2 产品完成项。官方依赖整改 S4 未完成，正式 Agent DX 导入仍未开始。
+
+远端 CI 首轮 [37913786563](https://github.com/lelezi257/dms/actions/runs/37913786563) 在 Check 阶段因工作流未安装 libfuse3 开发包失败，后续步骤未运行；失败日志留在本地。修复只补工作流依赖声明和前置检查，不更改 fuser 源码、编译 feature 或验收要求。远端 CI 通过状态待复核。

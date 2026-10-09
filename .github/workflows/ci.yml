@@ -31,7 +31,17 @@ jobs:
       - name: Load pinned Rust toolchain
         run: rustup show active-toolchain
       - name: Install Linux protocol and RDMA headers
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libibverbs-dev pkg-config python3-venv
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libibverbs-dev libfuse3-dev fuse3 pkg-config python3-venv
+      - name: Prepare isolated acceptance dependencies
+        run: |
+          python3 -m venv "$RUNNER_TEMP/afs-tools-venv"
+          "$RUNNER_TEMP/afs-tools-venv/bin/python" -m pip install -r tests/acceptance/requirements.txt
+      - name: Dependency preflight
+        run: |
+          pkg-config --modversion fuse3 libibverbs
+          protoc --version
+          "$RUNNER_TEMP/afs-tools-venv/bin/python" -c 'import hypothesis; assert hypothesis.__version__ == "6.168.3"'
+          command -v fusermount3 findmnt flock openssl cc
       - name: Format
         run: cargo fmt --all --check
       - name: Check
@@ -44,10 +54,6 @@ jobs:
         run: bash tests/feature-matrix.sh
       - name: Build product processes and test examples
         run: cargo build --locked --workspace --all-features --bins --examples
-      - name: Prepare isolated acceptance dependencies
-        run: |
-          python3 -m venv "$RUNNER_TEMP/afs-tools-venv"
-          "$RUNNER_TEMP/afs-tools-venv/bin/python" -m pip install -r tests/acceptance/requirements.txt
       - name: Acceptance tool regressions
         run: |
           sudo env PYTHONDONTWRITEBYTECODE=1 "$RUNNER_TEMP/afs-tools-venv/bin/python" -m unittest discover -s tests/acceptance -p 'test_*.py'

@@ -1,0 +1,68 @@
+{
+  "status": "PASS",
+  "removed_ELFs": 12,
+  "removed_logical_bytes": 95285712,
+  "files": [
+    {
+      "path": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-bytes-20261008-r1/stage/owner-remote-write-perf-20261009-r1/tested-2",
+      "bytes": 15808368,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+    },
+    {
+      "path": "/mnt/lima-afscdata/afs-delivery/owner-remote-write-bytes-20261008-r1/tools/owner-remote-write-perf-20261009-r1-io",
+      "bytes": 72584,
+      "sha256": "161ee0cee2e61fc41efb245a93fc59c158cd3fa028c6635a393eaef944dacb04"
+    },
+    {
+      "path": "/var/tmp/owner-remote-write-perf-20261009-r1-meta",
+      "bytes": 15808368,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+    },
+    {
+      "path": "/var/tmp/owner-remote-write-perf-20261009-r1-io",
+      "bytes": 72584,
+      "sha256": "161ee0cee2e61fc41efb245a93fc59c158cd3fa028c6635a393eaef944dacb04"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-perf-20261009-r1/candidate-meta",
+      "bytes": 15808368,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-perf-20261009-r1/diagnostic-io",
+      "bytes": 72584,
+      "sha256": "161ee0cee2e61fc41efb245a93fc59c158cd3fa028c6635a393eaef944dacb04"
+    },
+    {
+      "path": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-bytes-20261008-r1/stage/owner-remote-write-perf-20261009-r2/tested-2",
+      "bytes": 15808368,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+    },
+    {
+      "path": "/mnt/lima-afscdata/afs-delivery/owner-remote-write-bytes-20261008-r1/tools/owner-remote-write-perf-20261009-r2-io",
+      "bytes": 72584,
+      "sha256": "161ee0cee2e61fc41efb245a93fc59c158cd3fa028c6635a393eaef944dacb04"
+    },
+    {
+      "path": "/var/tmp/owner-remote-write-perf-20261009-r2-meta",
+      "bytes": 15808368,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+    },
+    {
+      "path": "/var/tmp/owner-remote-write-perf-20261009-r2-io",
+      "bytes": 72584,
+      "sha256": "161ee0cee2e61fc41efb245a93fc59c158cd3fa028c6635a393eaef944dacb04"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-perf-20261009-r2/candidate-meta",
+      "bytes": 15808368,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-write-perf-20261009-r2/diagnostic-io",
+      "bytes": 72584,
+      "sha256": "161ee0cee2e61fc41efb245a93fc59c158cd3fa028c6635a393eaef944dacb04"
+    }
+  ],
+  "after_actual_linux_recovery": true
+}

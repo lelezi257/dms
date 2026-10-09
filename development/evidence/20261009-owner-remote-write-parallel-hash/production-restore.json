@@ -1,0 +1,9 @@
+{
+  "status": "PASS_PRODUCT_LOGIC_REVERTED",
+  "source_base": "c16b0267ac12a8890af53b89156e07e85e803894",
+  "remaining_product_diff": false,
+  "retained": "cfg(test) large real grpc payload/offset/checksum/short-write metrics regression",
+  "reason": "preset throughput>=1.05 AND p95<=1.0 failed",
+  "candidate_preserved": "candidate.patch / candidate-node /160 compiler input map",
+  "restored_peer_sha256": "67f415d187ec701a0a599ca8716164e850ab3096ded6fa918dc510e6e037edb5"
+}

@@ -4705,6 +4705,69 @@ mod tests {
 
     #[cfg(feature = "ownerfs")]
     #[tokio::test]
+    async fn owner_grpc_write_large_payload_preserves_request_contract() {
+        let registry = afs_metrics::Registry::new();
+        let metrics = crate::node::rpc::OwnerRpcMetrics::register(&registry).unwrap();
+        let handler = std::sync::Arc::new(PayloadMetricsHandler::success());
+        let (channel, server) = spawn_owner_payload_server(handler.clone(), metrics.clone()).await;
+        let client = owner_files_client_from_channel_with_runtime_and_metrics(
+            channel,
+            tokio::runtime::Handle::current(),
+            Some(metrics),
+        );
+        let grant = test_grant();
+        let file = test_remote_file(b"handle-large-payload-contract".to_vec());
+        let expected_payload = deterministic_bytes(1024 * 1024 - 1);
+        let payload = expected_payload.clone();
+        let checksum = blake3::hash(&expected_payload).as_bytes().to_vec();
+
+        tokio::task::spawn_blocking(move || {
+            assert_eq!(
+                client
+                    .write_with_options(
+                        &grant,
+                        &file,
+                        8192,
+                        &payload,
+                        WriteOptions { kill_suidgid: true },
+                    )
+                    .unwrap(),
+                2
+            );
+        })
+        .await
+        .expect("large write contract worker");
+
+        assert_eq!(
+            handler.writes(),
+            vec![PayloadWriteRecord {
+                offset: 8192,
+                data: expected_payload.clone(),
+                length: expected_payload.len() as u32,
+                kill_suidgid: true,
+                data_checksum: checksum,
+            }]
+        );
+        assert_eq!(owner_payload_bytes(&registry, "client", "write", "grpc"), 2);
+        assert_eq!(owner_payload_bytes(&registry, "server", "write", "grpc"), 2);
+        server.abort();
+    }
+
+    #[cfg(feature = "ownerfs")]
+    fn deterministic_bytes(len: usize) -> Vec<u8> {
+        (0..len)
+            .map(|index| {
+                let mixed = index
+                    .wrapping_mul(1_103_515_245)
+                    .wrapping_add(12_345)
+                    .rotate_left((index % 8) as u32);
+                mixed as u8
+            })
+            .collect()
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test]
     async fn owner_grpc_write_rejects_bad_inline_checksum_before_handler() {
         let registry = afs_metrics::Registry::new();
         let metrics = crate::node::rpc::OwnerRpcMetrics::register(&registry).unwrap();

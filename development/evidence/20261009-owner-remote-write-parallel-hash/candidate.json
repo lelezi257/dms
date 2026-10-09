@@ -1,0 +1,10 @@
+{
+  "status": "PASS_LINUX_CANDIDATE",
+  "afs_node_sha256": "dee312e361c252e367eaf1b72fadd1f00337432bfb3c511350135aa2aca14482",
+  "node_bytes": 25191656,
+  "source_base": "c16b0267ac12a8890af53b89156e07e85e803894",
+  "source_identity": "c16b0267ac12a8890af53b89156e07e85e803894+patch:a97b3700ee260ed9e9f769f6a857d89ad9ab923b3e66156aaa4e741276a1d3bc",
+  "patch_sha256": "a97b3700ee260ed9e9f769f6a857d89ad9ab923b3e66156aaa4e741276a1d3bc",
+  "compiler_input_map": "49c4db76d464812bd8b70731bc0faaf8a1e6231c6cf1e47e1aaeb03f867ac3d0",
+  "compiler_inputs": 160
+}

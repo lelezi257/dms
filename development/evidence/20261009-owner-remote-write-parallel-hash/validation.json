@@ -1,0 +1,64 @@
+{
+  "fmt": {
+    "exit": 0,
+    "time_ns": 1791511814106156000
+  },
+  "hash-tests": {
+    "exit": 0,
+    "time_ns": 1791511839769350000
+  },
+  "rpc-tests": {
+    "exit": 0,
+    "time_ns": 1791511840325425000
+  },
+  "dispatch-tests": {
+    "exit": 0,
+    "time_ns": 1791511840614413000
+  },
+  "flush-tests": {
+    "exit": 0,
+    "time_ns": 1791511840897954000
+  },
+  "fsync-test": {
+    "exit": 0,
+    "time_ns": 1791511841078144000
+  },
+  "release-test": {
+    "exit": 0,
+    "time_ns": 1791511841358447000
+  },
+  "check": {
+    "exit": 0,
+    "time_ns": 1791511846347020000
+  },
+  "clippy": {
+    "exit": 0,
+    "time_ns": 1791511850494975000
+  },
+  "release": {
+    "exit": 0,
+    "time_ns": 1791511910320645000
+  },
+  "restored-fmt": {
+    "exit": 0,
+    "time_ns": 1791512093716730000
+  },
+  "restored-rpc-tests": {
+    "exit": 0,
+    "time_ns": 1791512119756610000
+  },
+  "restored-check": {
+    "exit": 0,
+    "time_ns": 1791512124857852000
+  },
+  "restored-clippy": {
+    "exit": 0,
+    "time_ns": 1791512129206802000
+  },
+  "saved-audit": {
+    "exit": 0,
+    "time_ns": 1791512129391243000
+  },
+  "scope": "Linux only; candidate26 unique targeted tests (hash2 included in rpc7); restored5 RPC tests; existing two dead_code warnings retained; no full POSIX or formal Moose write claim",
+  "first_formatter_failure": "first-format/ retained before two formatting-only corrections"
+}

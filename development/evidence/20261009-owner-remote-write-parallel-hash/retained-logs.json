@@ -1,0 +1,29 @@
+{
+  "ctl": {
+    "log_bytes": 4142,
+    "log_levels": {
+      "ERRO": 0,
+      "WARN": 0,
+      "TRACE": 0
+    },
+    "scope": "retained cumulative fixture logs; not asserted all new failures"
+  },
+  "b": {
+    "log_bytes": 15554,
+    "log_levels": {
+      "ERRO": 1,
+      "WARN": 18,
+      "TRACE": 0
+    },
+    "scope": "retained cumulative fixture logs; not asserted all new failures"
+  },
+  "c": {
+    "log_bytes": 45007,
+    "log_levels": {
+      "ERRO": 23,
+      "WARN": 139,
+      "TRACE": 0
+    },
+    "scope": "retained cumulative fixture logs; not asserted all new failures"
+  }
+}

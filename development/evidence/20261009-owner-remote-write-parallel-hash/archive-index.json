@@ -1,0 +1,57 @@
+{
+  "raw_directory": "evidence/afs-delivery/owner-remote-write-parallel-hash-20261009-r1",
+  "archive": {
+    "path": "evidence/archives/20261009-owner-remote-write-parallel-hash/records.tar.gz",
+    "sha256": "b9c2fbcffcb655af452b27fef6feef71ab22c714679968e1d1af8e036f48679c",
+    "bytes": 306459,
+    "raw_files": 1457
+  },
+  "recovery": {
+    "status": "PASS_ACTUAL_LINUX_RECOVERY",
+    "raw_files": 1457,
+    "guest_files": 26,
+    "references": 12,
+    "candidate_source_patch_recovered": true,
+    "meta_recovered_from_package": true
+  },
+  "closeout": {
+    "append_only_streams": {
+      "evidence/afs-delivery/owner-remote-write-parallel-hash-20261009-r1/finish.stdout": {
+        "archived_sha256": "abf897f182525c48aeaeecbe637ee56b126a4dcb98f62f1b0b42e96511a79b2a",
+        "archived_bytes": 177,
+        "final_sha256": "36b103672e6ef628bcf35f329e9213402a59aee94d069134f0abad29b7c48d38"
+      },
+      "evidence/afs-delivery/owner-remote-write-perf-20261009-r2/closeout.stdout": {
+        "archived_sha256": "a9988bd4479e0ea5144ee75bad1f71a09cb06e053c16fd87c053174bcd8f8d5d",
+        "archived_bytes": 370,
+        "final_sha256": "39cc239844aa1e9a9bc50cc6f31d0a3bbe23f1887558a46ef6b2569fb41edb7a"
+      }
+    },
+    "path": "evidence/archives/20261009-owner-remote-write-parallel-hash/closeout.tar.gz",
+    "sha256": "d621e2719d71de527bccaa6aaa9bdc0b6f89325df29234fd5fe4f3dc5e28861d",
+    "bytes": 92412
+  },
+  "closeout_recovery": {
+    "status": "PASS_ACTUAL_LINUX_CLOSEOUT_RECOVERY",
+    "files": 67,
+    "archive": "d621e2719d71de527bccaa6aaa9bdc0b6f89325df29234fd5fe4f3dc5e28861d"
+  },
+  "files": {
+    "candidate.json": "bd34b4c55e9036b32b38a0e83c9a59db34abc93a2d249655e9d7ccb13b641144",
+    "compiler-inputs.json": "c255b3e605bcfbb28ed4bc90098cd57009962c8da3c93d328792857f0d60ee11",
+    "candidate.patch": "a97b3700ee260ed9e9f769f6a857d89ad9ab923b3e66156aaa4e741276a1d3bc",
+    "contract.json": "0483859907611ffe986492c791f85f7802c6a9e29fe29ef237fe432199f2e941",
+    "paired-result.json": "f7b83817ab3718a3e768cc1693590a48a21e374e23aba6ca95354e18670a96d6",
+    "validation.json": "a90070f2019292fe8902d2a1ece38cc70b386af071629e2aa9ffadb4eb1edd8b",
+    "audit.json": "79046d7cebe78509fed2b7ad21fe5effee7ace23784adf3c88bb1c9e750d0e37",
+    "retained-logs.json": "94783e219d50b202cc1ed79464c100efe0e4624d03e4b6f8a40c88ee4a1deb41",
+    "production-restore.json": "9bd8688053cc7916d0ae5a2596bc19ab31fa69582745efdf887cf11339cd02d6",
+    "archive-recovery.json": "b48cd31607d8af7eb3e92da646bc2c0f3d7b47b9c497eae3a918c5f20d685215",
+    "cleanup.json": "dbf9b09dd6f63fd97dc7624a4480b5835def6daa42f4bed248ccd7e712ee63e9",
+    "plan.md": "5513fa6a298ad63c545d766c16e4dbd7e518f3473fac21d3f45bb8a95f1733ec",
+    "finish.py": "393b247cfd423468fc9d9f382ea86f0e869b2bb0edef58329d9f52eec1587bc0",
+    "closeout-first-failure.json": "53b978223e6c69470685c70481ff912ce695e552b1cd5d412dee49ccd0d4bd57"
+  },
+  "raw_index": "archive-index.json and closeout-index.json in external raw directory",
+  "policy": "Exact Git base+patch+compiler map, immutable controller references, one external candidate ELF; no full source/tool snapshots or ELF in Git"
+}

@@ -1,0 +1,52 @@
+{
+  "raw_directories": [
+    "evidence/afs-delivery/owner-remote-write-perf-20261009-r1",
+    "evidence/afs-delivery/owner-remote-write-perf-20261009-r2"
+  ],
+  "archive": {
+    "path": "evidence/archives/20261009-owner-remote-write-perf/records.tar.gz",
+    "sha256": "112d889fc9ab614b8107143a931282070835f9f9f71f54436308c714f09f3f9f",
+    "bytes": 1360483,
+    "raw_files": 1321
+  },
+  "recovery": {
+    "status": "PASS_ACTUAL_LINUX_RECOVERY",
+    "raw_files": 1321,
+    "guest_files": 85,
+    "references": 6,
+    "both_probes_rebuilt_identically": true,
+    "meta_recovered_from_published_package": true
+  },
+  "closeout_archive": {
+    "append_only_streams": {
+      "evidence/afs-delivery/owner-remote-write-parallel-hash-20261009-r1/finish.stdout": {
+        "archived_sha256": "abf897f182525c48aeaeecbe637ee56b126a4dcb98f62f1b0b42e96511a79b2a",
+        "archived_bytes": 177,
+        "final_sha256": "36b103672e6ef628bcf35f329e9213402a59aee94d069134f0abad29b7c48d38"
+      },
+      "evidence/afs-delivery/owner-remote-write-perf-20261009-r2/closeout.stdout": {
+        "archived_sha256": "a9988bd4479e0ea5144ee75bad1f71a09cb06e053c16fd87c053174bcd8f8d5d",
+        "archived_bytes": 370,
+        "final_sha256": "39cc239844aa1e9a9bc50cc6f31d0a3bbe23f1887558a46ef6b2569fb41edb7a"
+      }
+    },
+    "path": "evidence/archives/20261009-owner-remote-write-parallel-hash/closeout.tar.gz",
+    "sha256": "d621e2719d71de527bccaa6aaa9bdc0b6f89325df29234fd5fe4f3dc5e28861d",
+    "bytes": 92412
+  },
+  "closeout_recovery": {
+    "status": "PASS_ACTUAL_LINUX_CLOSEOUT_RECOVERY",
+    "files": 67,
+    "archive": "d621e2719d71de527bccaa6aaa9bdc0b6f89325df29234fd5fe4f3dc5e28861d"
+  },
+  "files": {
+    "profile-analysis.json": "1fe943b4a39e574e08e7e9abeebf69ff52b7cd8fb88f670fbf5ec11b3971a94b",
+    "write-analysis.json": "abe21115234a3b9c797f257723cfdd4bf355ff765e247e6f172476de383a3def",
+    "profile-controller.patch": "425de332b88e53868bda36c778f20852fb21d84c73bb239fe938bba11c742099",
+    "archive-index.json": "6e02f1601548dad7953c2306c2fa41d9d288813a07a2d21aad38c6162e2b3b57",
+    "archive-recovery.json": "c56f9f13a73729a24910494593d8b3bf5dfb69ec2176bc5f496421606adc1772",
+    "cleanup.json": "d9e482a84b4fdc9a5ee19caee29fff4fa86348139595ca2f54f505b869317a11"
+  },
+  "first_failure_closure_sha256": "89df01431411a1fc7274e069a5d2ce4f9936883e5495e718b325537976a7c9b3",
+  "policy": "perf.data/full call stacks/raw logs remain outside Git; failures and command/source versions recoverable"
+}

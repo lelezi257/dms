@@ -1,0 +1,108 @@
+{
+  "status": "PASS_SAVED_DATA_AUDIT",
+  "checks": 195,
+  "actual_wait0": 5,
+  "unique_lifecycles": [
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-bytes-20261008-r1/run/node.lifecycle.LLCEks",
+    "/mnt/lima-afsbdata/afs-delivery/owner-remote-write-bytes-20261008-r1/run/node.lifecycle.jpgnXz",
+    "/mnt/lima-afscdata/afs-delivery/owner-remote-write-bytes-20261008-r1/run/node.lifecycle.GfcMaR",
+    "/mnt/lima-afscdata/afs-delivery/owner-remote-write-bytes-20261008-r1/run/node.lifecycle.pg9hji",
+    "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-bytes-20261008-r1/run/meta.lifecycle.BplYhY"
+  ],
+  "phases": {
+    "baseline": {
+      "throughput_median_mib_s": 185.93635514773516,
+      "p50_ns": 5139814,
+      "p95_ns": 7244649,
+      "p99_ns": 9363645,
+      "parts": [
+        {
+          "round": 1,
+          "wall_ns": 343742165,
+          "pwrite_ns": 326270099,
+          "fdatasync_ns": 14581457
+        },
+        {
+          "round": 2,
+          "wall_ns": 371062855,
+          "pwrite_ns": 360082487,
+          "fdatasync_ns": 8328833
+        },
+        {
+          "round": 3,
+          "wall_ns": 344203800,
+          "pwrite_ns": 333294265,
+          "fdatasync_ns": 8314917
+        },
+        {
+          "round": 4,
+          "wall_ns": 336638401,
+          "pwrite_ns": 317249662,
+          "fdatasync_ns": 16648461
+        },
+        {
+          "round": 5,
+          "wall_ns": 371673822,
+          "pwrite_ns": 359439689,
+          "fdatasync_ns": 9638476
+        }
+      ]
+    },
+    "candidate": {
+      "throughput_median_mib_s": 181.35331865040192,
+      "p50_ns": 4849489,
+      "p95_ns": 7152447,
+      "p99_ns": 8782456,
+      "parts": [
+        {
+          "round": 1,
+          "wall_ns": 352902282,
+          "pwrite_ns": 341766500,
+          "fdatasync_ns": 8326964
+        },
+        {
+          "round": 2,
+          "wall_ns": 356226004,
+          "pwrite_ns": 339260911,
+          "fdatasync_ns": 14458554
+        },
+        {
+          "round": 3,
+          "wall_ns": 338651787,
+          "pwrite_ns": 320021977,
+          "fdatasync_ns": 16025900
+        },
+        {
+          "round": 4,
+          "wall_ns": 277399901,
+          "pwrite_ns": 260601015,
+          "fdatasync_ns": 14354851
+        },
+        {
+          "round": 5,
+          "wall_ns": 365476287,
+          "pwrite_ns": 354505370,
+          "fdatasync_ns": 8319091
+        }
+      ]
+    }
+  },
+  "capacity": {
+    "ctl": {
+      "sampled_max_bytes": 118415360,
+      "min_free_bytes": 1952124928,
+      "samples": 26
+    },
+    "b": {
+      "sampled_max_bytes": 240873472,
+      "min_free_bytes": 21223940096,
+      "samples": 26
+    },
+    "c": {
+      "sampled_max_bytes": 173428736,
+      "min_free_bytes": 36848881664,
+      "samples": 26
+    }
+  },
+  "scope": "Saved-data verification is not a new product test or completion count"
+}

@@ -1,8 +1,0 @@
-pid=239027
-exe=/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/prefix/bin/afs-node
-config=/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/etc/node.toml
-start_ticks=56393311
-boot_id=3adebcd0-cb31-4df0-b18a-e970786ab7fb
-lifecycle=/mnt/lima-afsbdata/afs-delivery/dfs-small-6d-20261007-r1/run/node.lifecycle.m7mP2Q
-supervisor_pid=239011
-exit_code=0

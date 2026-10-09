@@ -1,1 +1,0 @@
-{"action": "deny", "created": false, "egid": 502, "errno": 13, "euid": 502, "gid": 502, "mount_namespace": {"dev": 4, "ino": 4026531841}, "path": "/opt/afs-workspace-host-runtime-20261007-r2/mount/ownerfs/workspace/denied-sentinel", "pid": 82290, "status": "PASS", "uid": 502}

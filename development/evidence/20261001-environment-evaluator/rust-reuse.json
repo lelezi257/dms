@@ -1,7 +1,0 @@
-{
-  "checked_count": 143,
-  "mismatches": [],
-  "prior_manifest": "source/development/evidence/20261001-file-commit/linux/compile-inputs.json",
-  "scope": "Reuse unchanged v64 Rust gate; metadata digest comparison only, no Mac build or test execution",
-  "status": "PASS"
-}

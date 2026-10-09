@@ -1,7 +1,0 @@
-{
-  "raw_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-read-payload-20261008-r1",
-  "candidate_source_recoverable": "source-recovery.json",
-  "archive_manifest_sha256": "8542fb971d2232bf9aabfd1c98565f3cd736e4d4ee95c1c652485ecaec887ab8",
-  "source_snapshot_policy": "full source/compiler maps/tools/ELF remain outside Git; Git contains compact index and maintained tool changes only",
-  "historical_semantics": "prior oracle-inclusive latency results retain their original boundary and conclusions"
-}

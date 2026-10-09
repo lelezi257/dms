@@ -1,26 +1,26 @@
-name: Documentation task
-description: Improve product, architecture, tutorial, or contributor documentation.
+name: 文档任务
+description: 改进产品、架构、使用或贡献文档。
 title: "Docs: "
 labels: ["kind/documentation", "area/docs", "status/ready"]
 body:
   - type: textarea
     id: reader
     attributes:
-      label: Reader outcome
-      description: State what the reader can understand or perform after the change.
+      label: 读者目标
+      description: 说明读者阅读后能够理解或完成什么。
     validations:
       required: true
   - type: textarea
     id: sources
     attributes:
-      label: Source of truth
-      description: Link code, RFCs, experiments, and status evidence.
+      label: 事实来源
+      description: 提供代码、架构契约、实验或状态依据。
     validations:
       required: true
   - type: textarea
     id: acceptance
     attributes:
-      label: Acceptance criteria
-      description: List navigation, accuracy, examples, and status requirements.
+      label: 验收出口
+      description: 列出导航、准确性、示例和状态要求。
     validations:
       required: true

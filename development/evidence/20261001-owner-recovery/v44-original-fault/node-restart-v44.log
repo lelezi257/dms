@@ -1,1 +1,0 @@
-Error: Custom { kind: AlreadyExists, error: "local api socket already exists: /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v44/run/node.sock" }

@@ -1,9 +1,0 @@
-{
-  "platform": "Linux-6.8.0-106-generic-aarch64-with-glibc2.39",
-  "architecture": "aarch64",
-  "rustc": "rustc 1.95.0 (59807616e 2026-04-14)\nbinary: rustc\ncommit-hash: 59807616e1fa2540724bfbac14d7976d7e4a3860\ncommit-date: 2026-04-14\nhost: aarch64-unknown-linux-gnu\nrelease: 1.95.0\nLLVM version: 22.1.2\n",
-  "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)\n",
-  "source_root": "/home/lzc.guest/afs-build/work/root-merged-v63-r1",
-  "scope": "build-VM Linux source gate, not formal four-VM acceptance",
-  "verified_compile_inputs": 143
-}

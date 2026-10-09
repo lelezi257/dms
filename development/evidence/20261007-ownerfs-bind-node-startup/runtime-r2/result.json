@@ -1,6 +1,0 @@
-{
-  "status": "PASS",
-  "scope": "one real Node startup rejection, no runtime/bind creation",
-  "checks": 28,
-  "root": "/opt/afs-bind-node-startup-20261007-r2"
-}

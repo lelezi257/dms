@@ -1,1 +1,0 @@
-status=PASS cross_mount_qualified=True same_kernel_reference_only=False steps=7 failed=0 evidence=/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/p2-locks-v36/dfs-cross

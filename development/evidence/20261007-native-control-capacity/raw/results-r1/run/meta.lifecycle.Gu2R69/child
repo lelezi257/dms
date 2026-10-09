@@ -1,7 +1,0 @@
-pid=63661
-exe=/opt/afs-managed-control-capacity-20261007-r1/prefix/bin/afs-meta
-config=/opt/afs-managed-control-capacity-20261007-r1/etc/meta.toml
-start_ticks=6737341
-boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
-lifecycle=/opt/afs-managed-control-capacity-20261007-r1/run/meta.lifecycle.Gu2R69
-supervisor_pid=63645

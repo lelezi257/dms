@@ -1,3 +1,0 @@
-bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory
-bash: line 1: cd: /Users/lzc: No such file or directory
-{"bytes": 109452, "files": 18, "source_commit": "e925c5bcf0408851ebfa08a59df29953374da9e9", "status": "PASS"}

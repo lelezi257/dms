@@ -1,9 +1,0 @@
-bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
-bash: line 1: cd: /Users/lzc: No such file or directory
-removing stale pid file for meta: 76798
-started meta pid=78020 ready=true
-removing stale pid file for ownerfs: 77053
-started ownerfs pid=78275 ready=true
-4150942fd873b879ab6dc9034904116cf1670904a259d6a081f3b0c1fd1e7343  /opt/afs-hostbind-93169c8-r1/prefix/bin/afs-meta
-9478f3e89905b310689c0727ce0adf28fc11a25444c9634f82055a664069b41d  /opt/afs-hostbind-93169c8-r1/prefix/bin/afs-node
-{"error": "[Errno 1] Operation not permitted", "status": "FAIL"}

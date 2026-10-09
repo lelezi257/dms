@@ -1,60 +1,47 @@
 # OwnerFs
 
-OwnerFs is a small-cluster workspace backend. It keeps a workspace on a Home node and forwards remote operations back to Home when compute moves away.
+OwnerFs 面向小规模 Agent workspace。Home 节点把 workspace 保存为普通本地文件；当计算节点不在 Home 上时，远端节点通过 peer RPC 或数据传输回到 Home 访问这些文件。
 
 ![OwnerFs](../images/ownerfs.svg)
 
-## Home Node
+## 适用范围
 
-The Home stores workspace bytes as ordinary local files. Local Agent work uses the shortest path. Remote compute uses peer operations to reach the Home, which keeps authoritative file handles and validates root, peer session and authorization.
+OwnerFs 优先服务以下场景：
 
-## Scope
+- 一个 Agent workspace 的频繁小文件操作；
+- 1 到 4 个节点的小集群；
+- 主 Agent 和 workspace 尽量同址；
+- 远端 worker 偶尔访问 Home 上的 workspace。
 
-OwnerFs optimizes:
+OwnerFs 不实现 DFS 的 chunk、副本、缓存或 spill 状态机。它可以复用 FUSE、传输和进程基础设施，但后端状态与 DFS 分离。
 
-- frequent small file operations in one Agent workspace;
-- 1 to 4 node deployments;
-- cases where the main Agent and workspace can stay colocated;
-- predictable peer forwarding when a worker runs away from Home.
+## 远端访问
 
-OwnerFs does not implement the DFS chunk, replica, cache or spill state machine. It shares FUSE module code and common transport utilities with DFS, but its backend state is separate.
+远端节点打开、读写、flush、sync 和 close 文件时，Home 节点仍是权威执行者。远端会话必须绑定已认证 peer、root grant、调用进程 session、Home 进程 session 和 fence。传输会话本身不授予文件访问权限，每次文件操作仍要校验句柄、权限和授权范围。
 
-## Remote Data Transport
+当 RDMA 可用时，OwnerFs 可以把文件字节通过已注册 buffer 搬运；元数据和授权仍走控制 RPC。若 RDMA 传输的不确定性会影响数据正确性，不能静默退回 gRPC 并宣称成功。容量、校验和、授权、协议和未知写结果的错误必须向上返回。
 
-The Node chooses the transport for remote Home reads and writes. File lookup, open, sync and close remain authenticated RPC commands. With RDMA, `OwnerNegotiateData` and `OwnerCloseData` on NodeControl manage a bounded registered buffer; OwnerFiles carries the file handle, offset, length and buffer descriptor. File bytes move through RDMA READ or WRITE rather than inline protobuf data.
+## 持久化边界
 
-Owner transport sessions use a separate registry and bind the authenticated peer to the exact root grant, caller process session, Home process session and fence. A transport session does not grant file access. Each operation validates file rights and the open handle; a write validates them before pulling bytes and again before modifying the file. Payload checksums are verified before accepting transferred contents. Short reads, EOF and partial writes retain their file semantics.
+OwnerFs 的持久性来自 Home 节点本地文件系统和 Meta 对 workspace 授权状态的持久化。普通写入成功不等于持久屏障；需要按 sync、flush、close-time barrier 和错误传播规则确认。若 sync 失败，后续写、truncate、flush 和 sync 必须继续暴露该错误，直到句柄释放。修复存储故障后，应重新打开句柄并重写未确认内容。
 
-`rdma` requires an available RDMA device and never retries an uncertain data operation through gRPC. `auto` can select gRPC for an explicit transport absence before issuing the file operation. Authorization, protocol, checksum and unknown write-result errors are not fallback reasons. RDMA reads disable open-time inline prefetch so file data uses the selected transport.
+## Workspace bind mount
 
-Closing a transport session removes its admission entry. Work already admitted retains its endpoint until completion; cancellation cannot release or reuse a buffer still owned by an in-flight transfer. Authenticated exact-scope close remains possible after grant revocation, without granting further file access.
+当前实际使用场景优先开启 OwnerFs workspace bind mount。该能力把 Home 上 workspace 的底层真实目录覆盖挂载到 OwnerFs FUSE 根目录下对应的一级目录，例如 `/ownerfs/agent1`。覆盖后，该 workspace 子树的新路径访问走底层文件系统；把 FUSE 目录自身 bind 到别处不满足此设计。
 
-Client admission is shared by the Node's peer clients and limits concurrent registered windows before allocation. The permit remains attached to the endpoint through blocking work and teardown. Exhausted admission returns a capacity error; it does not authorize a transport fallback. Only gRPC mode can serve inline open-time prefetch.
+核心挂载实现属于 `src/node/vfs/ownerfs/bind_mount.rs`。该文件只负责挂载、身份核验和卸载：
 
-## Failure Boundary
+- 输入必须是已授权的 Home source 描述符、OwnerFs root 描述符和一个已验证的 workspace 一级目录名；
+- 记录目录、namespace 和 mount 身份；
+- 默认带 `nosuid`、`nodev`；
+- 只在仍能证明自己拥有该 mount claim 时正常卸载。
 
-OwnerFs durability is the Home node local filesystem durability plus the Meta state that grants and tracks the workspace. Remote peer access is a transport path to Home, not an extra durable copy. If Home fails permanently, recovery depends on the deployment's local disk and Meta recovery policy.
+runc 或容器只是适配层。容器启动、执行、停止和探针配置不属于核心 bind 文件；Node 负责生命周期接线。
 
-An accepted ordinary write is not a durability acknowledgement. A successful size change through a remote open handle also requires the Home close-time barrier, even if that handle has issued no write. A fatal storage sync error remains attached to that open handle: later write, handle resize, flush and sync return the original error until release. Consuming a native writeback error does not turn a later close into a successful durability barrier. Reads and release remain possible; remote handles retain the same Home error. Retryable capacity and transport errors keep their existing retry rules.
+## 当前限制
 
-After repairing the storage fault, open a new handle, explicitly rewrite any unconfirmed content and sync it. OwnerFs uses mutable local files: a failed sync does not promise rollback of accepted bytes. A successful earlier barrier defines the acknowledged watermark; overwritten bytes without a successful later barrier have no atomic rollback guarantee.
+bind 功能默认 OFF。ON 场景必须保留授权、Home/root/epoch 核验、数据新鲜度、close-to-open、权限、错误传播和卸载/排空约束。历史命名 `native_workspace` 只作为兼容配置入口存在，不能用改名掩盖行为差异。
 
-There is no automatic OwnerFs-to-DFS snapshot conversion in the base design.
+当前 bind 历史八个小规模核心性能 case 可有限复用；新版本受影响部分仍需回归。完整功能、性能和交付状态见 [当前计划](../development/plan.md)。
 
-## OwnerFs workspace bind mount
-
-For a colocated Home workspace, the accepted design mounts the workspace's real Home directory onto its corresponding first-level directory under the OwnerFs FUSE root. For example, the physical root/epoch directory backs /ownerfs/agent1; after the covering bind is active, fresh path accesses in that namespace use the underlying filesystem. Binding the FUSE directory itself elsewhere still uses FUSE and does not satisfy this design. Existing FUSE handles keep their original references until released.
-
-The core implementation belongs to the single src/node/vfs/ownerfs/bind_mount.rs file. WorkspaceBindMount takes an already-authorized Home source descriptor and an OwnerFs root descriptor plus one validated workspace component. It records directory, namespace and unique mount identities, applies nosuid/nodev, and detaches normally only while the exact owned claim remains visible. Home/root/epoch/authorization, shared cache policy and operation admission remain OwnerFs/Node responsibilities; a low-level mount is not a file-access grant.
-
-Containers are an adapter scenario. src/node/native_workspace.rs selects runc, starts/executes/stops its workload and drains its owned references before calling the OwnerFs core; Node wires this adapter before FUSE shutdown. Generic secondary-clone inspection/detach takes a validated component; the adapter chooses workspace for its /workspace target. The core does not depend on runc or a fixed container target.
-
-The legacy runc adapter mounts the physical directory at OwnerFs root/workspace inside its controller's private namespace, then binds that view into its container. The separate administrator-controlled host entry uses `experimental_ownerfs_workspace_bind = true` and `[ownerfs_workspace_bind] workspace = "agent1"`; it covers `/ownerfs/agent1` in the Node startup namespace, without runc. It requires one already-existing local Home workspace, fixes native eligibility before FUSE starts, checks the physical Home/namespace/grant identity and retains the owned worker through normal unmount before FUSE teardown. Only one entry may be enabled. Multi-workspace adoption and abnormal recovery remain pending. Product CLI/runtime acceptance is recorded separately from component tests.
-
-Function and performance remain independent G2.12/G2.13 gates and default OFF. Existing experimental_native_workspace TOML / --experimental-native-workspace CLI and the native_workspace section retain their exact parsing and semantics as legacy-named runc-adapter settings; no renamed alias or silently ignored key is introduced. They retain the old private-namespace container behavior. The independent host switch is also default OFF; unknown configuration keys fail and explicit CLI false overrides TOML true. Linux DAC governs native accesses. The host worker monitors the current local authority, not per-operation Meta authorization; it cannot immediately revoke existing FDs/mmap or prove secondary-clone/descriptor-transfer drain. Stop managed users before Node shutdown or any root/epoch change. Full ON requires grant/freshness/close-to-open/permissions/error semantics and reference drain/recovery; append offsets, classic locks and watch propagation remain known gaps. [RFC and historical mechanism results](../rfcs/0001-ownerfs-native-bind-mount.md), [implementation status](../status.md) and [narrow repair plan](../../development/ownerfs-workspace-bind-remediation.md) keep design, implementation and acceptance separate.
-
-The [one real-FUSE core integration test](../../development/evidence/20261007-ownerfs-bind-core-fuse/README.md) now passes on Linux ARM64: physical Home backing storage covers the matching FUSE first-level directory, controlled local fresh-open reads match in both directions, cwd-held detach returns EBUSY and retains identity, and normal teardown restores FUSE. This private-namespace/fake-Meta component test does not close standalone Node lifecycle, host visibility, general reference drain or full ON/performance acceptance.
-
-The [host-entry scope and validation](../../development/ownerfs-workspace-host-entry.md) binds one fixed Home only. Its authorized core rejects a non-FUSE parent or a FUSE source; filesystem identity uses the descriptor mount ID and current-thread mountinfo, without invoking unsupported FUSE-root STATFS. This entry does not make root rename/delete, immediate grant revocation or mixed append/classic-lock/watch semantics transparent.
-
-When either the host workspace-bind switch or the managed runc adapter switch is ON, Node also polls the authenticated `PollRootCommandBatch` API. Only an exact active Home/root/epoch/session/access-generation `RevokeAccess` command invalidates the Home grant, clears validated peer grants and fences cached peer sessions. Well-formed unrelated tuples are ignored; malformed or unsupported control results, compaction and transport errors fail closed through normal Node shutdown. The switches remain mutually exclusive; both OFF retains its existing heartbeat/recovery behavior. The lifecycle owns one joined RPC at a time and advances only in-session batch progress. It does not persist a cursor, acknowledge revocation, immediately invalidate native FDs/mmap, or provide a production command-issuance API. [Limited host receipt/refusal evidence](../../development/evidence/20261008-workspace-bind-root-command/README.md) and [managed-runc receipt/refusal evidence](../../development/evidence/20261008-workspace-runc-root-command/README.md) uses an explicitly test-only Meta launcher; physical identity polling and registration heartbeat remain separate checks.
+混合 native/FUSE 同时 append、经典锁与 watch 传播当前不支持，原失败记录保留；本次官方 fuser 版本不承诺跨节点锁或等待取消；单挂载内核本地回退和 bind 本机锁属于不同锁域，不能作为分布式或混合锁通过证据。已有 native FD/mmap 的即时撤权和刷新不在当前保证内，变更身份或停止前必须先停止受管用户并排空引用。

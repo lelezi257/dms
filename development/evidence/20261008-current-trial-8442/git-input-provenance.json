@@ -1,8 +1,0 @@
-{
-  "status": "PASS_FIXED_GIT_INPUT_PROVENANCE_ONLY",
-  "compiler_anchor": "8442b55ec25b018aad0898bd0f8679232e393f09",
-  "compiler_files": 158,
-  "packaging_commit": "e7bc3dce768573ee1798de68e355f12e1437426e",
-  "packaging_files": 13,
-  "cargo_rebuild_not_needed": true
-}

@@ -1,8 +1,0 @@
-{
-  "old_sha256": "d0f70b72b0985edeed73b6e1b07036beccf763c0fb5172eaaf45a9f696572589",
-  "new_sha256": "faae54c1e608b5505fa207228ce2b3e1550841547a5e648a7a63363e72867f84",
-  "delta_sha256": "1f142300a3cbd7f60442f3bcfa384b6a88b9f3535c9559c3137bc7aee71ed915",
-  "base_archive_local_only": "/var/tmp/afs-native-source-rejection-tools-r2.tar",
-  "canonical_new": "development/acceptance/probes/native_source_rejection.py",
-  "policy": "recover old probe by reverse delta; no full source snapshot in portable evidence"
-}

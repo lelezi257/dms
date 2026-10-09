@@ -1,4 +1,0 @@
-[settings]
-# naptime is the duration of various short sleeps.  It should be greater than
-# the timestamp granularity of the file system under test.
-naptime = 0.0001

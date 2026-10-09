@@ -1,9 +1,0 @@
-{
-  "pair": 2,
-  "target": "ext4",
-  "operations": 100,
-  "wall_ns": 636612,
-  "ops_per_second": 157081.55045773563,
-  "mean_unlink_ns": 6366.12,
-  "correctness": "PASS"
-}

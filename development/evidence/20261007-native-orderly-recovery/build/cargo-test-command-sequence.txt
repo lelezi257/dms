@@ -1,5 +1,0 @@
-   Compiling afs v0.1.0 (/workspace/dms/source)
-error: failed to write `/var/tmp/afs-e2e-release-20261006-r1/target/debug/.fingerprint/afs-5eacdbe9471e3623/invoked.timestamp`
-
-Caused by:
-  No space left on device (os error 28)

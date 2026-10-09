@@ -1,7 +1,0 @@
-{
-  "target": "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/mount",
-  "source": "hf3fs.afs_3fs_delete_v84_20261007_r1",
-  "fstype": "fuse.hf3fs",
-  "id": 52,
-  "options": "rw,nosuid,nodev,relatime,user_id=0,group_id=0,max_read=1048576"
-}

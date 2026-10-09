@@ -1,6 +1,0 @@
-runc version 1.5.2
-commit: v1.5.2-0-g29dd3dc
-spec: 1.3.0
-go: go1.26.8
-libseccomp: 2.6.1
-libpathrs: 0.2.6

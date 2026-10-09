@@ -1,9 +1,0 @@
-{
-  "raw_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-read-frames-20261008-r1",
-  "raw_archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/../evidence/archives/20261008-owner-remote-read-frames/records.tar.gz",
-  "map_sha256": "81c30c952df0da3d9411fa94839a3d6ed217dcada7ea15b541933b096c51c215",
-  "patch_sha256": "7bb394a3b0bc2b515c4609af706aae052b590838cd4b780bb1fb20a803a721e0",
-  "maintained_tool": "unchanged source/development/acceptance/probes/ownerfs_native_closeout_io.c, probeSHA c87a5fd8",
-  "reuse": "existing frozen runner via external thin experiment adapter; no full tool/source snapshot in Git",
-  "limits": "serial baseline then candidate, single small diagnostic pair; same-instance relative improvement, not matched MooseFS qualification or broad regression"
-}

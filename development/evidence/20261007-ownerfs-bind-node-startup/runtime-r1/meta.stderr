@@ -1,3 +1,0 @@
-{"msg":"meta.store.memory_volatile","level":"WARN","ts":"2026-10-07T04:56:36.606611207Z","instance":"meta-ctl","service_name":"afs-meta","instance":"meta-ctl"}
-{"msg":"meta.ready","level":"INFO","ts":"2026-10-07T04:56:36.607221461Z","instance":"meta-ctl","service_name":"afs-meta","rest":"127.0.0.1:24801","grpc":"127.0.0.1:24800"}
-{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T04:56:36.667691396Z","instance":"meta-ctl","service_name":"afs-meta"}

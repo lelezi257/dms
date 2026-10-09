@@ -1,60 +1,21 @@
-# Local Storage And COW
+# 本地存储与 COW
 
-Local storage turns immutable chunk identities into bytes on a node disk.
+Node 本地存储负责暂存、校验、发布和读取 chunk。它不是 Meta 权威，但它提供文件字节的持久来源。
 
-![Local storage and COW](../images/cow.svg)
+## 发布流程
 
-## Chunk Finalization
+1. 写入临时对象或 staging 区。
+2. 计算并校验 digest。
+3. 完成本地持久化。
+4. 生成 receipt。
+5. Meta 接受 receipt 后，把副本记录纳入 committed state。
 
-A chunk is readable only after finalization:
+只有完成上述链路的对象才能作为已提交来源。临时文件、未校验缓存和失败写入不能被读路径当作副本。
 
-```text
-staged bytes
-  -> length and digest verification
-  -> durable data barrier
-  -> no-replace publish
-  -> local catalog update
-  -> ReplicaAck
-```
+## COW
 
-Meta may record a durable copy only after the node can later find and verify it.
+DFS 新版本通过布局 COW 表达。覆盖写不会修改旧版本 chunk；它产生新的 dirty 范围，并在提交时形成新的布局。物理存储可以复用旧 chunk，也可以写新对象，但不能破坏旧版本可读性。
 
-## Layout COW
+## 恢复
 
-File updates create new layout records and file versions. A small overwrite creates a new chunk for the overwritten range and reuses old chunks for unchanged ranges.
-
-```text
-old: [0, 4MiB) -> chunk-a
-write 4KiB at 1MiB
-new: [0,1MiB) -> chunk-a
-     [1MiB,1MiB+4KiB) -> chunk-b
-     [1MiB+4KiB,4MiB) -> chunk-a
-```
-
-This keeps old versions valid and lets the inode head move to a new version.
-
-## Physical COW
-
-Physical COW moves an existing chunk between local locations, packs or media without changing its `ChunkId`. It first writes and verifies the new location, then switches the local record. Reader pins protect old locations until in-flight reads finish.
-
-Physical COW does not create a new `FileVersion`.
-
-## Corrupt Copies And Repair
-
-A pinned file descriptor preserves a physical inode across rename. It does not prove that later disk reads remain intact. Each nonempty range read verifies the Chunk's length and digest, retaining the requested bytes from that same verification pass before returning them. gRPC verifies a bounded requested range once, then emits its frames; RDMA uses the same verified bytes.
-
-Detected missing or corrupt local bytes enter the existing `Quarantined` catalog state through a durable catalog transaction. The publication lock protects a fresh physical-file recheck, so an old failed pin cannot quarantine a healthy replacement. Catalog persistence errors remain explicit; fallback can still return checksum-verified peer bytes, but no successful quarantine or report is inferred.
-
-An authenticated Node reports only its own device's quarantined copy. Meta excludes that physical copy and records repair debt atomically with the exact idempotent operation outcome. The report carries the durable quarantine catalog revision; an older report cannot invalidate a replacement with a newer receipt revision. Unknown acknowledgements retain the exact request. A definitive rejection keeps local quarantine and is logged; it does not prevent unrelated repair tasks from progressing.
-
-Repair writes the same expected Chunk content into a new file, syncs it, atomically replaces the bad physical inode, syncs the directory, and commits a new Durable catalog record before acknowledging. Reader pins continue to reference their original inode and must still verify it. The Chunk identity and file version stay unchanged.
-
-No readable source produces `EIO` for the committed data range; it is not a sparse hole. `BlockedNoSource` records missing repair authority without declaring permanent data loss.
-
-## Recovery
-
-On restart, a node reconciles staged files, local catalog records and Meta copy records. Staged objects are not served. Catalog entries are useful only when they verify against the expected `ChunkObject`.
-
-Missing or length-invalid local records are durably quarantined during recovery so they do not prevent service of healthy files. Same-length corruption is detected by digest verification when bytes are read. Quarantine survives restart and is reported again under the new Node session until Meta confirms it or a verified replacement restores the local copy.
-
-The persistent device ID and device epoch survive a process restart. After catalog recovery, Node registration advertises that device and its recovered catalog revision. Meta can derive fresh read authority for an existing durable copy without rewriting its original receipt. A changed device identity, older recovered catalog or invalid Node session cannot acquire that authority. This recovery uses the existing registration and read-grant interfaces; file bytes do not pass through Meta.
+启动恢复要重新校验本地目录、临时对象、已发布对象和 Meta 中的副本目录。未被 Meta 接受的对象只能作为可清理垃圾或待人工分析证据，不能自动成为权威副本。

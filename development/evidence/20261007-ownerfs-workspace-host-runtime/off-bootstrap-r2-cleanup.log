@@ -1,6 +1,0 @@
-bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store: No such file or directory
-bash: line 1: cd: /Users/lzc: No such file or directory
-ownerfs stopped exit_code=0
-meta stopped exit_code=0
-{"service":"meta","state":"stopped","pid":"","config":"/opt/afs-hostbind-93169c8-r1/etc/meta.toml","log":"/opt/afs-hostbind-93169c8-r1/log/meta.log","exit_code":"0"}
-{"service":"node","state":"stopped","pid":"","config":"/opt/afs-hostbind-93169c8-r1/etc/node.toml","log":"/opt/afs-hostbind-93169c8-r1/log/node.log","exit_code":"0"}

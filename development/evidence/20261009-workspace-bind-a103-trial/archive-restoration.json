@@ -1,9 +1,0 @@
-{
-  "status": "PASS_ACTUAL_LINUX_RAW_AND_PACKAGE_RESTORATION",
-  "raw_files": 252,
-  "unique_members": 147,
-  "package_files": 16,
-  "archive_sha256": "1a72df579b547bbc5f44200edf53a53bda85ed932118d94c075d988a07ca345a",
-  "package_sha256": "260d5009f343dd52e938e5659a6e9108be7cdbeb8c77124ff1696c4fdf1cf2b5",
-  "temporary_extraction_removed_on_exit": true
-}

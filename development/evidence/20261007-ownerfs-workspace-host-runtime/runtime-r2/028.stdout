@@ -1,1 +1,0 @@
-{"action": "delete", "egid": 501, "euid": 501, "exists": false, "gid": 501, "mount_namespace": {"dev": 4, "ino": 4026531841}, "path": "/opt/afs-workspace-host-runtime-20261007-r2/mount/ownerfs/workspace/_host_case", "pid": 82291, "proof": "/opt/afs-workspace-host-runtime-20261007-r2/mount/ownerfs/workspace/_host_case/proof", "status": "PASS", "uid": 501}

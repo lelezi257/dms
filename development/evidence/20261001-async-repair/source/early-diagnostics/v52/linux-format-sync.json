@@ -1,8 +1,0 @@
-[
-  "src/meta/dfs.rs",
-  "src/meta/rest.rs",
-  "src/meta/rpc.rs",
-  "src/node/replication.rs",
-  "src/node/rpc/meta.rs",
-  "tests/rest_contract.rs"
-]

@@ -1,1 +1,0 @@
-The probe controller completed and wrote report.json. The host wrapper then tried to read bash-specific PIPESTATUS[0] while running under zsh, so exit-status.txt was not written by that wrapper. The controller status is taken from report.json and controller.log.

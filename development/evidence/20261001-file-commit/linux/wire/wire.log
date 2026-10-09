@@ -1,9 +1,0 @@
-   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v64-r1)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.41s
-     Running unittests src/lib.rs (/home/lzc.guest/afs-build/target/debug/deps/afs-586e1b701367e588)
-
-running 1 test
-test node::vfs::dfs::tests::real_grpc_unknown_file_commit_ack_blocks_inode_and_replays_exact_request ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 400 filtered out; finished in 2.47s
-

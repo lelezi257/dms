@@ -1,8 +1,0 @@
-{
-  "source_sha256": "5c59101ea487eadf6e1316a3dbc10a93c59f3a47cca8a869c074cb41c64608b4",
-  "runtime": "/mnt/lima-afsbdata/afs-delivery/round1-mainline-v77-archive-async",
-  "chain": "AFS_R2_V79B",
-  "blocked": "192.168.109.12:19982/tcp",
-  "formal_acceptance": "NOT_RUN",
-  "environment": "PREPARING"
-}

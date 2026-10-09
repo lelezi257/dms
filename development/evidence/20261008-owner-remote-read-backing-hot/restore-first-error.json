@@ -1,7 +1,0 @@
-{
-  "status": "INDEX_KEY_ERROR",
-  "first_script_sha256": "c7f36125a6286cc48b4f3688dba126aa48537ce9700dc6930c9699cf3503435f",
-  "first_archive_sha256": "e7db622888913363ad1c9f7339a60cd42c8d910164bdcd269abfff69661c42fa",
-  "first_archive": "raw-runtime-first.tar.gz",
-  "cause": "Tool index uses project-relative recipe keys; restore looked up host-absolute keys. Normalize lookup to recorded project-relative identity. Original archive and failure outputs retained. No product rerun or environment modification."
-}

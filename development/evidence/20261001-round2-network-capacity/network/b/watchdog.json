@@ -1,9 +1,0 @@
-{
-  "pid": 149465,
-  "argv": [
-    "bash",
-    "-c",
-    "sleep 90; iptables -D OUTPUT -d 192.168.109.12 -p tcp --dport 19982 -j AFS_R2_V79B 2>/dev/null; iptables -F AFS_R2_V79B 2>/dev/null; iptables -X AFS_R2_V79B 2>/dev/null"
-  ],
-  "ttl_seconds": 90
-}

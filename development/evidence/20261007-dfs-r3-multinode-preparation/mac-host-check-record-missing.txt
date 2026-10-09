@@ -1,4 +1,0 @@
-Previous host-side checks were run before this correction and were not written to raw files.
-Commands from conversation: python3 -m py_compile development/acceptance/dfs_multinode_small.py development/acceptance/test_dfs_multinode_small.py; PYTHONPATH=development/acceptance python3 -m unittest development.acceptance.test_dfs_multinode_small -v
-Record status: missing raw stdout/stderr files; do not use as Linux qualification.
-Scope: no Rust build, no FUSE/product runtime, no performance cohort was run by those host commands.

@@ -1,3 +1,0 @@
-{"msg":"meta.store.memory_volatile","level":"WARN","ts":"2026-09-30T23:30:48.897015446Z","instance":"shutdown-signal-v51-meta-a","service_name":"afs-meta","instance":"shutdown-signal-v51-meta-a"}
-{"msg":"meta.ready","level":"INFO","ts":"2026-09-30T23:30:48.901253752Z","instance":"shutdown-signal-v51-meta-a","service_name":"afs-meta","rest":"0.0.0.0:18181","grpc":"0.0.0.0:18180"}
-{"msg":"services.stopped","level":"INFO","ts":"2026-09-30T23:31:01.473831646Z","instance":"shutdown-signal-v51-meta-a","service_name":"afs-meta"}

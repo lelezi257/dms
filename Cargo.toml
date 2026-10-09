@@ -57,7 +57,7 @@ axum = "0.8"
 thiserror = "2.0.16"
 libc = "0.2"
 blake3 = "1.8"
-fuser = { path = "third_party/fuser", default-features = false, features = ["abi-7-36"] }
+fuser = { version = "=0.18.0", default-features = false }
 
 [dev-dependencies]
 tempfile = "3"

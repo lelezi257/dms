@@ -1,7 +1,0 @@
-pid=68523
-exe=/opt/afs-active-node-stop-20261007-r1/prefix/bin/afs-node
-config=/opt/afs-active-node-stop-20261007-r1/etc/node.toml
-start_ticks=8456840
-boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
-lifecycle=/opt/afs-active-node-stop-20261007-r1/run/node.lifecycle.9lqwvo
-supervisor_pid=68507

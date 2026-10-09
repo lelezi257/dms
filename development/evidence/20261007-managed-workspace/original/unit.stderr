@@ -1,7 +1,0 @@
-test_final_claim_rejects_wrong_namespace_source_and_flags (test_native_workspace.EvidenceGuards.test_final_claim_rejects_wrong_namespace_source_and_flags) ... ok
-test_size_and_content_required (test_native_workspace.EvidenceGuards.test_size_and_content_required) ... ok
-
-----------------------------------------------------------------------
-Ran 2 tests in 0.001s
-
-OK

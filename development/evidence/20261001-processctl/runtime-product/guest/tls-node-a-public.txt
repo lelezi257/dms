@@ -1,4 +1,0 @@
-subject=CN = node-a
-issuer=CN = afs-acceptance-ca
-X509v3 Subject Alternative Name: 
-    DNS:afs-cluster, DNS:node-a, IP Address:192.168.109.12

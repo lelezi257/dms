@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "/var/tmp/shutdown-v46-guest.py", line 55, in <module>
-    events.append({'normal_stop':normal});assert normal['status']==0 and normal['elapsed_ms']<19000,normal
-                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: {'status': 124, 'elapsed_ms': 15053.057368000736, 'old_fd_close': {'errno': 107}}

@@ -1,4 +1,0 @@
-60af0b725758fe5d2ca2f7d05bad9f2cd473d4f5f15538f423a5fe7a6b8eda41  /home/lzc.guest/afs-build/target/debug/afs-node
-77d5213ee935ae9e009002c96fae81f3277af240e5e6d51594f4f86d50970648  /home/lzc.guest/afs-build/target/debug/afs-meta
-e4647269edc913e9ae04f5df8089c1ef96799274e8e7449e014fedc8530fae49  /home/lzc.guest/afs-build/artifacts/owner-metrics-v73-r2/afs-node
-9bd2fa7dc973590340d8b7674edcb27f9f41db1b475f930525e9e08c8fe6a930  /home/lzc.guest/afs-build/artifacts/owner-metrics-v73-r2/afs-meta

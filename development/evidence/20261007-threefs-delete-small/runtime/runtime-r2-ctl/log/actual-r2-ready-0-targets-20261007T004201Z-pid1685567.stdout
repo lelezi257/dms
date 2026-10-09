@@ -1,5 +1,0 @@
-TargetId    ChainId  Role  PublicState  LocalState  NodeId  DiskIndex  UsedSize
-1000001001  1        HEAD  SERVING      UPTODATE    10000   0          0
-1000101001  1        TAIL  SERVING      UPTODATE    10001   0          0
-1000002001  2        HEAD  SERVING      UPTODATE    10000   0          0
-1000202001  2        TAIL  SERVING      UPTODATE    10002   0          0

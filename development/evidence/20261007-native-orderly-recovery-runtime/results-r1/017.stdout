@@ -1,7 +1,0 @@
-{
-  "request_id": "orderly-phase1-idle",
-  "response": {
-    "production_ready": false,
-    "state": "Idle"
-  }
-}

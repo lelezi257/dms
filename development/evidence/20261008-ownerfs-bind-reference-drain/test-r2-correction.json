@@ -1,6 +1,0 @@
-{
-  "failure": "fstat on retained FUSE directory also invokes root authorization and returns ENOSYS after local cache invalidation",
-  "correction": "verify inode before invalidation; kernel fdinfo identity after invalidation; retained fdinfo exact + outer mount ID + cover absence",
-  "failed_fixture": "/var/tmp/.tmpZ1T5uK",
-  "product_changes": false
-}

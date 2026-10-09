@@ -1,7 +1,0 @@
-{
-  "status": "PASS",
-  "checked_count": 143,
-  "mismatches": [],
-  "prior_manifest": "development/evidence/20261001-file-commit/linux/compile-inputs.json",
-  "scope": "Original unchanged v64 Rust gate; no fresh Rust execution"
-}

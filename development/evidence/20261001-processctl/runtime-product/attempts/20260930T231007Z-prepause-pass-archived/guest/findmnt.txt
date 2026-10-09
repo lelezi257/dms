@@ -1,1 +1,0 @@
-ext4 /dev/vdb1 /mnt/lima-afsadata

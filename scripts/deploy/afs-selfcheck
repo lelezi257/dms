@@ -8,7 +8,7 @@ whose default size is 64 MiB.  A write phase emits a manifest that another
 mount can use for a read phase.
 
 Packaged copy derived from
-rust-distributed-memory-store/experiments/afs-acceptance/g1-trial/afs_g1_selfcheck.py
+rust-distributed-memory-store/scripts/deploy/afs-selfcheck
 on 2026-10-06. Keep this file self-contained for release packages; do not
 import from the outer experiments tree.
 """

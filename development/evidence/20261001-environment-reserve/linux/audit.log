@@ -1,1 +1,0 @@
-{"mode": "audit", "trees": 0, "before": [{"path": "/mnt/lima-afsadata", "device": 64785, "available": 1089331200, "total": 33633878016}, {"path": "/", "device": 64769, "available": 18211094528, "total": 23843045376}], "after": null}

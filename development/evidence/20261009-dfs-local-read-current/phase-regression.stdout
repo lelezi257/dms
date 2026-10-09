@@ -1,2 +1,0 @@
-PASS two phases preserve distinct immutable command receipts
-PASS recorder namespace restored on failure

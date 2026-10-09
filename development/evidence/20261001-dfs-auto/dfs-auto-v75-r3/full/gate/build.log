@@ -1,4 +1,0 @@
-   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-r3/common/transport)
-   Compiling fuser v0.16.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-r3/third_party/fuser)
-   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/dfs-auto-v75-r3)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 18.58s

@@ -1,9 +1,0 @@
-# GitHub publication recovered — 2026-10-08
-
-After the user selected waiting for recovery, [GitHub official status](https://www.githubstatus.com/api/v2/summary.json) reported Git Operations operational and the incident mitigated. Repository API and remote ref reads succeeded. One normal HTTP/1.1 push succeeded from9a8aeeb8 to [main7eedd7ec](https://github.com/lelezi257/dms/commit/7eedd7eca3c1fb810663b3a491b35b18b9650f03), including the f03 create repair and current small multi-node/delete evidence. No force, rewrite, PR or configuration change.
-
-Independent ls-remote/fetch confirmed main7eedd7ec. GitHub's complete19282 blob/21070-entry tree equals the local path/type/mode/SHA map; Git Commit API binds canonical treedbf15eb7ff8f2a216a98385e44dbab2423391a9c. The initial verifier incorrectly expected a commit-addressed Git Trees response identifier to equal the canonical tree ID; original guard failure retained, actual full entries already matched, then the independent commit→tree binding was checked. This was a verifier assumption, not a changed repository or a retry of publication.
-
-Core bind remains src/node/vfs/ownerfs/bind_mount.rs; tests/support/workspace_probe.rs is test-only. Old native_workspace/ subdirectory and default src/bin probe are absent. src/node/native_workspace.rs remains the experimental adapter. Publication does not upgrade old/current acceptance or qualify official fuser migration.
-
-[Summary](summary.json), [raw/status/API/command archive](raw-index.json), [checksums](SHA256SUMS). Original two500 push failures remain indexed by [create repair](../20261007-dfs-create-contention/README.md). G1 historical8/8 stays closed; formal G2 performance/ON/standard scopes stay separate. Next G2.27 current f03 ordinary-package reproducibility and bounded installed/local-file recovery.

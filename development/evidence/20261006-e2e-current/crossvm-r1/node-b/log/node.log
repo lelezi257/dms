@@ -1,8 +1,0 @@
-{"msg":"Mounting /var/tmp/afs-e2e-cross-20261006-r1/mount/ownerfs","level":"INFO","ts":"2026-10-06T14:37:37.315633754Z","instance":"node-b","service_name":"afs-node"}
-{"msg":"Mounting /var/tmp/afs-e2e-cross-20261006-r1/mount/dfs","level":"INFO","ts":"2026-10-06T14:37:37.318104255Z","instance":"node-b","service_name":"afs-node"}
-{"msg":"node.ready","level":"INFO","ts":"2026-10-06T14:37:37.32039259Z","instance":"node-b","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/var/tmp/afs-e2e-cross-20261006-r1/run/node.sock","rest":"0.0.0.0:20501","grpc":"0.0.0.0:20500"}
-{"msg":"dfs.replication_task_retry","level":"WARN","ts":"2026-10-06T14:40:05.523291782Z","instance":"node-b","service_name":"afs-node","error":"0x01030003 Unavailable: tcp connect error"}
-{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T14:41:18.38534858Z","instance":"node-b","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
-{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T14:41:18.532785811Z","instance":"node-b","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
-{"msg":"FUSE request failed","level":"ERRO","ts":"2026-10-06T14:41:18.533995562Z","instance":"node-b","service_name":"afs-node","message":"No such file or directory (os error 2)","kind":"NotFound","code":67305473}
-{"msg":"services.stopped","level":"INFO","ts":"2026-10-06T14:55:45.786160936Z","instance":"node-b","service_name":"afs-node"}

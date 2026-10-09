@@ -1,4 +1,0 @@
-uid=501 gid=501
-CapEff:	0000000000000000
-NoNewPrivs:	1
-runc workspace admission

@@ -1,1 +1,0 @@
-afs-ownerfs fuse /mnt/lima-afsadata/afs-delivery/p2-memory-lane-v48/mount-ownerfs rw,nosuid,nodev,noatime,user_id=0,group_id=0,default_permissions,allow_other

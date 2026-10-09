@@ -1,9 +1,0 @@
-{
-  "classification": "orchestration source visibility, before compilation",
-  "failed_preflights": [
-    "r1-build",
-    "r3-build"
-  ],
-  "later_linux_exact_input_check": "PASS 157 inputs",
-  "policy": "do not start compile until guest input map matches; no VM change"
-}

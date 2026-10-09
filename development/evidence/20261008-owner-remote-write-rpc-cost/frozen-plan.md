@@ -1,3 +1,0 @@
-# G2.15 next bounded item — NOT_RUN
-
-Retained production Node839e14d9/source main461407c4, previous stopped frame fixture ctl/B/C. First read-only admission checks actual lifecycle/binary/config/mTLS/mount/space and preservation of original protected processes. Reuse existing probe/raw metrics/verified content; one64MiB/C1 write+fdatasync diagnostic, snapshot existing Owner RPC write/barrier counts/sums and operation/persist timers separately. Preserve each original read payload by a new bounded diagnostic path. No benchmark claim or rerun, no durability relaxation, no A/VM repair/packing. Use diagnosis to select exactly one product cost for subsequent matched self-comparison; final Moose1.2/.8 remains pending.

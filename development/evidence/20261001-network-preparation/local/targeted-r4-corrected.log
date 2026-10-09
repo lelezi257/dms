@@ -1,6 +1,0 @@
-test_bind_helpers_close_created_socket_on_setup_failure (test_env_network.EnvNetworkUnitTest.test_bind_helpers_close_created_socket_on_setup_failure) ... ok
-
-----------------------------------------------------------------------
-Ran 1 test in 0.001s
-
-OK

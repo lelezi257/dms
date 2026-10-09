@@ -1,7 +1,0 @@
-pid=242667
-exe=/var/tmp/afs-off-delivery-20261007-r1/prefix/bin/afs-node
-config=/var/tmp/afs-off-delivery-20261007-r1/etc/node.toml
-start_ticks=8999626
-boot_id=11484faf-9d34-4967-86e0-940daea1fffc
-lifecycle=/var/tmp/afs-off-delivery-20261007-r1/run/node.lifecycle.03SF26
-supervisor_pid=242651

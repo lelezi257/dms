@@ -1,7 +1,0 @@
-{
-  "status": "PASS_ACTUAL_LINUX_RESTORE",
-  "root": "/var/tmp/afs-read-dispatch-restore-xn573yhp",
-  "files": 1219,
-  "nested_guest_files": 33,
-  "archive_sha256": "9775990f04cffffc2a20354e77d763b76461a0002214f8d056b4e6aec554dce9"
-}

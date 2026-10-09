@@ -1,8 +1,0 @@
-{
-  "status": "FAIL",
-  "scope": "publication tooling only; not runtime or Rust",
-  "reason": "Local link validation ran before SHA256SUMS creation; subsequent Linux sha256sum check reported manifest missing",
-  "linux_sha256sum_returncode": 1,
-  "linux_stderr": "sha256sum: SHA256SUMS: No such file or directory",
-  "correction": "Create index first, then check links and regenerate manifest; no tests or builds repeated"
-}

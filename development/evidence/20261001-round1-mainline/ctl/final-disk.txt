@@ -1,2 +1,0 @@
-Filesystem      1B-blocks       Used  Available Use% Mounted on
-/dev/vdb1      8348200960 3496341504 4405690368  45% /mnt/lima-afsctlstate

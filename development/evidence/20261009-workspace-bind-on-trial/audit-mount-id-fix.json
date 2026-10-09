@@ -1,8 +1,0 @@
-{
-  "original_sha256": "c16c2da9f40cd1001727b280dd98beb2a6e633f2f9f7231d6506250fbeee5146",
-  "current_sha256": "4df5e2b23ef0060c6fa8ac32226a803358427df25878bce7b06f5f020a22ac9c",
-  "reason": "Linux mountinfo IDs can be reused after umount; both IDs are 97. Use the already saved stop/absence/start command sequence and new child identities.",
-  "authority": "https://www.kernel.org/doc/html/latest/filesystems/proc.html#proc-pid-mountinfo-information-about-mounts",
-  "original_failure": "commands/saved-data-audit-schema-corrected.stderr",
-  "scope": "saved-data audit; actual run and original criteria unchanged"
-}

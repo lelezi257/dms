@@ -1,8 +1,0 @@
-pid=719665
-exe=/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node
-config=/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml
-start_ticks=6628936
-boot_id=36a572e0-859b-4a94-adc7-789210a83fc8
-lifecycle=/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/node.lifecycle.DVZUwd
-supervisor_pid=719649
-cmdline=/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/node.toml

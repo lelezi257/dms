@@ -1,6 +1,0 @@
-{
-  "status": "PASS",
-  "source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
-  "scope": "one real heartbeat-driven authority-error bind closure; 4096B",
-  "reference_drain_selected": true
-}

@@ -1,8 +1,0 @@
-{
-  "status": "PASS",
-  "outer_members": 77,
-  "original_guest_records": 92,
-  "maintained_tool_versions": 9,
-  "failed_script_versions_restored": 5,
-  "sha256": "7804058bf05f07c65319461afbcde145b5bd942ddfe7dc7e6648006e99b15938"
-}

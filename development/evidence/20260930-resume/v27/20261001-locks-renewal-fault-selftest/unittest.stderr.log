@@ -1,9 +1,0 @@
-test_changed_pid_rejected_after_binding_same_binary (test_locks_renewal_fault.RenewalFaultControlTests.test_changed_pid_rejected_after_binding_same_binary) ... ok
-test_prestopped_target_rejected_and_manual_cont_restores (test_locks_renewal_fault.RenewalFaultControlTests.test_prestopped_target_rejected_and_manual_cont_restores) ... ok
-test_stop_then_cont_finally_restores_bound_target (test_locks_renewal_fault.RenewalFaultControlTests.test_stop_then_cont_finally_restores_bound_target) ... ok
-test_wrong_sha_rejected_before_signal (test_locks_renewal_fault.RenewalFaultControlTests.test_wrong_sha_rejected_before_signal) ... ok
-
-----------------------------------------------------------------------
-Ran 4 tests in 0.140s
-
-OK

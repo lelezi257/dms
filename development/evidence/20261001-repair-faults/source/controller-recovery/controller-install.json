@@ -1,6 +1,0 @@
-{
-  "backup": "/mnt/lima-afsadata/afs-delivery/repair-v60-a/prefix/bin/afs-processctl.before-stale-recovery",
-  "new_sha256": "78949590bfdf12f6db0977ac5756702312e85e1d91c8f59903d4490222488f2b",
-  "old_node_proc_absent": true,
-  "old_sha256": "945cba0c6febdd329f50996f3a59586ae9f51be4c29d2ca9b66175b8253dc2a8"
-}

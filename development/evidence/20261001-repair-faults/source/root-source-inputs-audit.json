@@ -1,7 +1,0 @@
-{
-  "status": "PASS",
-  "file_count": 143,
-  "manifest": "evidence/afs-delivery/repair-v60/qualified-linux-clean-r2/qualified-linux-clean-r2/compile-inputs.json",
-  "checks": "Every Linux compile input SHA256 matches host product input",
-  "handoff_sha256": "8941901e6b6f8b8b10e057a7477695dfa9b1fc4876b5762e71b66d8930eb7216"
-}

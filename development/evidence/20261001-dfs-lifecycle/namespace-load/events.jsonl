@@ -1,5 +1,0 @@
-{"event": "START", "fixture": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v40/mount-dfs/namespace-load-namespace-load-v40", "operations": 1, "unix_seconds": 1790795937.1765008}
-{"event": "ROUND", "operations": 1281, "round": 1, "unix_seconds": 1790795965.3004496}
-{"event": "ROUND", "operations": 2561, "round": 2, "unix_seconds": 1790796036.5163586}
-{"event": "ROUND", "operations": 3841, "round": 3, "unix_seconds": 1790796145.0408654}
-{"error": null, "event": "FINISH", "finished_unix_seconds": 1790796145.474813, "fixture": "/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v40/mount-dfs/namespace-load-namespace-load-v40", "fixture_kept": false, "operations": 3842, "process_mount_identity_stable": true, "rounds": 3, "scope": "bounded namespace load; not release or performance qualification", "started_unix_seconds": 1790795937.1764605, "status": "PASS", "unix_seconds": 1790796145.4760416}

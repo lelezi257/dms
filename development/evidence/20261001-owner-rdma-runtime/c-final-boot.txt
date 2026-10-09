@@ -1,4 +1,0 @@
-Thu Oct  1 07:58:25 UTC 2026
-7ae549bc-f8c9-44b5-9f1d-a461148c16c0
-6.8.0-142-generic
-link rxe0/1 state ACTIVE physical_state LINK_UP netdev eth0 

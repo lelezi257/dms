@@ -1,8 +1,0 @@
-{
-  "verdict": "REQUEST_CHANGES_BEFORE_RUNTIME",
-  "reviewer": "native_worker_review",
-  "scope": "4 first-party Python files only",
-  "blocking": "A fusermount3 public advertised -h/-V options; actual captured usage lacks literal Usage; preserve original failure, correct affected admission only",
-  "driver": "bounded fresh output, 1warm5measurement paired writes, content and failure preservation inspected",
-  "product_services_started": false
-}

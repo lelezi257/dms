@@ -1,8 +1,0 @@
-{
-  "status": "FAIL",
-  "scope": "single experimental managed OwnerFs workspace; not full G2.12/13",
-  "source_commit": "25a8061a82b7a8629c9a06486d712d32507f2ee7",
-  "driver_sha256": "7d1699b13b257f92a7d9ce2df438b975794ef5a3451df4da085fb83449e3ac52",
-  "error": "RuntimeError('command 007 exit 1')",
-  "cleanup": "PASS"
-}

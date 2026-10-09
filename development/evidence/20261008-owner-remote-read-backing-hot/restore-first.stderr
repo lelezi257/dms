@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "/workspace/dms/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/restore.py", line 19, in <module>
-    for name in base['members']:check('recreated exact runtime recipe '+name,sha((recipes/name).read_bytes())==inputs['recipes'][str(Path('/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery')/d.name/name)])
-                                                                                                               ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-KeyError: '/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-backing-hot-f03-20261008-r1/live_stage.py'

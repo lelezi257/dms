@@ -1,4 +1,0 @@
-AFS_RDMA_GID index=1 address=::ffff:192.168.109.13 family=ipv4
-fuse: warning: library too old, some operations may not work
-{"msg":"Mounting /mnt/lima-afsbdata/afs-delivery/20260930-rdma-ab-02/r2/mount","level":"INFO","ts":"2026-09-30T10:16:32.115469115Z","instance":"rdma-node-b","service_name":"afs-node"}
-{"msg":"node.ready","level":"INFO","ts":"2026-09-30T10:16:32.118087914Z","instance":"rdma-node-b","service_name":"afs-node","dfs":true,"ownerfs":false,"uds":"/var/tmp/afs-20260930-rdma-ab-02-r2-b/node.sock","rest":"0.0.0.0:18431","grpc":"0.0.0.0:18430"}

@@ -1,9 +1,0 @@
-{
-  "status": "PASS_ACTUAL_LINUX_RESTORE",
-  "outer_files_extracted_and_sha_checked": 600,
-  "guest_records_extracted_and_sha_checked": 51,
-  "failed_scripts_reconstructed_and_sha_checked": 2,
-  "new_maintained_tool_versions_reconstructed_and_sha_checked": 2,
-  "archive_sha256": "24e433e87e886764d880adb4ba0c838d182b6d781c64025bccb221379519df60",
-  "payload_excluded_preserved_on_original_VMs": true
-}

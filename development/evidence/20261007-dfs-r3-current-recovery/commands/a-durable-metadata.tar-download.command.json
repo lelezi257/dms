@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "limactl",
-    "copy",
-    "afs-accept-a:/mnt/lima-afsadata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/stage/durable-metadata.tar",
-    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1/a-durable-metadata.tar"
-  ],
-  "timeout": 90
-}

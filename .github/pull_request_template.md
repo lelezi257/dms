@@ -1,31 +1,26 @@
-## User case
+## 使用场景与结果
 
-Describe the user-visible operation and expected result.
+描述触发条件、用户可见行为和本次解决的问题。
 
-## Contract
+## 契约与范围
 
-- External behavior changed:
-- Internal invariant changed:
-- Related RFC / issue:
+- 外部行为或内部约束变化：
+- 相关 Issue / 架构契约：
+- 涉及模块：
 
-## Scope
+## 验证
 
-- Modules:
-- Files:
+- 候选版本与环境：
+- 功能和失败路径：
+- 性能（如适用）：
+- 未运行的检查及原因：
 
-## Verification
+## 已知边界
 
-- Functional:
-- Failure:
-- Performance:
-- Environment:
+列明仍不支持、未验证或阻塞的内容。历史结果保留原版本和判据，不自动归属于新候选。
 
-## Boundaries
+## 文档
 
-List behavior that remains unsupported or unverified.
-
-## Documentation
-
-- [ ] Capability status is accurate.
-- [ ] Architecture or semantics documentation is updated when contracts change.
-- [ ] Evidence links point to reproducible results.
+- [ ] 当前能力和剩余项描述准确。
+- [ ] 契约变化已同步正式文档。
+- [ ] 验证说明可追溯；原始运行资产保存在仓库外。

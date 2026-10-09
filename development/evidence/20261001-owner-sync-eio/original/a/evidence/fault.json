@@ -1,9 +1,0 @@
-{
-  "action": "fault",
-  "which": "a",
-  "utc": "2026-10-01T11:18:54Z",
-  "formal_acceptance": "NOT_RUN",
-  "environment": "PREPARING",
-  "status": "FAIL",
-  "error": "AssertionError([{'operation': 'write', 'outcome': 'success', 'value': 8192, 'elapsed_seconds': 0.00017579398991074413}, {'operation': 'fdatasync', 'outcome': 'error', 'errno': 5, 'errno_name': 'EIO', 'error': '[Errno 5] Input/output error', 'elapsed_seconds': 7.475100574083626e-05}, {'operation': 'fsync', 'outcome': 'error', 'errno': 5, 'errno_name': 'EIO', 'error': '[Errno 5] Input/output error', 'elapsed_seconds': 7.925101090222597e-05}, {'operation': 'close', 'outcome': 'success', 'value': None, 'elapsed_seconds': 3.458399442024529e-05}])"
-}

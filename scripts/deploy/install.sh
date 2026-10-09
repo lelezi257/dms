@@ -95,8 +95,8 @@ install -m 0755 "$PACKAGE_DIR/bin/afs-selfcheck" "$PREFIX/bin/afs-selfcheck"
 install -m 0755 "$PACKAGE_DIR/bin/dep02-smoke.sh" "$PREFIX/bin/dep02-smoke.sh"
 install -m 0644 "$PACKAGE_DIR/manifest.json" "$PREFIX/manifest.json"
 install -m 0644 "$PACKAGE_DIR/DEPENDENCIES.md" "$PREFIX/DEPENDENCIES.md"
-mkdir -p "$PREFIX/docs/guides"
-install -m 0644 "$PACKAGE_DIR/docs/guides/trial.md" "$PREFIX/docs/guides/trial.md"
+mkdir -p "$PREFIX/docs/deployment"
+install -m 0644 "$PACKAGE_DIR/docs/deployment/trial.md" "$PREFIX/docs/deployment/trial.md"
 
 write_config_once() {
   src=$1

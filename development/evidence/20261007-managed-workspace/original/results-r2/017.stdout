@@ -1,8 +1,0 @@
-{
-  "request_id": "work",
-  "response": {
-    "production_ready": false,
-    "status": "Executed",
-    "stdout_bytes": 140
-  }
-}

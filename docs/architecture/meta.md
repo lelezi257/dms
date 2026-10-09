@@ -1,44 +1,32 @@
-# Meta And Transactions
+# Meta 与事务边界
 
-Meta is the authority for recoverable filesystem state. It does not proxy steady-state file bytes.
+Meta 是文件系统可恢复状态的权威，不代理稳定数据流。它负责命名空间、inode、写租约、文件版本、布局、放置、副本目录和幂等提交结果。
 
-## Responsibilities
+## 职责
 
-| Area | Examples |
+| 范围 | 内容 |
 | --- | --- |
-| Namespace | dentries, inode identity and attributes |
-| Write authority | write leases, owner epochs and fencing |
-| Version authority | `FileVersion`, `LayoutRoot`, inode `head_version` CAS |
-| Placement | placement snapshots, device epochs and failure domains |
-| Copy catalog | durable replicas, verified cache, external committed copies and lifecycle state |
-| Idempotence | exact operation result retention for retried commits |
+| 命名空间 | dentry、inode 身份、属性 |
+| 写权威 | 写租约、owner epoch、fence |
+| 版本权威 | `FileVersion`、`LayoutRoot`、inode `head_version` CAS |
+| 放置 | 放置快照、设备 epoch、故障域 |
+| 副本目录 | 持久副本、验证缓存、外部已提交副本和生命周期 |
+| 幂等 | 重试提交时保留精确操作结果 |
 
-## Commit Model
+## 提交模型
 
-A Meta service validates a request against the committed state, prepares a candidate state and publishes it only after the persistence backend accepts it. If a backend write result is unknown, the exact request identity remains the recovery boundary.
+Meta 先用已提交状态校验请求，再准备候选状态；只有持久后端接受该状态后才发布。若后端写结果未知，请求身份就是恢复边界，不能把未知写冒充成功。
 
-The accepted base design allows Meta to keep whole committed snapshots and batch updates above the store interface. It does not require the underlying backend to expose native multi-record transactions in the first implementation. Record-level storage is a possible future implementation detail, not a semantic requirement.
+当前基础设计允许 Meta 在 store 接口之上保存完整 committed snapshot 并批量更新。底层后端第一版不必暴露原生多记录事务；记录级存储只是后续实现细节。
 
-## Statefulness
+## 后端顺序
 
-Meta service processes can be stateless with respect to local memory only when the persistent backend and fencing model hold the authoritative state. The filesystem is still stateful: namespace, file versions, copy records and idempotent results live in Meta's durable authority.
+当前主线只要求中心 `local-file` Meta 能重启恢复；`memory` 是一次性演示后端，重启后不保留状态。etcd 和 Redis 后端都后置：etcd 是资源和可靠性专题，Redis 优先级最低。
 
-The [G1 trial](../../development/trial-release-goals.md) deploys one Meta process per filesystem and requires central local-file restart recovery; memory is a disposable demonstration. etcd and Redis implementation qualification is deferred to G3. Meta instance election and fencing between competing instances require a separate HA protocol. Inode owner lease and Node/Device epoch checks remain part of the ordinary file protocol.
+Meta 多实例选主、跨实例 fence 和 HA 需要独立协议，不是当前收尾前置条件。
 
-The current local-file implementation uses checksummed recoverable state and an append log with bounded work/checkpointing. Snapshot/CAS validation and synchronization remain authority boundaries; startup recovery verifies retained state before serving it. Optimizing replay cost does not turn an unacknowledged backend write into success. Current capability and validation identities are recorded in [status](../status.md), not inferred from this target design.
+## 读视图
 
-### DFS Lease Identity And Renewal
+复合读可以通过 `MetaReadView` 固定一个已提交视图，再解析文件版本、布局、inode 和 chunk 来源。查询过程中 live state 即使推进，也不能混用多个 revision。该一致性是 Meta 语义，不要求底层 store 一定提供原生多记录读事务。
 
-A DFS write lease is identified by inode, owner node, owner process session and lease epoch. Its expiry can advance when the same owner opens a handle or renews authority. Different handles and the inode lock authority can therefore hold different expiry hints for the same epoch.
-
-Meta validates the stored live identity before renewal, compares that stored lease atomically, and preserves a monotonically increasing expiry. Expiry contention retries with the same operation identity; exhausted contention reports a retryable error. An expired or reassigned stored lease cannot be renewed through an old handle. A repeated successful operation returns its recorded result.
-
-Node distinguishes temporary renewal failure from confirmed fencing. Temporary failure retains existing locks and waiters while their authority is live. Confirmed fencing or expiry invalidates that authority; a delayed renewal response cannot restore an invalidated lock table. The same rules apply to local lock operations and Peer control requests.
-
-## Snapshot Reads
-
-Compound read operations can use `MetaReadView` to pin one committed state while resolving a file version, layout, inode and chunk sources. This gives a consistent read view above the store interface without requiring the backend itself to expose native multi-record read transactions.
-
-## Compound Reads
-
-A source query reads its file version, layout, placement, copies, node sessions and device state from one acknowledged `MetaReadView`. Advancing the live state during that query cannot mix revisions. This view is a Meta semantic guarantee: a backend that atomically persists the complete state can support it without native multi-record transactions.
+当前能力和验收状态见 [当前计划](../development/plan.md) 与 [状态摘要](../status.md)。

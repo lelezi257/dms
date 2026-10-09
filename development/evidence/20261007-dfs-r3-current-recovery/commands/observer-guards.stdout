@@ -1,1 +1,0 @@
-{"status": "PASS_OBSERVER_GUARDS_ONLY", "checks": ["first exact incarnation", "undeclared second missing", "missing old actual wait", "old nonzero wait", "second after exact old wait0", "extra lifecycle cannot inherit first claim", "foreign launch"], "count": 7}

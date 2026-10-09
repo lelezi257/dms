@@ -1,6 +1,0 @@
-Init filesystem, root directory layout: chain table ChainTableId(1), chunksize 524288, stripesize 1
-
-Init config for MGMTD version 1
-Init config for META version 1
-Init config for STORAGE version 1
-Init config for FUSE version 1

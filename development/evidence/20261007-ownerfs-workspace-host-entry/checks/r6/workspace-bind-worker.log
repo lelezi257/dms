@@ -1,9 +1,0 @@
-    Finished `release` profile [optimized] target(s) in 0.08s
-     Running unittests src/lib.rs (/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2)
-
-running 2 tests
-test node::workspace_bind_worker_tests::workspace_bind_failed_prepare_retains_worker_for_explicit_closure ... ok
-test node::workspace_bind_worker_tests::workspace_bind_observer_reports_failure_without_joining_owned_worker ... ok
-
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 598 filtered out; finished in 0.05s
-

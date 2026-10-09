@@ -1,43 +1,22 @@
-# AFS Documentation
+# AFS 文档
 
-## Start Here
+本目录只保留当前可维护的产品文档。历史过程、逐轮证据、旧 checkpoint 和失败原始材料已移到源码仓上一级 `local-archive/`；它们可以用于追溯，不作为产品文档入口。
 
-- [Three-stage trial and acceptance goals](../development/trial-release-goals.md)
-- [Current source checkpoint](../development/current-checkpoint.md)
-- [Finite integration handoff and build inputs](../development/integration-closeout.md)
-- [Positioning](positioning.md)
-- [Architecture](architecture.md)
-- [Delivery Acceptance](acceptance.md)
-- [Implementation Status](status.md)
-- [Delivery Handoff](handoff.md)
+## 当前入口
 
-The three-stage goal table is the current execution authority. `acceptance.md`
-keeps the full case catalog, while the goal table defines which subset is G1,
-which core standard/performance cases are G2, and which long or complex work is
-G3. G1 is complete for the historical `g1.5` trial scope; current source
-publication is a separate checkpoint and must not be described as having passed
-all G2 gates without version-scoped evidence. Reuse unaffected passing cases; rerun only genuinely affected gaps. Current order is bind ON functionality/trial → remote cooperation/performance → DFS one-writer/many-readers → ordinary local FUSE.
+- [当前计划](development/plan.md)：阶段、优先级、验收出口和迁移前阻塞项。
+- [架构总览](architecture.md)：系统组件和数据路径。
+- [OwnerFs](architecture/ownerfs.md)：workspace、Home、远端访问和 bind mount 场景。
+- [测试与验收](testing/acceptance.md)：标准测试、核心功能、性能目标和后置项。
+- [部署与试用](deployment/trial.md)：当前 a103 试用包、ON 配置和支持范围。
+- [验证方式](testing/validation.md)：Linux 验证原则和受影响检查选择。
+- [fuser 官方依赖决策与迁移验收](development/fuser-official-blocker.md)：固定官方版本、私有差异分类、必要正确性与后置锁专题。
 
-## Mechanisms
+## 目录约定
 
-- [Data Model](architecture/data-model.md)
-- [Write Semantics](architecture/write-semantics.md)
-- [Replication](architecture/replication.md)
-- [Local Storage and COW](architecture/local-storage.md)
-- [Read, Cache and Spill](architecture/read-cache-spill.md)
-- [OwnerFs](architecture/ownerfs.md)
-- [Meta and Transactions](architecture/meta.md)
-- [Module Map](architecture/module-map.md)
+- `architecture/`：稳定机制和设计合同。
+- `development/`：当前计划、任务 ID、优先级和迁移前待办。
+- `testing/`：验收标准、性能判据和测试运行方式。
+- `deployment/`：构建、配置、试用包和运行说明。
 
-## Guides
-
-- [Quickstart](guides/quickstart.md)
-- [Configuration](guides/configuration.md)
-- [Operations](guides/operations.md)
-- [Trial Package](guides/trial.md)
-- [Validation](guides/validation.md)
-
-## Proposals
-
-- [RFC Index](rfcs/README.md)
-- [RFC Template](rfcs/0000-template.md)
+文档描述当前实现和已接受目标；未完成能力只放在计划或明确的“未完成”段落，不写成既有能力。

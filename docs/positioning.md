@@ -1,41 +1,37 @@
-# Positioning
+# 产品定位
 
-AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes ordinary file paths and POSIX-style operations while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
+AFS 是面向 Agent、Sandbox 和 VM 集群的近计算文件系统。它暴露普通路径和 POSIX 风格操作，把计算节点本地磁盘作为热数据、持久副本、验证缓存和节点间读取的主要资源池。
 
-AFS has two storage backends:
+AFS 当前有两条后端路径：
 
-| Backend | Scope | Main benefit |
+| 后端 | 适用范围 | 主要价值 |
 | --- | --- | --- |
-| `DistributedFs` (`DFS`) | General shared distributed filesystem | Mutable files over immutable chunks, configurable replication, version-coherent reads, P2P, cache and optional spill |
-| `OwnerFs` | Small Agent workspaces, normally 1 to 4 nodes | Home-node local files with peer forwarding when compute moves away from Home |
+| `OwnerFs` | 小规模 Agent workspace，通常 1 到 4 个节点 | Home 节点保存普通本地文件，计算远离 Home 时通过 peer 转发访问 |
+| `DistributedFs` (`DFS`) | 更通用的共享分布式文件系统 | 可变文件基于不可变 chunk 提交，支持副本、版本一致读、P2P、缓存和可选 spill |
 
-DFS is the general path. OwnerFs exists because a small workspace often gets better latency and simpler failure boundaries when the active data remains on its Home node.
+当前实际使用场景优先开启 **OwnerFs workspace bind mount**。第一阶段目标不是把所有后端都打磨完，而是先交付一个可编译、可运行、可试用的版本：bind ON 场景功能闭环，远程访问正确，核心性能逐步达标。
 
-## Workload Fit
+## 适合的工作负载
 
-AFS is designed for:
+- Agent workspace 在 Home 上频繁小文件读写，同时需要被远端计算节点访问。
+- 需要普通写、sync、reopen 和 close-to-open 可见性的共享可变文件。
+- 镜像、快照、checkpoint 和数据集在稳定后成为 DFS 固定版本。
+- MicroVM 基础镜像固定读取，写层产生新的 DFS chunk。
 
-- Agent workspaces that are edited locally but sometimes accessed remotely.
-- Shared mutable files that need normal write, sync and reopen behavior.
-- Images, snapshots, checkpoints and datasets that become fixed file versions and can be read from many sources.
-- MicroVM disk files where the base image is fixed and the writable layer produces new chunks.
+## 边界
 
-AFS does not require a separate Blob API. Images and snapshots are stable file versions in DFS. Their chunks already have immutable identities that support cache, P2P and spill.
+- AFS 不承诺所有 POSIX 工作负载都比本地文件系统快。
+- `close` 成功表示此前写入完成必要 flush 并对后续 open 可见；文件 sync 不等于父目录 sync。
+- `fsync` 不创建业务发布、别名、pin 或快照。
+- 验证缓存只有被提升并提交后才算持久副本。
+- 外部对象存储是可选冷容量，不是当前主线的强依赖。
 
-## Boundaries
+## 当前优先级
 
-- AFS does not claim every POSIX workload is fastest on AFS.
-- Successful `close` flushes prior writes and makes them visible to later opens; file sync does not imply parent directory sync.
-- `fsync` does not create a business publish, alias, pin or snapshot.
-- Verified cache does not count as a durable replica unless it is promoted and committed as one.
-- External object storage is optional spill and cold capacity, not the mandatory source of truth.
+1. OwnerFs workspace bind mount：bind ON 可用、远端协同正确、试用包可交付。
+2. OwnerFs 远端普通 FUSE 读写：吞吐和时延分别对比 MooseFS 达标。
+3. DFS 一写多读核心场景：与 3FS 同条件对照。
+4. 普通 OwnerFs 本地 FUSE 优化：保留目标但后置。
+5. 大规模、长时间、复杂可靠性、多 Meta、etcd 和 Redis 后置。
 
-The [delivery acceptance scope](acceptance.md) keeps the complete case catalog. It is broader than the first colleague-trial package and includes later backend, RDMA and reliability lanes.
-
-## Current Trial Order
-
-The current delivery order is recorded in the [three-stage goal table](../development/trial-release-goals.md). The usable trial path is intentionally simple: `memory` for disposable demos, `local-file` Meta for restart recovery, OwnerFs and DFS through FUSE, and package selfchecks that a colleague can run directly. etcd is a later resource/reliability topic, allowed to use a larger memory budget while investigated, and Redis is last.
-
-G2 raises confidence and performance in small independent steps. Standard suites (`pjdfstest`, a fixed LTP subset and short fixed-seed FSx) are the fallback baseline; custom cross-node and restart cases supplement them. Required usage enables OwnerFs workspace bind mount. Prioritize finite ON functionality and scenario delivery, remote FUSE cooperation/performance, DFS one-writer/many-readers, then ordinary local FUSE. Keep function, measurement, performance and delivery separate; infrastructure checks do not close product goals.
-
-The delivery acceptance page keeps the broader case catalog, including etcd/Redis persistence, FUSE and RDMA. DFS SDK, verified data cache and spill remain part of the broader architecture and are outside the current trial checkpoint unless a specific G2/G3 item names them.
+完整任务 ID、状态和判据见 [当前计划](development/plan.md)。验收规则见 [验收说明](testing/acceptance.md)。

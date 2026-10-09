@@ -1,6 +1,0 @@
-{"msg":"Mounting /mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/mount/dfs","level":"INFO","ts":"2026-10-06T23:26:17.333931804Z","instance":"dfs-c-r1","service_name":"afs-node"}
-{"msg":"node.ready","level":"INFO","ts":"2026-10-06T23:26:17.343810651Z","instance":"dfs-c-r1","service_name":"afs-node","dfs":true,"ownerfs":false,"uds":"/mnt/lima-afscdata/afs-delivery/dfs-sync-6d-20261007-r1/run/node.sock","rest":"0.0.0.0:23801","grpc":"0.0.0.0:23800"}
-{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 1, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T23:39:26.067443519Z","instance":"dfs-c-r1","service_name":"afs-node"}
-{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 20, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T23:39:45.936661175Z","instance":"dfs-c-r1","service_name":"afs-node"}
-{"msg":"[Not Implemented] ioctl(ino: 0x3, fh: 21, flags: 0, cmd: 21505, in_data.len(): 0, out_size: 0)","level":"WARN","ts":"2026-10-06T23:39:48.816212331Z","instance":"dfs-c-r1","service_name":"afs-node"}
-{"msg":"services.stopped","level":"INFO","ts":"2026-10-06T23:40:32.345892225Z","instance":"dfs-c-r1","service_name":"afs-node"}

@@ -1,3 +1,0 @@
-{"event": "posted", "pid": 1886, "thread": [1886, 1896, 0], "operation": 1, "bytes": 4096, "data_wr_id": 1, "poisoned": false, "qp": 18, "monotonic": 227.334529293}
-{"event": "checkpoint_timeout"}
-{"event": "exit", "code": null}

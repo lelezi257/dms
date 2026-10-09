@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "limactl",
-    "copy",
-    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/ownerfs-bind-active-node-stop-20261007-r1/transport.tar.gz",
-    "afs-g2-micro:/var/tmp/afs-active-node-stop-20261007-r1/transport.tar.gz"
-  ],
-  "exit": 23
-}

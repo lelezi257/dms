@@ -1,1 +1,0 @@
-{"path": "/mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/ownerfs/g2-remote-6d-bhome-r1/small-r1/payload64m.bin", "bytes": 67108864, "sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5", "expected_sha256": "fae972222d455a2eaee1661ad9625502ec3bfc5ec38b87a6eec5afd5107331b5", "independent_B_FUSE_open": true, "status": "PASS"}

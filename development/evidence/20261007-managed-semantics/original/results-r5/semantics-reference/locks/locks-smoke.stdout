@@ -1,1 +1,0 @@
-status=PASS evidence=/var/tmp/afs-managed-workspace-20261007-r1/results-r5/semantics-reference/locks/locks-smoke primary=/proc/7199/root/workspace/.afs-native-mixed-7298-1791316620708239149-locks.bin secondary=/proc/7199/root/workspace/.afs-native-mixed-7298-1791316620708239149-locks.bin

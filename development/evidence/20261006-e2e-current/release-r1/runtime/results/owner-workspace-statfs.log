@@ -1,2 +1,0 @@
-Filesystem     Type 1024-blocks    Used Available Capacity Mounted on
-afs-ownerfs    fuse    15159300 7332688   7810228      49% /var/tmp/afs-e2e-release-20261006-r1/mount/ownerfs

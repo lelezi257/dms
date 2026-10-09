@@ -1,8 +1,0 @@
-{
-  "r1_sha256": "2ac4eac47defe75ac7234ff55bd6091f5d24d270c5f5ba10b54345aae3d608c3",
-  "r2_sha256": "b71e0324e1e7774b6b14831f20b81bbe64a6a3ef8e31ad9774b671fd36cf6cc8",
-  "patch_sha256": "c20ed54c19b80adb54e481e30498a7ac6c2a82f7f8e6317c446b2266d8d51050",
-  "r1_recovery": "four guests fresh root/stage/closure-check.py until new r2 path transfer; r1 SHA remains in original raw closed output",
-  "fixed_processctl_sha256": "1ea10552180c917da2c598bee9dd8fecee7be26ae9d70dcdcba2e4829150d896",
-  "reason": "Normal processctl stop retains pid/identity/launch as lifecycle-bound receipts. Validate binding; do not delete or claim live."
-}

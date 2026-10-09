@@ -1,9 +1,0 @@
-{
-  "status": "PASS_ACTUAL_PATCH_RECOVERY_LINUX",
-  "base_main": "84af854e19ffa6397eaae2b3af6f838c7cb17a28",
-  "recovered_path": "/var/tmp/afs-replica-source-restore-tsx8qrlt/src/node/replication.rs",
-  "expected_sha256": "a80dddcae1a1467115caa465ab285ced936fcb13a1b720b2e80e4338df1124c8",
-  "actual_sha256": "a80dddcae1a1467115caa465ab285ced936fcb13a1b720b2e80e4338df1124c8",
-  "candidate_patch_sha256": "05052a339e77db821704d98df10f1b05b85facbcbff4e909cd0441ff80c7a5e6",
-  "active_source_modified": false
-}

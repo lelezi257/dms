@@ -1,53 +1,43 @@
-# AFS Architecture Principles
+# AFS 架构原则
 
-This page defines stable product and architecture principles. Implementation progress is recorded only in [Implementation Status](docs/status.md).
+本页记录稳定原则；实现进度和验收状态见 [当前计划](docs/development/plan.md) 和 [状态摘要](docs/status.md)。
 
-## POSIX First
+## POSIX 优先
 
-AFS exposes a shared file namespace through POSIX-compatible interfaces. Applications use normal directories, files, reads, writes and sync operations. Default consistency follows JuiceFS: immediate visibility within a mount and close-to-open across mounts. See the [visibility contract](docs/architecture/write-semantics.md).
+AFS 通过普通目录、文件、读、写、sync 和 close 暴露共享文件命名空间。默认一致性目标是同一挂载内及时可见，跨挂载 close-to-open。高性能 SDK 只能作为 DFS 的附加入口，不能改变文件语义。
 
-High-performance SDKs are additional DFS entry points over the same namespace and file semantics.
+## DFS 是通用路径
 
-## DistributedFs Is The General Path
+`DistributedFs` 负责通用分布式文件系统能力：布局、chunk、副本、读计划、修复、缓存、容量管理和可选 spill。镜像、快照和 checkpoint 是稳定文件版本，不是独立 Blob 文件系统。
 
-`DistributedFs` is the general distributed filesystem backend. It owns file layout, chunks, replicas, reads, repair, cache, capacity management and optional spill.
+## OwnerFs 是小集群 workspace 路径
 
-Images, snapshots and checkpoints are important optimization workloads, but they are not a separate Blob filesystem. They are stable file versions in the same DFS model.
+`OwnerFs` 面向 1 到 4 节点 Agent workspace。workspace 有 Home 节点，Home 用普通本地文件保存字节；远端 worker 通过 peer 回到 Home。OwnerFs 和 DFS 是不同挂载、不同状态机、不同缓存策略，不互相继承验收结论。
 
-## OwnerFs Is A Small-Cluster Workspace Path
+## 不可变 chunk 构成 DFS 基础
 
-`OwnerFs` is specialized for 1 to 4 node Agent workspaces. A workspace has a Home node. The Home stores bytes as normal local files. Workloads on the Home use local files; workloads on other nodes reach the Home through P2P.
+已提交 `ChunkObject` 不可变。文件仍然可变，因为 sync 前有 dirty view，sync 后 inode 的 `head_version` 可以从一个不可变 `FileVersion` 前进到另一个版本。
 
-OwnerFs and DistributedFs are separate mounts with separate runtime inode tables, handle tables, cache policy and data layout. They share FUSE module code and common transport utilities.
+## FileVersion 是读一致性边界
 
-## Immutable Chunks Form The DFS Base
+已提交读计划必须固定 `FileVersion`、布局和长度。不同节点的数据可以组合，前提是它们属于同一个解析出的版本并通过 chunk 身份校验。副本位置、缓存位置和外部位置可以变化，但不能改变版本身份。
 
-A committed `ChunkObject` is immutable. A file remains mutable because its current dirty view can change before sync, and because its `InodeRecord.head_version` can move from one immutable `FileVersion` to the next.
+## Sync 提交文件状态，不创建业务发布
 
-## FileVersion Is The Read Consistency Boundary
+`fdatasync` 提交文件数据和恢复所需元数据；`fsync` 还包括完整 inode 属性。文件 sync 不等于父目录 sync，目录项需要 `fsync(dir)`。成功 close 会 flush 之前写入并提交可恢复状态；release 只清理资源。
 
-A resolved committed read plan fixes a `FileVersion`, layout and length while assembling data from sources. Ordinary read-only open is not a lifetime snapshot. Data from different nodes can be combined only when it belongs to the same resolved version and passes chunk identity checks.
+## 复制在 ChunkStore 之下
 
-Replica location, cache location and external location can change without changing the file version or chunk content identity.
+文件布局代码消费 `ChunkReceipt`。单副本和多副本路径在 `ChunkStore::put_batch` 之下分叉，在 Meta 提交新版本前汇合。副本数是文件系统初始化策略，不写入每个文件版本或 extent。
 
-## Sync Commits File State, Not Business Publication
+## 本地盘是近计算存储池
 
-`fdatasync` commits file data and recovery-required metadata. `fsync` includes that work and also syncs complete inode attributes such as `mtime` and `ctime`.
+计算节点可以贡献 SSD、NVMe、HDD 或其它本地盘。AFS 区分持久副本、验证缓存和外部已提交副本；验证缓存不能自动冒充持久副本。
 
-File sync does not imply parent directory sync. Directory entries require `fsync(dir)`. Successful close flushes prior writes and commits their recoverable state; release only cleans up resources. These barriers do not create a business snapshot, alias or pin.
+## 对象存储是可选 spill
 
-## Replication Lives Below ChunkStore
+AFS 可以只依赖集群本地盘运行。外部对象存储只作为 spill、冷数据、归档或灾备层。只有完成外部写入、校验和 Meta 提交后，才能因为外部副本而淘汰本地数据。
 
-File layout code consumes `ChunkReceipt` records. Single-replica and multi-replica paths split below `ChunkStore::put_batch` and rejoin before FileVersion commit.
+## 第三方源码保持原样
 
-Replica count is a filesystem initialization policy. It is not encoded into each file version or extent.
-
-## Local Disks Are The Near-Compute Pool
-
-Compute nodes can contribute SSD, NVMe, HDD or other local disks. Relative to external object storage, these disks form the near-compute storage layer. Inside AFS, durable replicas, verified cache and external committed copies remain distinct roles.
-
-## Object Storage Is Optional Spill
-
-AFS can run with cluster local disks only. External object storage is an optional layer for spill, cold data, archive or disaster recovery.
-
-Local data can be evicted because of an external copy only after external write, verification and metadata commit have all completed.
+开源依赖采用固定官方版本，必要适配放在自有代码。此次迁移将跨节点 `fcntl/flock`、阻塞锁等待取消和 bind/native↔FUSE 锁一致性后置；这不放宽新鲜度、close-to-open、权限、错误传播、持久化、direct-I/O mmap 协商及正常卸载/排空要求。内核本地锁不等于分布式锁。移除私有依赖必须有必要正确性验证，不能只改版本或删目录；当前迁移验收见 [依赖决策](docs/development/fuser-official-blocker.md)。

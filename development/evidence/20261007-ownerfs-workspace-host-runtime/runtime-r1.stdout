@@ -1,1 +1,0 @@
-{"status": "FAIL", "scope": "installed fixed-Home host functional bind; 64KiB; no throughput", "source_commit": "93169c8530beedff9e8e510dc9b9210d704f244f", "error": "command 027 exit 1"}

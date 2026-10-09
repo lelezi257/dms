@@ -193,6 +193,24 @@ pub struct AttributeChange {
     pub mtime: Option<SystemTime>,
 }
 
+/// Exact legacy kernel mode clearing, with no permission or ownership grant.
+/// Valid only at an ingress that enforces kernel default_permissions; callers
+/// must recheck authoritative attributes before applying the clearing.
+pub(crate) fn is_legacy_privilege_clear(
+    current: &FileAttributes,
+    change: &AttributeChange,
+) -> bool {
+    let mut cleared = current.mode & !libc::S_ISUID;
+    if current.mode & libc::S_IXGRP != 0 {
+        cleared &= !libc::S_ISGID;
+    }
+    current.kind == FileKind::Regular
+        && change.uid.is_none()
+        && change.gid.is_none()
+        && cleared != current.mode
+        && change.mode.map(|mode| mode & 0o7777) == Some(cleared & 0o7777)
+}
+
 /// Linux FUSE killpriv v2 cause supplied by the kernel for open/create paths.
 ///
 /// When set, the backend must clear suid and executable sgid privilege bits as
@@ -209,7 +227,9 @@ pub struct WriteOptions {
     pub kill_suidgid: bool,
 }
 
-/// Linux FUSE killpriv v2 cause supplied by the kernel for setattr paths.
+/// Kernel privilege clearing for setattr. The FUSE adapter may also mark an
+/// exact legacy mode-clear request after default_permissions kernel checks;
+/// Home must revalidate it against current attributes, never assign stale mode.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct SetAttrOptions {
     pub kill_suidgid: bool,

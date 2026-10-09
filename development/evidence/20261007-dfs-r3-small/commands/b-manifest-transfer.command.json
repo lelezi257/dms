@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "limactl",
-    "copy",
-    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-r3-current-20261007-r1/writer-confirmed.json",
-    "afs-accept-b:/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/stage/writer-confirmed.json"
-  ],
-  "timeout": 90
-}

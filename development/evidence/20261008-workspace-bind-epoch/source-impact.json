@@ -1,9 +1,0 @@
-{
-  "status": "PASS",
-  "compiler_input_count": 157,
-  "changes_since_source_context": [],
-  "differences_from_fixed_f03": [
-    "src/node/vfs/ownerfs/native_home_fuse_fixture.rs"
-  ],
-  "runtime_not_rebuilt": true
-}

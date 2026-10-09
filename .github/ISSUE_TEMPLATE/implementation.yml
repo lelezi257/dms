@@ -1,33 +1,33 @@
-name: Implementation task
-description: Implement an accepted and bounded AFS capability.
+name: 实现任务
+description: 实现范围明确且已对齐的 AFS 能力。
 title: ""
 labels: ["kind/implementation", "status/ready"]
 body:
   - type: input
     id: rfc
     attributes:
-      label: RFC or architecture contract
+      label: RFC 或架构契约
       placeholder: docs/architecture.md
     validations:
       required: true
   - type: textarea
     id: scope
     attributes:
-      label: Scope
-      description: List owned modules, inputs, outputs, and explicit boundaries.
+      label: 范围
+      description: 列出负责模块、输入输出及边界。
     validations:
       required: true
   - type: textarea
     id: behavior
     attributes:
-      label: Required behavior
-      description: Describe successful operations, errors, retries, and visible state.
+      label: 必要行为
+      description: 描述成功操作、错误、重试和可见状态。
     validations:
       required: true
   - type: textarea
     id: verification
     attributes:
-      label: Verification
-      description: List functional, failure, and performance evidence.
+      label: 验证
+      description: 列出功能、失败路径和性能验证。
     validations:
       required: true

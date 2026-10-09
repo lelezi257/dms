@@ -1,3 +1,0 @@
-ChainId  ReferencedBy  ChainVersion  Status   PreferredOrder  Target                        Target
-1        1             1             SERVING  []              1000001001(SERVING-UPTODATE)  1000101001(SERVING-UPTODATE)
-2        1             1             SERVING  []              1000002001(SERVING-UPTODATE)  1000202001(SERVING-UPTODATE)

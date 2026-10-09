@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "limactl",
-    "copy",
-    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source/development/acceptance/probes/dfs_r3_fixture.py",
-    "afs-accept-b:/mnt/lima-afsbdata/afs-delivery/dfs-r3-current-20261007-r1/stage/dfs_r3_fixture.r2.py"
-  ],
-  "timeout": 90
-}

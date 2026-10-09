@@ -1,7 +1,0 @@
-{
-  "handoff_path": "docs/handoff.md",
-  "handoff_sha256": "ad5e9ce000b662800511263b185e4fc1a2619a6539f06f335dc14c88c9f3d441",
-  "acceptance_lock_sha256": "ef32cf92fa548a801f57d339a4473e8866c695556205cd5e544797bc8392d6d2",
-  "status": "UNCHANGED",
-  "precommit_observer_correction": "Initial guard compared off-trial-handoff-slice.md to the protected docs/handoff.md digest; subsequent relative parent lookup was corrected to an absolute root. No protected files changed."
-}

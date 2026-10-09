@@ -1,43 +1,28 @@
-# AFS Runtime Dependencies
+# AFS 运行依赖
 
-The release package is installed on Linux guests without Cargo, Git or a Rust toolchain.
+Linux 试用包的安装和运行不需要 Cargo、Git 或 Rust 工具链。
 
-## Required
+## 必要条件
 
-- Linux on the target architecture used by the release package.
-  The G1 trial is qualified on Ubuntu 24.04 ARM64 / Linux 6.8 with ext4.
-  Remote OwnerFs shared mmap needs the kernel-advertised
-  `FUSE_DIRECT_IO_ALLOW_MMAP` capability; older kernels are not qualified.
-- `bash`, `coreutils`, `tar`, `sha256sum`, `sed`, `awk`, `grep`, `curl`,
-  `python3`.
-- GNU `timeout` (from `coreutils`) bounds mount inspection and unmount commands.
-  `afs-selfcheck` also wraps its own Python probe in GNU `timeout` so blocked
-  filesystem I/O has an outer wall-clock limit.
-- `fuse3` runtime and `/dev/fuse` for FUSE mounts.
-- `ss` from `iproute2` for port conflict checks. If `ss` is unavailable the process controller still starts, but port validation is weaker.
-- `findmnt` from `util-linux` for exact AFS FUSE mount readiness checks and
-  `afs-selfcheck` mount validation.
-- `openssl` when using `afs-trial-config` to generate single-node or two-node
-  trial TLS material.
-- Shared libraries reported by current Linux ARM64 package `ldd.txt` include
-  `libibverbs.so.1`, `libnl-route-3.so.200`, `libnl-3.so.200`, `libgcc_s.so.1`,
-  `libm.so.6`, `libc.so.6` and the target dynamic loader. Install the matching
-  distro packages before running the binaries. FUSE remains a runtime
-  requirement through `fuse3` and `/dev/fuse` even when `libfuse3` does not
-  appear in `ldd.txt`.
+- 使用与发行包一致的 Linux 架构。既有试用环境为 Ubuntu 24.04 ARM64、Linux 6.8、ext4；其他环境需要独立验证。远端 OwnerFs 的 direct-I/O shared mmap 需要内核公开 `FUSE_DIRECT_IO_ALLOW_MMAP` 能力，旧内核未获验收。
+- `bash`、`coreutils`、`tar`、`sha256sum`、`sed`、`awk`、`grep`、`curl`、`python3`。
+- GNU `timeout`（来自 `coreutils`）用于限制挂载检查和卸载等待时间；`afs-selfcheck` 也通过它限制 Python 文件系统探针的总运行时间。
+- FUSE 挂载需要 `fuse3` 运行环境和 `/dev/fuse`。
+- `iproute2` 提供的 `ss` 用于检查端口冲突。缺少它时进程控制器仍能启动，但端口检查能力较弱。
+- `util-linux` 提供的 `findmnt` 用于检查精确的 AFS FUSE 挂载和运行自检。
+- 使用 `afs-trial-config` 生成单节点或双节点试用 TLS 材料时需要 `openssl`。
+- 按对应包内 `ldd.txt` 安装动态库。既有 ARM64 包列出过 `libibverbs.so.1`、`libnl-route-3.so.200`、`libnl-3.so.200`、`libgcc_s.so.1`、`libm.so.6`、`libc.so.6` 和目标动态加载器；以实际包为准。即使 `ldd.txt` 未列出 `libfuse3`，仍需要 `fuse3` 和 `/dev/fuse`。
 
-## Backend Services
+## Meta 后端
 
-- `memory` is supported for disposable demos and loses namespace state whenever
-  `afs-meta` exits.
-- `local-file` is supported for persistent trial runs, restart checks and local
-  smoke tests.
-- `etcd` uses `meta_store = "etcd"` and `etcd_endpoint`.
-- Redis uses `meta_store = "redis"` and `redis_endpoint` when the installed binary includes that backend.
+- `memory` 用于可丢弃的演示和短周期开发；`afs-meta` 退出后不保留命名空间状态。
+- `local-file` 用于持久化试用、重启检查和本地 smoke，是当前恢复验收主线。
+- etcd 配置使用 `meta_store = "etcd"` 和 `etcd_endpoint`。
+- 包含 Redis 后端的二进制使用 `meta_store = "redis"` 和 `redis_endpoint`。
 
-Backend configuration fields do not prove a backend lane is accepted. Each selected backend must pass its own restart and parity cases before being reported as usable.
+存在配置字段不代表该后端已经验收。etcd、Redis 及复杂可靠性后置；每个后端都需要自己的恢复和行为对照证据。
 
-## Optional
+## 按需条件
 
-- TLS certificate files, referenced from TOML config, for authenticated Node-to-Meta and Node-to-Node traffic.
-- RDMA/RXE tools and kernel support for RDMA acceptance lanes. The package does not install kernel modules.
+- 经身份认证的 Node-to-Meta 和 Node-to-Node 通信需要 TOML 引用的 TLS 证书文件。
+- RDMA/RXE 验收需要对应工具和内核支持；试用包不安装内核模块。

@@ -1,7 +1,0 @@
-pid=719500
-exe=/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/prefix/bin/afs-meta
-config=/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/etc/meta.toml
-start_ticks=6628921
-boot_id=36a572e0-859b-4a94-adc7-789210a83fc8
-lifecycle=/mnt/lima-afsadata/afs-delivery/shutdown-signal-v51/run/meta.lifecycle.8yfUhX
-supervisor_pid=719484

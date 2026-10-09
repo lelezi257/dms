@@ -1,5 +1,0 @@
-3345187a3915cbc27651f7027d4dcb093f82af5b9ca3ffc213f08cef8a30c905  /mnt/lima-afsadata/afs-delivery/owner-rdma-v72-a/prefix/bin/afs-meta
-8105b3d66f2e93a1110b442ccbda24a2d4c2ab5f97d0bbd5d9f0c9e1b97f6238  /mnt/lima-afsadata/afs-delivery/owner-rdma-v72-a/prefix/bin/afs-node
-78949590bfdf12f6db0977ac5756702312e85e1d91c8f59903d4490222488f2b  /mnt/lima-afsadata/afs-delivery/owner-rdma-v72-a/prefix/bin/afs-processctl
-started meta pid=734609 ready=true
-started node pid=734790 ready=true

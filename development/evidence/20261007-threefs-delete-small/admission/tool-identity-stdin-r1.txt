@@ -1,9 +1,0 @@
-import json,os,hashlib,subprocess,sys
-from pathlib import Path
-j=json.loads(sys.argv[1]);names=j['dependencies'];identities={}
-for name,value in names.items():
- p=Path(value).resolve();st=p.stat();b=p.read_bytes();after=p.stat();assert (st.st_dev,st.st_ino,st.st_size,st.st_mtime_ns)==(after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns);identities[name]={'invocation_path':value,'realpath':str(p),'sha256':hashlib.sha256(b).hexdigest(),'dev':st.st_dev,'ino':st.st_ino,'bytes':len(b)}
-provider=[];env=os.environ.copy();env['LD_LIBRARY_PATH']=j['prefix']+'/lib'
-for row in j['rxe_provider']['libraries']:
- q=subprocess.run([names['ldd'],row['path']],env=env,capture_output=True,text=True,timeout=15);provider.append({'path':row['path'],'sha256':row['sha256'],'argv':[names['ldd'],row['path']],'exit':q.returncode,'stdout':q.stdout,'stderr':q.stderr});assert q.returncode==0 and 'not found' not in q.stdout
-print(json.dumps({'status':'PASS_COMPLETING_TOOL_IDENTITIES_ONLY','tool_identities':identities,'rxe_provider_ldd':provider,'resource_device_port_checks_repeated':False},indent=2))

@@ -1,1 +1,0 @@
-timeout 900 cargo test --locked --offline --all-features --test meta_contract --test node_health_contract --test rest_contract --test vfs_contract --test config_contract --test error_contract --test fuse_contract --test meta_health_capability --test ownerfs_peer_contract -- --nocapture 

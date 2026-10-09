@@ -1,54 +1,46 @@
 # AFS
 
-**当前交付：[a103阶段性ON试用包已发布](https://github.com/lelezi257/dms/releases/tag/afs-bind-a103a2f)。** Linux ARM64，可编译、可独立安装、可运行；真实Home bind ON及Owner64KiB/DFS64MiB正常全停local-file恢复限定通过。普通配置默认OFF，按[明确ON指南](docs/guides/trial.md)启用。[固定身份、证据与支持限制](development/evidence/20261009-workspace-bind-a103-trial/README.md)。新Meta远端组合、完整远端POSIX、性能目标、复杂可靠性及官方fuser迁移仍未完成；G1历史8/8和原G2 12/0/15不变。[d47历史ON包](https://github.com/lelezi257/dms/releases/tag/afs-bind-d47eec2)及原判据/结论保留。
+AFS 是面向 Agent、Sandbox 和 VM 集群的近计算文件系统原型。当前源码可在 Linux ARM64 上编译，已发布一个有限但可运行的 OwnerFs workspace bind ON 试用包：[afs-bind-a103a2f](https://github.com/lelezi257/dms/releases/tag/afs-bind-a103a2f)。
 
-AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [same-mount visibility and close-to-open consistency](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
+这个快照的目标是作为迁移到 Agent DX 前的清洁基线：产品源码、维护中的测试和正式文档在仓库内；逐轮证据、checkpoint、历史实验和过程计划已归档到仓库上一级 `local-archive/`，不作为产品树内容。
 
-AFS has two backends:
+## 当前能力
 
-- `DistributedFs`: the general DFS path for shared files, immutable chunks, file versions, replicas, P2P reads, cache, repair and optional spill.
-- `OwnerFs`: the small-cluster workspace path for 1 to 4 nodes. A workspace has a Home node; local work uses normal local files, and remote work goes back to the Home through P2P.
+- `afs-meta` 管理 namespace、inode、版本、放置、租约和生命周期元数据；文件数据不经过 Meta。
+- `afs-node` 提供 FUSE 挂载、本地存储、P2P 读取、缓存和恢复所需的服务。
+- `DistributedFs` 是通用 DFS 路径，包含 chunk、版本、replica、读计划和修复机制。
+- `OwnerFs` 是 1 到 4 节点的小集群 workspace 路径。workspace 有 Home 节点，本地访问走普通文件，远端访问回到 Home。
+- OwnerFs workspace bind mount 是当前实际试用场景：显式开启后，把 Home 上 workspace 的底层真实目录 bind 到 OwnerFs FUSE 根下对应一级目录。普通发行配置仍默认关闭。
 
-![AFS architecture](docs/images/overview.svg)
+## 当前边界
 
-`afs-meta` owns namespace, inode records, file versions, placement, leases and lifecycle metadata. `afs-node` runs next to workloads, owns FUSE mounts, orders writes, stores chunks on local disks, serves peer reads and manages cache. File bytes do not pass through Meta.
+G1 历史试用范围保持 8/8 关闭；当前快照不重开、不重标历史结论。a103 试用包证明的是有限范围：真实 Home bind ON、UID501/UID502 权限检查、Owner64KiB 与 DFS64MiB 在 local-file Meta 下正常全停重启恢复，以及正常退出。它不是完整 POSIX、完整远端标准、性能达标或复杂可靠性通过。
 
-## Read This First
+仍未完成的主要项包括：普通 OwnerFs 本地/远端性能双目标、DFS 对 3FS 的三同步持久副本对照、完整远端 POSIX、复杂可靠性、多 Meta、etcd/Redis 后端验收。
 
-1. [Documentation Home](docs/README.md)
-2. [Three-stage trial and acceptance goals](development/trial-release-goals.md)
-3. [Current source checkpoint](development/current-checkpoint.md)
-4. [Positioning](docs/positioning.md)
-5. [Architecture](docs/architecture.md)
-6. [Data Model](docs/architecture/data-model.md)
-7. [Write Semantics](docs/architecture/write-semantics.md)
-8. [Implementation Status](docs/status.md)
+当前源码已使用固定官方 `fuser =0.18.0`，移除私有 vendor，并完成限定 Linux 正确性回归；不代表完整 POSIX、性能或所有拓扑通过。此次版本将 FUSE 跨节点 `fcntl/flock`、阻塞锁等待取消及 bind/native↔FUSE 锁一致性后置；内核可能在单个 FUSE 挂载内本地加锁，bind 路径则使用本机 ext4 锁，两者是不同锁域，均不代表分布式锁。该范围调整不放宽新鲜度、close-to-open、权限、错误传播、持久化、direct-I/O mmap 协商和正常卸载/排空要求，详见 [依赖决策与验收](docs/development/fuser-official-blocker.md)。
 
-[Delivery Acceptance](docs/acceptance.md) defines the detailed case catalog. The current execution order is the three-stage table: first a usable OwnerFs/DFS trial with `memory` demo and `local-file` Meta restart recovery, then small-to-large core performance, then long/complex reliability and remaining persistence backends.
+## 文档入口
 
-Current priority is:
+1. [文档首页](docs/README.md)
+2. [当前计划](docs/development/plan.md)
+3. [架构总览](docs/architecture.md)
+4. [OwnerFs 机制](docs/architecture/ownerfs.md)
+5. [测试与验收](docs/testing/acceptance.md)
+6. [部署与试用](docs/deployment/trial.md)
 
-- G1: historical `g1.5` colleague-trial scope is complete for its stated range.
-- G2: required usage is OwnerFs workspace bind **ON** with correct remote FUSE access and an explicit ON trial. Prioritize finite bind functions/delivery, remote performance, DFS one-writer/many-readers, then ordinary local FUSE. Reuse scoped standard and eight bind core >=0.90 ext4 passes; tools/documents are supporting work. Ordinary Owner read/write still requires >=1.2x MooseFS throughput and <=0.8x independent operation latency; DFS keeps three-synchronous-copy matched 3FS parity.
-- G3: long soak, broad fault matrices, etcd memory/resource work and Redis persistence are deferred.
+## 构建
 
-OwnerFs workspace bind mount has separate function and performance gates. Ordinary defaults remain OFF; the current a103 ON trial provides the selected finite scenario, with explicit support limits and separately scoped historical eight-case performance evidence.
+Rust 工具链由 `rust-toolchain.toml` 固定。普通构建只生成产品二进制，不包含测试探针。
 
-## Development
+```sh
+cargo build --release --locked --bin afs-node --bin afs-meta
+```
 
-[Delivery handoff](docs/handoff.md) records the execution checkpoint, remaining gates and portable continuation inputs.
+验收流程需要 workspace 探针时单独构建：
 
-The authoritative build and runtime environment is Linux. The Rust toolchain is pinned by [rust-toolchain.toml](rust-toolchain.toml).
+```sh
+cargo build --release --locked --example afs-workspace-probe
+```
 
-Use the guides for local commands:
-
-- [Quickstart](docs/guides/quickstart.md)
-- [Configuration](docs/guides/configuration.md)
-- [Operations](docs/guides/operations.md)
-- [Validation](docs/guides/validation.md)
-
-Historical default-OFF Linux ARM64 trial: [historical7e6 package instructions](docs/guides/trial-7e6.md) and [7e6 reproducible archive / installed recovery](development/evidence/20261007-current-trial-7e6/README.md). The [fixed prerelease](https://github.com/lelezi257/dms/releases/tag/afs-trial-7e6e00a) is published; its four remote asset digests are confirmed by the publication receipt there. The [6d checklist](docs/guides/trial-6d.md) remains historical. Complete G2 performance/ON gates remain open.
-
-Historical f03 default-OFF trial: [fixed prerelease and its packaged guide](https://github.com/lelezi257/dms/releases/tag/afs-trial-f03dc2b), [original package/install/recovery evidence](development/evidence/20261008-current-trial-f03/README.md). Its results retain their original version and OFF scope. The current a103 trial and explicit ON guide are linked above.
-
-[Finite integration handoff](development/integration-closeout.md) records the frozen build/package identities, source migration scope and unfinished capabilities; GitCode integration has not yet been performed.
+文件系统相关构建、测试和运行结论只在 Linux 上成立；macOS 只用于编辑和 VM 编排。

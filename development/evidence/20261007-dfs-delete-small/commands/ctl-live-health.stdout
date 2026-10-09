@@ -1,1 +1,0 @@
-{"backend_health":"healthy","backend_persistence":"persistent","detail":"persistent backend health probe passed","durability":"persistent","id":"meta-ctl","persistent_ready":true,"physical_power_loss_proven":false,"role":"meta","scope":"foundation","status":"ready"}

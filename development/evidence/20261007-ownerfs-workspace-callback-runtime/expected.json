@@ -1,7 +1,0 @@
-{
-  "source_commit": "b31292ac56dc3b88ec0f0dca09cbce014af1e7fb",
-  "package_sha256": "3d1e68de2a57cd15f0c942fa3ee32662c283175cc0bff1f33f6e8a3cf810d390",
-  "afs_meta_sha256": "75864631b10ec053bb3ed09cc00dbf57befc967413be721cd539ec976d3bebb2",
-  "afs_node_sha256": "d54c2dc27f7915aaf907f7741699f91508d2e2c147dc9445de3ed72f08279ea9",
-  "runtime_sha256": "d10ecae898361832a059be2089bab92d158aec54661b18ed7346ed79628b46b0"
-}

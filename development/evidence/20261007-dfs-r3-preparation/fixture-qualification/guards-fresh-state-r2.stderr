@@ -1,9 +1,0 @@
-bash: line 1: cd: /Users/lzc/workspace/code/agentruntime: No such file or directory
-bash: line 1: cd: /Users/lzc: No such file or directory
-test_stopped_runtime_uds_also_forbids_policy_patch (test_dfs_r3_fixture.FixtureGuards.test_stopped_runtime_uds_also_forbids_policy_patch) ... ok
-test_initialized_state_refused_before_original_or_config_write (test_dfs_r3_fixture.FixtureGuards.test_initialized_state_refused_before_original_or_config_write) ... ok
-
-----------------------------------------------------------------------
-Ran 2 tests in 0.001s
-
-OK

@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/home/lzc.guest/afs-build/work/owner-deadline-v77-r1/scripts/check-rdma-cancellation.py", line 205, in <module>
-    main()
-  File "/home/lzc.guest/afs-build/work/owner-deadline-v77-r1/scripts/check-rdma-cancellation.py", line 176, in main
-    raise TimeoutError("debugger/test exceeded bounded runtime")
-TimeoutError: debugger/test exceeded bounded runtime

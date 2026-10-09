@@ -1,6 +1,0 @@
-{
-  "meta.lifecycle.dOJw0R/child": "pid=722023\nexe=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta\nconfig=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/meta.toml\nstart_ticks=6740437\nboot_id=36a572e0-859b-4a94-adc7-789210a83fc8\nlifecycle=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/meta.lifecycle.dOJw0R\nsupervisor_pid=722007\n",
-  "meta.lifecycle.dOJw0R/exit": "pid=722023\nexe=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/prefix/bin/afs-meta\nconfig=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/etc/meta.toml\nstart_ticks=6740437\nboot_id=36a572e0-859b-4a94-adc7-789210a83fc8\nlifecycle=/mnt/lima-afsadata/afs-delivery/p2-memory-lane-v51/run/meta.lifecycle.dOJw0R\nsupervisor_pid=722007\nexit_code=0\n",
-  "meta.lifecycle.dOJw0R/go": "",
-  "meta.lifecycle.dOJw0R/ready": "supervisor_pid=722007\n"
-}

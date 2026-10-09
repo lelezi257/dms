@@ -1,7 +1,0 @@
-Traceback (most recent call last):
-  File "<string>", line 17, in <module>
-  File "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/tools/threefs_namespace_fixture.py", line 117, in capacity
-    require(allocated <= 1024**3 and free >= floor + (1024**3 if admission else 0), "named disk budget/floor failed")
-  File "/mnt/lima-afsadata/afs-delivery/threefs-delete-v84-20261007-r1/tools/threefs_namespace_fixture.py", line 33, in require
-    raise RuntimeError(message)
-RuntimeError: named disk budget/floor failed

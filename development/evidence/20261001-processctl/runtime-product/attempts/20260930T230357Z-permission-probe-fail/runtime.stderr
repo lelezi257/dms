@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/mnt/lima-afsadata/afs-delivery/processctl-v50/guest-runner.py", line 132, in <module>
-    events.append({"identity_initial": {"meta": proc_identity("meta", META_SHA), "node": proc_identity("node", NODE_SHA), "mounts": exact_mounts()}})
-                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/mnt/lima-afsadata/afs-delivery/processctl-v50/guest-runner.py", line 26, in proc_identity
-    exe = os.readlink(proc / "exe")
-          ^^^^^^^^^^^^^^^^^^^^^^^^^
-PermissionError: [Errno 13] Permission denied: '/proc/708557/exe'

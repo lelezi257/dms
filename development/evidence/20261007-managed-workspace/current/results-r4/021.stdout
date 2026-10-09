@@ -1,7 +1,0 @@
-{
-  "request_id": "finally-stop",
-  "response": {
-    "production_ready": false,
-    "status": "Stopped"
-  }
-}

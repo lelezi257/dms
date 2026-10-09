@@ -1,9 +1,0 @@
-{
-  "status": "PASS_PRODUCT_LOGIC_REVERTED",
-  "data_rs_sha256": "10ae15d3f80be49ece7a85e3c677009de2aa6a88327ee642092ea451e7cbb306",
-  "source_base": "6ee30416f424d12c7d3bbdc54d8560dbb51b7462",
-  "remaining_product_diff": false,
-  "retained": "new cfg(test) peer regression only",
-  "reason": "preset throughput>=1.05 AND p95<=1.0 failed:throughput1.000639464,p95.969431147",
-  "rejected_candidate_preserved": "candidate.patch / candidate-node /160compiler input map"
-}

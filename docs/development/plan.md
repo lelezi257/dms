@@ -46,10 +46,10 @@
 | ID | 项目 | 状态 | 出口 |
 | --- | --- | --- | --- |
 | S1 | 本地归档 | 完成（本地恢复已验证） | `local-archive/` 有完整快照、manifest、校验和恢复记录；源码树移出过程证据和历史切片。 |
-| S2 | 测试边界 | 迁移完成，整组回归运行中 | 维护中的验收驱动在 `tests/acceptance/`，测试探针在 `tests/support/`，普通构建不依赖测试程序。 |
+| S2 | 测试边界 | 完成（限定工具回归） | 维护中的验收驱动在 `tests/acceptance/`，测试探针在 `tests/support/`，普通构建不依赖测试程序。 |
 | S3 | 中文正式文档 | 完成（链接与独立复核通过） | `docs/architecture`、`docs/development`、`docs/testing`、`docs/deployment` 成为正式入口；保留可操作安装/配置/运维步骤，不保留历史流水账。 |
 | S4 | 官方 fuser | 阻塞 | 在不降低锁、取消、权限、freshness、close-to-open、错误传播和 direct-I/O mmap 协商的前提下迁移到官方发布版；当前公开 API 不足。 |
-| S5 | 候选验证 | 构建通过，有限运行待验 | Linux 上完成受影响构建/测试；PR 给出候选 SHA、验证和剩余限制。 |
+| S5 | 候选验证 | 受影响验证完成；远端 CI 待核对 | Linux 上完成受影响构建/测试；PR 给出候选 SHA、验证和剩余限制。 |
 
 ## 不做项
 
@@ -62,7 +62,7 @@
 
 - 归档基线：`6b75d78a1c9350553770394b13384e01a9b292c0`。本地入口为源码仓上一级 `local-archive/README.md`，原件目录 `2026-10-09-6b75d78a/`；构建和维护中的测试不依赖此目录。
 - 一次性原源码快照 SHA256：`a5f6b8127d6aeb516113c0a48d6af65d546d9486f40d758b9bb6f8602d357b43`。manifest 与 Linux 实际恢复记录核验了 20,066 个文件及 9 个符号链接的内容、模式和目标；历史 Git 不改写。
-- 移出当前树的原路径 19,659 个（约 93.1 MiB）。必要回归输入在 `tests/acceptance/fixtures/` 保留 185 个小输入，因此原路径归档数不是重复文件数；净 tracked 文件减少 19,471 个，当前树约 9.6 MiB。
+- 移出当前树的原路径 19,659 个（约 93.1 MiB）。必要回归输入在 `tests/acceptance/fixtures/` 保留 185 个小输入，因此原路径归档数不是重复文件数；净 tracked 文件减少 19,470 个，当前树约 9.6 MiB。
 - 维护中的 Python：`tests/acceptance/` 126 个 runner、driver、probe 和回归模块；其它 `scripts/` 与 `tests/` 共 11 个。另有 22 个冻结 Python 输入只用于验证历史观测的 hash 绑定，不作为维护工具或当前通过证据。5 个旧 VM 固定路径专用启动/重启脚本已归档。
 - 当前只迁移工具边界、修复陈旧 helper SHA 绑定、独立 clone 的命令构造回归和工程文档入口。Cargo 与第三方源码未变；Rust 仅更新忽略测试说明中的文档路径，不改变产品行为。
 
@@ -75,7 +75,16 @@
 | 格式、产品 bins、测试 examples、release bins 构建 | PASS | Linux Rust 1.95；产品构建保留两个既有非 RDMA fallback 警告。测试探针仍是显式 example，不属于产品 bin。 |
 | Clippy workspace/all-features/all-targets | PASS | `-D warnings`；不等于运行验收。 |
 | 配置合约 | 10 PASS | `config_contract`；不能代替完整 POSIX。 |
-| 受影响工具回归 | 针对性 31 PASS；probes 163 PASS | 首轮普通用户误跑、两个已有 helper SHA 过期及两个外部基线路径依赖的失败日志均保留；整组复核运行中。 |
+| 受影响工具回归 | 整组 538 核对；probes 163 PASS | 整组 534 PASS、3 FAIL、1 SKIP；3 个失败均因 root 看不到已有 Hypothesis，在显式绑定同版本依赖后对应 11 项定向回归全部 PASS，不重复无影响项。1 SKIP 为已有可选 STD-01 历史夹具缺失，不计通过。首轮用户/校验和/路径失败均保留。 |
 | 打包可复现性、进程控制、试用配置和自检引用 | PASS | 说明文件新路径正确、manifest 一致、测试探针不入普通包；不证明 bind 功能或性能。 |
-| 新候选 bind ON 安装运行 | 待验 | 只验证有限安装/挂载/权限/读写/正常退出；不重跑 G1，不继承历史性能或恢复结论。 |
+| 新候选 bind ON 安装运行 | 限定 PASS | `f540c242` 的新 release 包在无编译器 VM 上全新安装；真实 Home bind、UID501/502、64KiB 读写删除、FUSE 正反对照及 4 次实际 wait0。未运行远端、恢复、性能或完整 POSIX。 |
 | 官方 fuser 无补丁迁移 | BLOCKED | 锁类型和 interrupt 公开 API 缺口尚未解决；未向上游提交 Issue/PR。 |
+
+新有限运行候选源码为 [`f540c242`](https://github.com/lelezi257/dms/commit/f540c242f26f9815d7ff5f3cd3f1f1babf82af1b)，包 `afs-snapshot-f540c242-linux-aarch64.tar.gz` 仅保留本地归档，未替换 a103 GitHub Release。
+
+- 包 SHA256：`8fb6d5f052f662a93ef76836fc99f573fde16db5268fbc89eac3fb20236d8f30`。
+- Meta ELF SHA256：`d5c4f0cdcd9d944cb075a8721c49b61ac5292a65b9d03c06e6650ff31a5f0631`。
+- Node ELF SHA256：`3f4a9826a6f40cd7225625dae903c628ca71c0a369195dfafc1b1e66fc8a1640`。
+- 本地运行证据归档 `host-bind-f540c242-evidence.tar.gz` SHA256：`d17f198567ac98cbae1ef6dc00ee8809815b707eb83b8034397ec94ee368a7c6`。
+
+这些检查关闭的是本次快照的受影响工程子项，不新增 G1/G2 产品完成项。官方依赖整改 S4 未完成，正式 Agent DX 导入仍未开始。

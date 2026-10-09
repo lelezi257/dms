@@ -21,9 +21,11 @@ G2 功能完备性优先使用 pjdfstest、固定 LTP filesystem 子集和短 FS
 Linux 运行示例：
 
 ```sh
-sudo env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/acceptance -p 'test_*.py' -v
+python3 -m venv /var/tmp/afs-tools-venv
+/var/tmp/afs-tools-venv/bin/python -m pip install -r tests/acceptance/requirements.txt
+sudo env PYTHONDONTWRITEBYTECODE=1 /var/tmp/afs-tools-venv/bin/python -m unittest discover -s tests/acceptance -p 'test_*.py' -v
 ```
 
-完整工具回归需要 root，以验证真实权限与内核锁辅助程序。三个 coordinator 子进程测试仅在 Linux ARM64 root 下运行，其它平台明确 skip；通用 CI 不能替代这三项的平台验证。固定 helper 校验和只绑定当前工具，不用于重评历史运行记录。
+STD-04 缩减回放依赖已固定的 Hypothesis，CI 与本地必须使用同一个明确的 Python 环境；不要假定 root 能读取普通用户的 user-site 安装。完整工具回归需要 root，以验证真实权限与内核锁辅助程序。三个 coordinator 子进程测试仅在 Linux ARM64 root 下运行，其它平台明确 skip；通用 CI 不能替代这三项的平台验证。固定 helper 校验和只绑定当前工具，不用于重评历史运行记录。
 
 根据具体任务选择更小的测试集合；不要为文档改动扩大成完整矩阵。

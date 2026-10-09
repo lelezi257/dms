@@ -1,0 +1,162 @@
+{
+  "task": "G2.09",
+  "source_base": "9fe4eec8492cd8ed01aa71ddf6bd98d6f410fcf7",
+  "identity": {
+    "schema": "afs.local-read-scratch.inputs.v1",
+    "source_base": "9fe4eec8492cd8ed01aa71ddf6bd98d6f410fcf7",
+    "baseline_node_sha256": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+    "candidate_node_sha256": "b62ade56fb2b06e3110b9c762c2393c5f1ef5c23b0a64123f2fa7702f11bf50b",
+    "meta_sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
+    "io_sha256": "c87a5fd84384871a69379b572ab512b69b1f0c8a6632aca4a44c72ac3d91e3ee",
+    "candidate_compiler_input_map_sha256": "47de5b82f0e9d25becfed092bc721254eba0564fcb3cbd270d51f61a6387ee08",
+    "compiler_inputs_file_sha256": "9a4d623d3f775d33741711f8c575969972c9cb4967b0cae2d6737bd2963482ae",
+    "candidate_patch_sha256": "5583cc8ab564e052ae483d138819d1c722f9cb7ce53c8fec3c418d34e2ee1eb5",
+    "validation_pass": true,
+    "strict_clippy": "FAIL existing peer.rs dead_code; supplemental only dead_code allowance PASS",
+    "contract_sha256": "3cd5b25891877a43b04ec21c22145c92c3968c1c6d6a5ca676c828417ef502f6"
+  },
+  "function": "LIMITED_PASS",
+  "measurement": "COMPLETE",
+  "optimization": "RETAIN",
+  "formal_moose_performance": "PENDING for candidate; historical f03 FAIL unchanged",
+  "baseline": {
+    "operations": 320,
+    "p50_ns": 515708,
+    "p95_ns": 3735040,
+    "p99_ns": 5395538,
+    "quantile": "nearest rank ceil(N*p/100)-1",
+    "throughput_each_mib_s": [
+      482.89922918493244,
+      1516.817824277935,
+      1426.3318011038248,
+      1509.8637749000718,
+      1600.8114913652603
+    ],
+    "throughput_median_mib_s": 1509.8637749000718
+  },
+  "candidate": {
+    "operations": 320,
+    "p50_ns": 433666,
+    "p95_ns": 824708,
+    "p99_ns": 1508457,
+    "quantile": "nearest rank ceil(N*p/100)-1",
+    "throughput_each_mib_s": [
+      1762.7041600451648,
+      1723.0095732834875,
+      1721.3393171032733,
+      1779.0988575183105,
+      1957.6692564897578
+    ],
+    "throughput_median_mib_s": 1762.7041600451648
+  },
+  "throughput_ratio": 1.1674590710422381,
+  "p95_ratio": 0.22080299006168608,
+  "retention_contract": {
+    "throughput_ratio_min": 1.05,
+    "p95_ratio_max": 1.0,
+    "both_required": true,
+    "formal_pairs": 1
+  },
+  "audit": {
+    "status": "PASS",
+    "archive_files": 528,
+    "saved_data_audit_only": true,
+    "runtime_formal_pairs": 1,
+    "admission_failures": {
+      "admission-failure-001": "staged executable: baseline-node",
+      "admission-failure-002": "original exact identity changed: prefix/bin/afs-node",
+      "admission-failure-003": "nonzero actual wait: full-services=1",
+      "admission-failure-004": "actual executor path mismatch: ldd-baseline-node"
+    },
+    "validation_exit_codes": {
+      "baseline-semantics.exit": 0,
+      "fmt.exit": 0,
+      "build-node.exit": 0,
+      "clippy-strict.exit": 101,
+      "clippy-known-dead-code.exit": 0,
+      "fuse-tests.exit": 0
+    },
+    "capacity_snapshots": 93,
+    "max_fixture_allocated_bytes": 301535232,
+    "min_free_bytes": 21180289024,
+    "max_log_bytes": 206493,
+    "product_log_error_lines": 0,
+    "product_log_warning_lines": 0,
+    "audit_tool_first_failure": "exit_code receipt parsed as bare integer; no runtime repeated",
+    "limits": [
+      "fixed baseline-then-candidate order",
+      "baseline formal1 lower throughput retained",
+      "no external Moose verdict",
+      "capacity/residency snapshots not continuous pins"
+    ],
+    "log_scope": "results/*.log plus this-run-logs; original historical logs excluded"
+  },
+  "restore": {
+    "status": "PASS",
+    "method": "actual Linux tar extraction plus exact file set, byte length and SHA256 verification",
+    "files": 528,
+    "manifest_sha256": "e9593e58c22d60f5ab1abbfb375b1ccd72658bc191d69ea73477170fd75d4348",
+    "archive": {
+      "path": "/mnt/lima-afsbdata/afs-delivery/owner-local-read-backing-hot-f03-20261008-r1/stage/owner-local-read-scratch-20261009-r1.tar.gz",
+      "bytes": 23033751,
+      "sha256": "9af266312f4a47484d67d5b07ef6097776d3276255e63f36962bc7a618784d35"
+    },
+    "originals_untouched": true,
+    "free_bytes_before_restore_cleanup": 21088686080
+  },
+  "cleanup": {
+    "status": "PASS",
+    "archive_sha256": "9af266312f4a47484d67d5b07ef6097776d3276255e63f36962bc7a618784d35",
+    "restore_files": 528,
+    "host_copy_verified": true,
+    "removed": [
+      {
+        "path": "/mnt/lima-afsbdata/afs-delivery/owner-local-read-backing-hot-f03-20261008-r1/stage/owner-local-read-scratch-20261009-r1/baseline-node",
+        "bytes": 25121416,
+        "sha256": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4"
+      },
+      {
+        "path": "/mnt/lima-afsbdata/afs-delivery/owner-local-read-backing-hot-f03-20261008-r1/stage/owner-local-read-scratch-20261009-r1/candidate-node",
+        "bytes": 25122568,
+        "sha256": "b62ade56fb2b06e3110b9c762c2393c5f1ef5c23b0a64123f2fa7702f11bf50b"
+      },
+      {
+        "path": "/mnt/lima-afsbdata/afs-delivery/owner-local-read-backing-hot-f03-20261008-r1/stage/owner-local-read-scratch-20261009-r1/current-meta",
+        "bytes": 15808368,
+        "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+      },
+      {
+        "path": "/mnt/lima-afsbdata/afs-delivery/owner-local-read-backing-hot-f03-20261008-r1/stage/owner-local-read-scratch-20261009-r1/io",
+        "bytes": 72480,
+        "sha256": "c87a5fd84384871a69379b572ab512b69b1f0c8a6632aca4a44c72ac3d91e3ee"
+      }
+    ],
+    "original_identity_before": true,
+    "free_before": 21157154816,
+    "vm_archive_removed_bytes": 23033751,
+    "free_after": 21246324736,
+    "original_identity_after": true,
+    "original_run_logs_restored": true,
+    "protected_inventory_unchanged": true,
+    "logical_elf_bytes_removed": 66124832
+  },
+  "source_impact": {
+    "production_files": [
+      "src/node/fuse.rs"
+    ],
+    "queued_read_closure_byte_identical": true,
+    "scope": "existing local Owner O_RDONLY inline path only",
+    "bind_remote_dfs_runtime": "not rerun; original identities retained"
+  },
+  "external_evidence_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-local-read-scratch-20261009-r1",
+  "record_hashes": {
+    "candidate.patch": "5583cc8ab564e052ae483d138819d1c722f9cb7ce53c8fec3c418d34e2ee1eb5",
+    "compiler-inputs.json": "9a4d623d3f775d33741711f8c575969972c9cb4967b0cae2d6737bd2963482ae",
+    "candidate-inputs.json": "65804093b408f941d40ec793ddd5c53e0af36142ef55346c63e23e9dffc8c886",
+    "contract.json": "3cd5b25891877a43b04ec21c22145c92c3968c1c6d6a5ca676c828417ef502f6",
+    "identity.json": "74467d0276f7f8b7c770ca546c8a4c1ee1977f52f55e083da61a91d08e440c8d",
+    "runtime-result.json": "b956795f03ae7873dc5ee0bd25dc4851b2de766a971a7108be4c9c400bf4ef03",
+    "saved-data-audit.json": "5c6b592fac52bf965ac70d7a58edfc6f0b74f28f5f473e52380d7d468157399e",
+    "cleanup-proof.json": "97d1132cb9ae5e8c27f1b9a4537cbaa080fa38602de6dda2d1c3a5cb9301508b"
+  }
+}

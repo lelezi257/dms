@@ -46,6 +46,10 @@ Every run records throughput plus p50, p95 and p99 for the measured operation-la
 
 Current published Meta650/Node d14,Owner-only/B bind ON/C remote,64MiB/C1: throughput389.863/426.481MiB/s=0.914140x **FAIL**; independent pooled p95 5.395/10.012ms=0.538794x **PASS**. Both are required, so selected-case performance is **FAIL**, not whole-G2.14 completion. Five formal alternating pairs,320 actual intervals per side,p95 preset,all raw samples and negative rounds retained. Official fixed-SHA isolation completed without modifying old installation or weakening permissions. This replaces the current 'await deployment decision' status, not historical conclusions. [Contract, version, scope, all data and closure](evidence/20261009-owner-remote-direct-pair/README.md). No product optimization or new package this round; next address one measured throughput cost.
 
+## Current local product-retention pair — 2026-10-09
+
+G2.09 base9fe4+patch/Node b62 reuses initialized local inline READ working storage only. One frozen B64MiB/C1 baseline d14→candidate pair: median1509.863775→1762.704160MiB/s (+16.75%), independent pooled p953.735040→0.824708ms,320 intervals per phase. Both prospective retention thresholds (>=1.05 throughput,<=1.0 p95) pass; limited function/measurement and source optimization close. Fixed phase order and a slow baseline first formal round are retained limitations. **This is not a MooseFS comparison**; new-candidate formal1.2/.8 status is PENDING, historical f03 comparison remains FAIL. No criterion is relaxed and no new comparator or matrix run is triggered. [Exact version, data and limits](evidence/20261009-owner-local-read-scratch/README.md).
+
 ## Existing Evidence Audit
 
 | G2 item | Existing evidence | New-criterion status |

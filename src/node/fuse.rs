@@ -8,6 +8,7 @@
 mod state;
 
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet, VecDeque},
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -45,6 +46,27 @@ const TTL: Duration = Duration::ZERO;
 const DIRECT_IO: u32 = consts::FOPEN_DIRECT_IO;
 const LOCK_WORKERS: usize = 4;
 const MAX_PENDING_LOCK_INTERRUPTS: usize = 4096;
+const MAX_INLINE_LOCAL_READ_SCRATCH: usize = 1024 * 1024;
+
+fn inline_local_read_data(
+    scratch: &mut Vec<u8>,
+    size: usize,
+    read: impl FnOnce(&mut [u8]) -> std::result::Result<usize, i32>,
+) -> std::result::Result<Cow<'_, [u8]>, i32> {
+    if size > MAX_INLINE_LOCAL_READ_SCRATCH {
+        let mut out = vec![0; size];
+        let n = read(&mut out)?;
+        out.truncate(n);
+        return Ok(Cow::Owned(out));
+    }
+    if scratch.len() < size {
+        // Avoid amortized Vec growth retaining more than the scratch limit.
+        scratch.reserve_exact(size - scratch.len());
+        scratch.resize(size, 0);
+    }
+    let n = read(&mut scratch[..size])?;
+    Ok(Cow::Borrowed(&scratch[..n.min(size)]))
+}
 
 /// Implemented first-party FUSE callback entries, including failed requests.
 /// This is neither kernel wire opcode accounting nor application syscall accounting.
@@ -506,6 +528,7 @@ pub struct AfsFuse {
     requests: Option<(FuseRequestMetrics, &'static str)>,
     backend: Arc<dyn Backend>,
     cached_io: bool,
+    inline_local_read_scratch: Vec<u8>,
     state: Arc<Mutex<FuseState>>,
     file_handle_inodes: Arc<Mutex<HashMap<u64, u64>>>,
     dispatch: FuseDispatch,
@@ -527,6 +550,7 @@ impl AfsFuse {
             requests: None,
             backend,
             cached_io: false,
+            inline_local_read_scratch: Vec::new(),
             state,
             file_handle_inodes: Arc::new(Mutex::new(HashMap::new())),
             dispatch: FuseDispatch::new(8),
@@ -1156,6 +1180,22 @@ impl Filesystem for AfsFuse {
         let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
+        if inline_local_read {
+            let result = checked_offset(offset).and_then(|offset| {
+                let file = state.lock().unwrap().file_handle(fh).ok_or(libc::ESTALE)?;
+                AfsFuse::validate_handle_inode_in(&state, ino)?;
+                inline_local_read_data(&mut self.inline_local_read_scratch, size as usize, |out| {
+                    backend
+                        .read(&context, file.handle, offset, out)
+                        .map_err(errno)
+                })
+            });
+            match result {
+                Ok(data) => reply.data(&data),
+                Err(error) => reply.error(error),
+            }
+            return;
+        }
         let run = move || {
             let result = checked_offset(offset).and_then(|offset| {
                 let file = state.lock().unwrap().file_handle(fh).ok_or(libc::ESTALE)?;
@@ -1176,11 +1216,7 @@ impl Filesystem for AfsFuse {
                 Err(error) => reply.error(error),
             }
         };
-        if inline_local_read {
-            run();
-        } else {
-            self.dispatch.submit_keyed(fh, run);
-        }
+        self.dispatch.submit_keyed(fh, run);
     }
 
     fn write(
@@ -2112,6 +2148,140 @@ fn status_groups(status: &str, uid: u32, gid: u32) -> Option<Vec<u32>> {
 
 #[cfg(test)]
 mod dispatch_tests {
+    #[test]
+    fn inline_local_read_data_observes_fresh_short_smaller_zero_and_eof_reads() {
+        use std::os::unix::fs::FileExt;
+
+        let file = tempfile::tempfile().unwrap();
+        let mut scratch = Vec::new();
+        let mut read = |size, offset| {
+            super::inline_local_read_data(&mut scratch, size, |out| {
+                file.read_at(out, offset)
+                    .map_err(|error| error.raw_os_error().unwrap())
+            })
+            .unwrap()
+            .into_owned()
+        };
+        file.write_at(b"abcdefgh", 0).unwrap();
+        assert_eq!(read(8, 0), b"abcdefgh");
+        file.set_len(0).unwrap();
+        file.write_at(b"XY", 0).unwrap();
+        assert_eq!(read(8, 0), b"XY");
+        assert_eq!(read(1, 0), b"X");
+        file.write_at(b"ZQ", 0).unwrap();
+        assert_eq!(read(8, 0), b"ZQ");
+        assert!(read(0, 0).is_empty());
+        assert!(read(8, 2).is_empty());
+        file.set_len(0).unwrap();
+        assert!(read(8, 0).is_empty());
+    }
+
+    #[test]
+    fn inline_local_read_data_error_after_success_never_returns_prior_bytes() {
+        let mut scratch = Vec::new();
+        let data = super::inline_local_read_data(&mut scratch, 8, |out| {
+            out.copy_from_slice(b"abcdefgh");
+            Ok(8)
+        })
+        .unwrap();
+        assert_eq!(data.as_ref(), b"abcdefgh");
+        let result = super::inline_local_read_data(&mut scratch, 8, |out| {
+            out[0] = b'!';
+            Err(libc::EACCES)
+        });
+        assert_eq!(result.unwrap_err(), libc::EACCES);
+        let data = super::inline_local_read_data(&mut scratch, 8, |out| {
+            out[0] = b'z';
+            Ok(1)
+        })
+        .unwrap();
+        assert_eq!(data.as_ref(), b"z");
+    }
+
+    #[test]
+    fn inline_local_read_data_clamps_reported_length_to_requested_size() {
+        let mut scratch = Vec::new();
+        let data = super::inline_local_read_data(&mut scratch, 3, |out| {
+            out.copy_from_slice(b"abc");
+            Ok(usize::MAX)
+        })
+        .unwrap();
+        assert_eq!(data.as_ref(), b"abc");
+    }
+
+    #[test]
+    fn inline_local_read_data_reuses_initialized_storage_with_bounded_growth() {
+        let mut scratch = Vec::new();
+        let mut initialized = 0;
+        for size in [
+            17,
+            64 * 1024,
+            700 * 1024,
+            super::MAX_INLINE_LOCAL_READ_SCRATCH,
+        ] {
+            let data = super::inline_local_read_data(&mut scratch, size, |out| {
+                assert_eq!(out.len(), size);
+                assert!(out[initialized..].iter().all(|byte| *byte == 0));
+                out.fill(b'a');
+                Ok(size)
+            })
+            .unwrap();
+            assert!(matches!(data, std::borrow::Cow::Borrowed(_)));
+            assert_eq!(data.len(), size);
+            let pointer = data.as_ptr();
+            let capacity = scratch.capacity();
+            assert!(capacity >= size);
+            assert!(capacity <= super::MAX_INLINE_LOCAL_READ_SCRATCH);
+            let data = super::inline_local_read_data(&mut scratch, size / 2, |out| {
+                out.fill(b'b');
+                Ok(out.len())
+            })
+            .unwrap();
+            assert_eq!(data.as_ptr(), pointer);
+            assert!(data.iter().all(|byte| *byte == b'b'));
+            assert_eq!(scratch.capacity(), capacity);
+            initialized = size;
+        }
+    }
+
+    #[test]
+    fn inline_local_read_data_oversize_success_and_error_leave_scratch_unchanged() {
+        let mut scratch = Vec::new();
+        let oversized = super::MAX_INLINE_LOCAL_READ_SCRATCH + 1;
+        for primed in [false, true] {
+            if primed {
+                super::inline_local_read_data(&mut scratch, 8, |out| {
+                    out.copy_from_slice(b"retained");
+                    Ok(8)
+                })
+                .unwrap();
+            }
+            let capacity = scratch.capacity();
+            let pointer = scratch.as_ptr();
+            let contents = scratch.clone();
+            let data = super::inline_local_read_data(&mut scratch, oversized, |out| {
+                assert_eq!(out.len(), oversized);
+                assert!(out.iter().all(|byte| *byte == 0));
+                out[..3].copy_from_slice(b"new");
+                Ok(3)
+            })
+            .unwrap();
+            assert!(matches!(data, std::borrow::Cow::Owned(_)));
+            assert_eq!(data.as_ref(), b"new");
+            assert_eq!(scratch.capacity(), capacity);
+            assert_eq!(scratch.as_ptr(), pointer);
+            assert_eq!(scratch, contents);
+            let result = super::inline_local_read_data(&mut scratch, oversized, |out| {
+                out[0] = b'!';
+                Err(libc::EIO)
+            });
+            assert_eq!(result.unwrap_err(), libc::EIO);
+            assert_eq!(scratch.capacity(), capacity);
+            assert_eq!(scratch.as_ptr(), pointer);
+            assert_eq!(scratch, contents);
+        }
+    }
+
     #[test]
     fn fuse_callback_metrics_share_registry_without_reset_or_cross_registry_leak() {
         let registry = afs_metrics::Registry::new();

@@ -2,6 +2,7 @@
 import json
 import os
 import pathlib
+import platform
 import subprocess
 import sys
 import tempfile
@@ -92,7 +93,26 @@ class InventoryTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("inventory error", result.stderr)
 
-    def test_pid_file_probe_on_live_sleep(self):
+    def test_cli_rejects_other_architecture_before_collecting(self):
+        script = pathlib.Path(inventory.__file__).resolve()
+        code = (
+            "import platform, sys\n"
+            f"sys.path.insert(0, {str(script.parent)!r})\n"
+            "import inventory\n"
+            "platform.machine = lambda: 'x86_64'\n"
+            "def unexpected_collect(_):\n"
+            "    raise AssertionError('collected before platform admission')\n"
+            "inventory.collect_guest_state = unexpected_collect\n"
+            "raise SystemExit(inventory.main([]))\n"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, timeout=20,
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("dedicated ARM64 Linux required", result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_pid_file_probe_respects_dedicated_platform(self):
         sleeper = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
         try:
             with tempfile.TemporaryDirectory() as temp:
@@ -104,6 +124,11 @@ class InventoryTests(unittest.TestCase):
                     text=True,
                     timeout=20,
                 )
+            if platform.system() != "Linux" or platform.machine() != "aarch64":
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("dedicated ARM64 Linux required", result.stderr)
+                self.assertEqual(result.stdout, "")
+                return
             self.assertEqual(result.returncode, 0, result.stderr)
             state = json.loads(result.stdout)
             process = state["processes"]["sleep"]

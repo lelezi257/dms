@@ -28,4 +28,6 @@ sudo env PYTHONDONTWRITEBYTECODE=1 /var/tmp/afs-tools-venv/bin/python -m unittes
 
 STD-04 缩减回放依赖已固定的 Hypothesis，CI 与本地必须使用同一个明确的 Python 环境；不要假定 root 能读取普通用户的 user-site 安装。完整工具回归需要 root，以验证真实权限与内核锁辅助程序。三个 coordinator 子进程测试仅在 Linux ARM64 root 下运行，其它平台明确 skip；通用 CI 不能替代这三项的平台验证。固定 helper 校验和只绑定当前工具，不用于重评历史运行记录。
 
+inventory CLI 只接受专用 Linux ARM64 环境。其真实 PID 文件回归在 ARM64 验证采集成功，在其它架构验证明确拒绝且无成功输出；另有子进程回归验证拒绝发生在采集之前。通用 x86_64 CI 的拒绝路径通过不能冒充 ARM64 环境验收。
+
 根据具体任务选择更小的测试集合；不要为文档改动扩大成完整矩阵。

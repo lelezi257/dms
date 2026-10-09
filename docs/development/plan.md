@@ -90,3 +90,5 @@
 这些检查关闭的是本次快照的受影响工程子项，不新增 G1/G2 产品完成项。官方依赖整改 S4 未完成，正式 Agent DX 导入仍未开始。
 
 远端 CI 首轮 [37913786563](https://github.com/lelezi257/dms/actions/runs/37913786563) 在 Check 阶段因工作流未安装 libfuse3 开发包失败，后续步骤未运行；失败日志留在本地。修复只补工作流依赖声明和前置检查。第二轮 [37914022225](https://github.com/lelezi257/dms/actions/runs/37914022225) 已通过 Format、Check、Clippy，随后 vendor `reply::test::reply_create` 在 ABI 7.40 下因测试标志/断言冲突而 SIGABRT；产品已执行的测试保留实际通过/ignored 范围，不能称完整 workspace 通过。CI 允许准入后的其它独立工程步骤继续执行，但保留此测试失败及整轮失败状态，不排除测试、不关闭 feature、不修改第三方源码。
+
+固定 `609bf030` 的第三轮 [37921408568](https://github.com/lelezi257/dms/actions/runs/37921408568) 已结束，整轮 FAIL。Format、Check、Clippy、后端 feature matrix、产品及 examples 构建、打包安装回归 PASS；vendor 测试仍 FAIL。工具整组 538 项为 533 PASS、1 FAIL、4 SKIP；唯一失败是测试要求 ARM64 专用 inventory CLI 在 x86_64 上成功，实际拒绝符合工具合同。probes 命令在前项失败后未执行，不计本轮通过。随后仅修测试预期及补拒绝路径，既有 Linux ARM64 上受影响 inventory 10 项 PASS（含真实采集和模拟 x86_64 拒绝）；其它无影响项复用既有证据，未重跑本地整组，也不把针对性通过改写为整轮 CI 通过。上游 fuser 问题草稿按当前决定仅留本地，S4 仍阻塞。

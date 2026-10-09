@@ -39,4 +39,4 @@
 2. 在自有 FUSE 适配层完成迁移，不把私有接口藏回产品逻辑。
 3. Linux 上确认构建、锁/取消/权限/freshness/direct-I/O mmap 相关受影响测试通过。
 
-官方固定源码：[锁接口](https://github.com/cberner/fuser/blob/c0420fc49d3f1ce09603beb127f392eb2726c2a1/src/lib.rs#L1167-L1216)、[Interrupt 分派](https://github.com/cberner/fuser/blob/c0420fc49d3f1ce09603beb127f392eb2726c2a1/src/request.rs#L146-L149)。产品调用位于 `src/node/fuse.rs` 的 `getlk_with_options`、`setlk_with_options` 和 `interrupt`，后端取消由 `src/node/vfs/locks.rs` 处理。独立 TTL 优化可以后置；公开 API 丢失的锁类型或请求取消信息不能在下游包装层猜测恢复。本轮没有向上游外发 Issue/PR，外发仍需明确授权。
+官方固定源码：[锁接口](https://github.com/cberner/fuser/blob/c0420fc49d3f1ce09603beb127f392eb2726c2a1/src/lib.rs#L1167-L1216)、[Interrupt 分派](https://github.com/cberner/fuser/blob/c0420fc49d3f1ce09603beb127f392eb2726c2a1/src/request.rs#L146-L149)。产品调用位于 `src/node/fuse.rs` 的 `getlk_with_options`、`setlk_with_options` 和 `interrupt`，后端取消由 `src/node/vfs/locks.rs` 处理。独立 TTL 优化可以后置；公开 API 丢失的锁类型或请求取消信息不能在下游包装层猜测恢复。上游问题草稿仅保留在本地归档；当前决定暂不外发 Issue/PR，依赖整改仍未完成。

@@ -1,7 +1,7 @@
-# OwnerFs workspace bind ON 试用：d47
+# OwnerFs workspace bind ON 阶段性试用：a103
 
-当前 Linux ARM64 包版本 `0.1.0-g2-bind-d47eec2`，产品源码
-`d47eec28360ba60e92d95c9f0775c8ecce53ef2e`。`manifest.json` 固定产品版本、
+当前 Linux ARM64 包版本 `0.1.0-g2-bind-a103a2f`，产品源码
+`a103a2f2e8e2bd89e7205b32fe4a2398fe047b4d`。`manifest.json` 固定产品版本、
 编译特性及 Meta/Node ELF SHA256；本指南和打包工具的提交、SHA另行记录，必须与编译输入映射核对。
 普通生成配置仍默认 OFF；本次场景按下列步骤明确打开 **OwnerFs workspace bind mount**。
 容器/runc只是可选使用者，启用宿主bind不依赖容器或测试探针。
@@ -21,7 +21,7 @@ Linux ARM64、FUSE3与`/dev/fuse`、本地ext4，管理员具备正常FUSE及bin
 
 ```sh
 sha256sum -c SHA256SUMS
-package_dir=afs-0.1.0-g2-bind-d47eec2-linux-aarch64
+package_dir=afs-0.1.0-g2-bind-a103a2f-linux-aarch64
 tar -xzf "$package_dir.tar.gz"
 cd "$package_dir"
 sha256sum -c SHA256SUMS
@@ -39,7 +39,7 @@ ldd bin/afs-node
 示例使用管理员预先分配的uid/gid501，实际部署须替换为工作负载的合法身份。
 
 ```sh
-trial_root=/var/tmp/afs-trial-bind-d47
+trial_root=/var/tmp/afs-trial-bind-a103
 test ! -e "$trial_root" || exit 1
 sudo ./install.sh --prefix "$trial_root/prefix" --config-dir "$trial_root/etc" \
   --state-dir "$trial_root/state" --run-dir "$trial_root/run" \
@@ -107,7 +107,7 @@ ON控制面失联/授权失败按现有策略fail-closed，须等待引用排空
 
 ## 已保留优化与配置范围
 
-本包Node与当前160项编译输入完全对应，保留Owner远端读、写及DFS读的有限优化。
+本包Node与当前165项编译输入完全对应，保留Owner远端读、写及DFS读的有限优化。
 [Owner读前后对照](https://github.com/lelezi257/dms/blob/d47eec28360ba60e92d95c9f0775c8ecce53ef2e/development/evidence/20261008-owner-remote-read-frames/README.md)、
 [Owner写前后对照](https://github.com/lelezi257/dms/blob/3cd0e9907fabbdf77fd9e29b209e1220506d5fe2/development/evidence/20261008-owner-remote-write-server-pair/README.md)、
 [DFS读前后对照](https://github.com/lelezi257/dms/blob/a734091cb866869e6ead0cde553e6129be88250b/development/evidence/20261008-dfs-read-version-cache/README.md)
@@ -117,6 +117,8 @@ ON控制面失联/授权失败按现有策略fail-closed，须等待引用排空
 按同一配置记录和比较条件执行；不能把combined模式安装验证当作Owner-only性能验证。
 Meta/Node ELF与编译输入来源分别记录，沿用旧证据不能改写其二进制身份。
 
+本候选新增远端Home容量查询，`df/statvfs`通过受认证的Home RPC返回实际Home卷容量，保留授权、epoch和文件身份检查。使用同一候选更新Home与远端Node；混用不支持此RPC的旧Home不能作为已验收组合。
+
 ## 支持边界与性能状态
 
 - 当前Home/一级workspace宿主bind与普通远端FUSE协同；管理员安装，应用非特权uid。
@@ -125,7 +127,7 @@ Meta/Node ELF与编译输入来源分别记录，沿用旧证据不能改写其�
   依赖这些操作的工作负载不能按本次小闭环宣布可用。生产撤权issuer/durable ACK、即时既有FD撤权、扩展命名空间及拓扑后置。
 - RootCommand精确接收/拒绝、源身份/epoch变更与FD/mmap排空分别保留原版本证据。
   direct-I/O mmap仍必须经过真实内核能力协商，不能通过配置冒充能力。
-- 八项历史bind小核心case以>=0.90 native ext4限定复用；当前名字缓存修复不重标那些版本的性能。
+- 八项历史bind小核心case以>=0.90 native ext4限定复用；当前远端statfs修复不重标那些版本的性能。
   普通远端读写仍须吞吐>=1.2同条件MooseFS且独立时延<=0.8；本地同判据但后置。
   DFS一写多读在同接口/三份同步持久副本下持平3FS，当前合格对照仍待验；删除只报告正确性与性能。
 - gRPC为本次通道；大规模、长时、复杂可靠性、多Meta、etcd、Redis后置。阶段一历史8/8关闭，当前回归属于阶段二。

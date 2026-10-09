@@ -100,7 +100,7 @@ G3 is deferred. Long soak, broad random/POSIX matrices, complex fault matrices, 
 
 ## Immediate sequence
 
-2026-10-09 阶段性收尾覆盖当前下一步：收住已开始的远端 statfs 缺口，固定候选，完成 Linux 构建、对应安装包与必要运行/恢复核对，登记已知限制后准备集成。按 [G2.27 有限收尾出口](trial-release-goals.md) 执行；不再新增性能试改，不要求全部 G2/G3 先完成。G1 历史 8/8 关闭，当前版本仅补受影响回归。R2 第三方一致性保持独立未完成。收尾后继续以下既定顺序。
+2026-10-09 G2.27固定a103候选已通过两次Linux包复现、无编译器真实Home bind ON安装、Owner64KiB/DFS64MiB全服务正常停止恢复及五actualwait0。下一仅完成固定下载发布与集成交接，不追加性能优化。新Meta远端组合、完整POSIX、性能、复杂可靠性和R2明确待验；G1历史8/8及G2计数不变。[交付证据](evidence/20261009-workspace-bind-a103-trial/README.md)。收尾后保留以下既定顺序。
 
 The required usage enables **OwnerFs workspace bind mount**. First deliver usable bind ON with correct remote access, then close the relevant performance gaps. Ordinary distribution defaults remain OFF; this scenario must have an explicit ON configuration and runtime evidence.
 

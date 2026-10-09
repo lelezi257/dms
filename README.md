@@ -2,7 +2,7 @@
 
 **当前交付：[d47更新ON试用包已发布](https://github.com/lelezi257/dms/releases/tag/afs-bind-d47eec2)。** Linux ARM64，无编译器安装、真实Home bind ON及正常全停local-file恢复限定通过。 当前Meta650/Node d14组合的[bind ON与远端双向读写/权限/退出回归](development/evidence/20261009-workspace-bind-remote-d47/README.md)限定通过。 [当前包与限定证据](development/evidence/20261009-workspace-bind-on-trial/README.md)、[明确ON指南](docs/guides/trial.md)。保留Owner远端READ/WRITE和DFS读优化，[当前远端DIRECT小读](development/evidence/20261009-owner-remote-direct-pair/README.md)已完成：吞吐0.914×Moose FAIL、独立p95 0.539×PASS，合取未达标；其它Moose1.2/.8与DFS/3FS性能仍待验；新版本不自动继承历史全集。已发布[b80历史ON包](https://github.com/lelezi257/dms/releases/tag/afs-bind-b80dab6)及原结论保留，G1历史8/8、G2 12/0/15不变。
 
-**当前源码候选：** [远端 Home statfs 修复和限定回归已通过](development/evidence/20261009-owner-remote-statfs/README.md)。停止追加优化，下一集中验证固定包的安装、运行和 local-file 恢复；尚未发布此新候选包，未完成的性能、功能和可靠性保留为限制。
+**当前阶段性候选：** [a103安装运行与核心恢复已通过](development/evidence/20261009-workspace-bind-a103-trial/README.md)，两次Linux包字节一致，下载发布待完成。冻结此候选，不再追加优化；新Meta远端组合、完整POSIX、性能和复杂可靠性保留明确缺口。
 
 AFS is a near-compute distributed file system for Agent, Sandbox and VM clusters. It exposes file interfaces with [same-mount visibility and close-to-open consistency](docs/architecture/write-semantics.md), while using disks on compute nodes as the primary pool for hot data, durable replicas, verified cache and peer-to-peer reads.
 

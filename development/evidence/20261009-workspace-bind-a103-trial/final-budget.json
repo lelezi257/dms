@@ -1,0 +1,8 @@
+{
+  "status": "PASS_POST_RUN_SAMPLED_BUDGET",
+  "allocated_bytes": 168763392,
+  "free_bytes": 5622050816,
+  "ceiling_bytes": 536870912,
+  "reserve_bytes": 1073741824,
+  "scope": "all case roots/helpers/package/results, unique inode, excludes mount; not continuous peak"
+}

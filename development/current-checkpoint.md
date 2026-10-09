@@ -1,6 +1,6 @@
-**当前出口（2026-10-09，G2.04/G2.14）：** [远端 statfs 修复及限定回归](evidence/20261009-owner-remote-statfs/README.md)通过：Linux release Node/Meta 构建、严格 ownerfs,rdma Clippy 和针对性合同测试通过；Node217＋既有Meta650在真实Home bind ON/C远端FUSE下，Home容量、UID501跨节点写入/重开读取/重命名/删除、pjdfstest smoke4/241 TAP及三正常wait0通过。完整236首次零TAP失败保留，不升级为完整POSIX；新构建Meta尚未实跑。
+**当前出口（2026-10-09，G2.27阶段性交付）：** [a103固定候选包](evidence/20261009-workspace-bind-a103-trial/README.md)两次Linux打包字节一致；无编译器VM实际安装、真实Home bind ON、UID501读写/UID502拒绝、Owner64KiB与DFS64MiB全服务正常停止重启读回、五actualwait0通过。新Meta cda/Node217安装组合已实跑，既有Node217远端证据仍标注Meta650原组合。包14,492,878B，SHA260d5009；当前发布待完成。
 
-**决策／下一（G2.27）：** 现在冻结候选，集中完成可编译、可安装、可运行及local-file恢复的阶段性交付，不再追加性能优化。新候选包/安装/恢复待验；d47已发布ON包保留原结论。未完成功能、性能、复杂可靠性和R2官方fuser迁移明确保留，G1历史8/8关闭、G2原12/0/15不变。
+**决策／下一：** 冻结此可编译、可安装、可运行的阶段性版本，完成下载发布与交付索引后进入集成交接，不追加性能优化。普通Owner/DFS性能、完整远端POSIX、新Meta远端组合、复杂可靠性、扩展功能与R2官方fuser迁移明确未完成；G1历史8/8关闭、G2原12/0/15不变。
 
 以下为历史时点记录，原版本、范围和结论保留；旧下一步由上述当前入口替代。
 

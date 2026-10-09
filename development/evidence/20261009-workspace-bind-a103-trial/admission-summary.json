@@ -1,0 +1,51 @@
+{
+  "status": "PASS",
+  "compilers": {
+    "cargo": null,
+    "rustc": null,
+    "cc": null,
+    "gcc": null,
+    "clang": null
+  },
+  "dependencies": {
+    "bash": "/usr/bin/bash",
+    "python3": "/usr/bin/python3",
+    "tar": "/usr/bin/tar",
+    "ldd": "/usr/bin/ldd",
+    "openssl": "/usr/bin/openssl",
+    "findmnt": "/usr/bin/findmnt",
+    "fusermount3": "/usr/bin/fusermount3",
+    "curl": "/usr/bin/curl",
+    "flock": "/usr/bin/flock",
+    "ss": "/usr/bin/ss",
+    "sed": "/usr/bin/sed",
+    "awk": "/usr/bin/awk",
+    "mountpoint": "/usr/bin/mountpoint",
+    "setsid": "/usr/bin/setsid",
+    "install": "/usr/bin/install",
+    "readlink": "/usr/bin/readlink",
+    "sha256sum": "/usr/bin/sha256sum",
+    "timeout": "/usr/bin/timeout",
+    "grep": "/usr/bin/grep",
+    "stat": "/usr/bin/stat",
+    "head": "/usr/bin/head",
+    "tr": "/usr/bin/tr"
+  },
+  "capacity": {
+    "allocated_bytes": 14553088,
+    "ceiling_bytes": 536870912,
+    "free_bytes": 5776281600,
+    "floor_bytes": 1073741824,
+    "mount_tree_excluded": "/var/tmp/afs-installed-bind-a103-20261009-r1/mount"
+  },
+  "memory_available_bytes": 7794180096,
+  "ports_free": [
+    22400,
+    22401,
+    22500,
+    22501
+  ],
+  "protected_processes": 1,
+  "old_ELFs": 50,
+  "mounts": 26
+}

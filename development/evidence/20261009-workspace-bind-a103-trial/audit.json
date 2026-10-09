@@ -1,0 +1,36 @@
+{
+  "status": "PASS_LINUX_SAVED_INSTALL_ORDERLY_RECOVERY_AUDIT",
+  "normal_wait0": 5,
+  "guest_records": 161,
+  "driver_checks": 37,
+  "guide_enable_code_executed": true,
+  "owner_bytes": 65536,
+  "dfs_bytes": 67108864,
+  "budget_samples": 18,
+  "sampled_peak_bytes": 168734720,
+  "final_budget": {
+    "status": "PASS_POST_RUN_SAMPLED_BUDGET",
+    "allocated_bytes": 168763392,
+    "free_bytes": 5622050816,
+    "ceiling_bytes": 536870912,
+    "reserve_bytes": 1073741824,
+    "scope": "all case roots/helpers/package/results, unique inode, excludes mount; not continuous peak"
+  },
+  "logs": [
+    {
+      "path": "logs/meta.log",
+      "bytes": 600,
+      "ERRO": 0,
+      "WARN": 0,
+      "TRACE": 0
+    },
+    {
+      "path": "logs/node.log",
+      "bytes": 7811,
+      "ERRO": 16,
+      "WARN": 8,
+      "TRACE": 0
+    }
+  ],
+  "scope": "combined fs=all install and full orderly stop/restart, not Owner-only frame optimization, remote regression, full POSIX, crash or performance qualification"
+}

@@ -4705,6 +4705,131 @@ mod tests {
 
     #[cfg(feature = "ownerfs")]
     #[tokio::test]
+    async fn owner_grpc_write_rejects_bad_inline_checksum_before_handler() {
+        let registry = afs_metrics::Registry::new();
+        let metrics = crate::node::rpc::OwnerRpcMetrics::register(&registry).unwrap();
+        let handler = std::sync::Arc::new(PayloadMetricsHandler::success());
+        let (channel, server) = spawn_owner_payload_server(handler.clone(), metrics.clone()).await;
+        let mut client = OwnerFilesClient::new(channel);
+        let grant = test_grant();
+        let file = test_remote_file(b"handle-inline-checksum".to_vec());
+        let base = b"checksum-boundary".to_vec();
+        let mut wrong_checksum = blake3::hash(&base).as_bytes().to_vec();
+        wrong_checksum[0] ^= 0xff;
+
+        async fn write_raw(
+            client: &mut OwnerFilesClient<Channel>,
+            grant: &RootGrant,
+            file: &RemoteFile,
+            data: Vec<u8>,
+            length: u32,
+            data_checksum: Vec<u8>,
+        ) -> Result<OwnerWriteReply, tonic::Status> {
+            client
+                .write(request_with_current_context(OwnerWriteRequest {
+                    access: Some(root_access(grant)),
+                    handle: Some(file_handle(file)),
+                    offset: 0,
+                    data,
+                    length,
+                    plane: Some(grpc_plane()),
+                    kill_suidgid: false,
+                    data_checksum,
+                }))
+                .await
+                .map(|reply| reply.into_inner())
+        }
+
+        let error = write_raw(
+            &mut client,
+            &grant,
+            &file,
+            base.clone(),
+            base.len() as u32,
+            wrong_checksum,
+        )
+        .await
+        .expect_err("wrong 32-byte checksum must fail");
+        assert_eq!(
+            afs_transport::grpc::error_status::status_to_error(error).code(),
+            afs_error::NODE_TRANSFER_CORRUPT_DATA
+        );
+
+        let error = write_raw(
+            &mut client,
+            &grant,
+            &file,
+            base.clone(),
+            base.len() as u32,
+            b"short-checksum".to_vec(),
+        )
+        .await
+        .expect_err("malformed checksum length must fail");
+        assert_eq!(
+            afs_transport::grpc::error_status::status_to_error(error).code(),
+            afs_error::NODE_TRANSFER_INVALID
+        );
+
+        let error = write_raw(
+            &mut client,
+            &grant,
+            &file,
+            base.clone(),
+            base.len() as u32 + 1,
+            blake3::hash(&base).as_bytes().to_vec(),
+        )
+        .await
+        .expect_err("length/data mismatch must fail");
+        assert_eq!(
+            afs_transport::grpc::error_status::status_to_error(error).code(),
+            afs_error::NODE_TRANSFER_INVALID
+        );
+
+        assert!(handler.writes().is_empty());
+        assert_eq!(owner_payload_bytes(&registry, "server", "write", "grpc"), 0);
+
+        assert_eq!(
+            write_raw(
+                &mut client,
+                &grant,
+                &file,
+                base.clone(),
+                base.len() as u32,
+                blake3::hash(&base).as_bytes().to_vec(),
+            )
+            .await
+            .expect("valid checksum must succeed")
+            .written,
+            2
+        );
+        assert_eq!(
+            write_raw(
+                &mut client,
+                &grant,
+                &file,
+                base.clone(),
+                base.len() as u32,
+                Vec::new(),
+            )
+            .await
+            .expect("empty legacy checksum must succeed")
+            .written,
+            2
+        );
+
+        let writes = handler.writes();
+        assert_eq!(writes.len(), 2);
+        assert_eq!(
+            writes[0].data_checksum,
+            blake3::hash(&base).as_bytes().to_vec()
+        );
+        assert!(writes[1].data_checksum.is_empty());
+        assert_eq!(owner_payload_bytes(&registry, "server", "write", "grpc"), 4);
+        server.abort();
+    }
+
+    #[cfg(feature = "ownerfs")]
+    #[tokio::test]
     async fn owner_grpc_malformed_replies_do_not_count_successful_payload_bytes() {
         let registry = afs_metrics::Registry::new();
         let metrics = crate::node::rpc::OwnerRpcMetrics::register(&registry).unwrap();

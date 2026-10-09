@@ -1,4 +1,4 @@
-**当前出口（2026-10-09，G2.14单问题试改收口）：** 减少FUSE完成广播的一次前后对照356.119→394.885MiB/s（+10.89%），独立p95 5.351→5.393ms（+0.79%）；未过预设合取保留线，产品逻辑已撤回，仅保留容量等待者回归。功能限定PASS／测量完成（中断后仅补候选半段）／优化REJECTED／整个G2.14及正式双目标待验。原d14 Moose0.914140×吞吐FAIL、0.538794×p95 PASS不改。Linux受影响15tests及恢复后fmt/check/Clippy通过、六actualwait0和原身份恢复；工具失败及原始数据保留，无环境修补/新包/G1重开/G2计数变化。下一G2.15远端写的一项有依据成本；不重试本方向，DFS写/A扩容继续暂缓。 [本轮版本、负面结果及证据](../development/evidence/20261009-owner-remote-dispatch-wake/README.md)。
+**当前出口（2026-10-09，G2.15单问题试改收口）：** checksum移入既有阻塞线程的一次写对照177.477→177.590MiB/s（+0.06%），独立p95 7.524→7.294ms（-3.06%）；未过预设合取保留线，产品逻辑撤回，仅保留坏checksum/长度拒绝的真实RPC回归。功能限定PASS／测量COMPLETE／优化REJECTED／正式Moose写双目标及G2.15待验。Linux候选8tests、恢复后4RPCtests及fmt/check/libClippy通过；五actualwait0、原数据/权限/原挂载和保护库存恢复，归档实际恢复后回收93.1MiB本轮暂存，无环境阻塞/新包/G1重开/G2计数变化。下一仅一次远端写CPU/传输成本定位，再选实际源码问题，不重试本方向；DFS写/A-ctl扩容仍暂缓。 [本轮版本、负面结果及证据](../development/evidence/20261009-owner-remote-write-checksum-worker/README.md)。
 
 以下日期快照保留原版本、原判据与原结论；当前入口以上述结果为准。
 

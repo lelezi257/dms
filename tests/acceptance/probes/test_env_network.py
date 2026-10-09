@@ -46,7 +46,8 @@ class EnvNetworkUnitTest(unittest.TestCase):
                          ca=Path("ca.pem"), server_cert=Path("cert.pem"),
                          server_key=Path("key.pem"), peer_expected=None,
                          ready_json=Path("ready.json"))
-        with mock.patch.object(env_network.signal, "signal"), \
+        with mock.patch.object(env_network, "live_linux_arm64_guard"), \
+                mock.patch.object(env_network.signal, "signal"), \
                 mock.patch.object(env_network, "_bind_tcp", side_effect=[tcp, tls]), \
                 mock.patch.object(env_network, "_bind_udp", return_value=udp), \
                 mock.patch.object(env_network, "_tls_context_server"), \
@@ -62,12 +63,24 @@ class EnvNetworkUnitTest(unittest.TestCase):
     def test_partial_bind_failure_closes_prior_listener(self):
         tcp = mock.Mock()
         args = Namespace(bind_ip="127.0.0.1", port=19566, tls_port=19567)
-        with mock.patch.object(env_network.signal, "signal"), \
+        with mock.patch.object(env_network, "live_linux_arm64_guard"), \
+                mock.patch.object(env_network.signal, "signal"), \
                 mock.patch.object(env_network, "_bind_tcp", return_value=tcp), \
                 mock.patch.object(env_network, "_bind_udp", side_effect=OSError("busy")):
             with self.assertRaises(OSError):
                 env_network.server_main(args)
         tcp.close.assert_called_once()
+
+    def test_server_rejects_other_architecture_before_binding(self):
+        with mock.patch.object(env_network.platform, "system", return_value="Linux"), \
+                mock.patch.object(env_network.platform, "machine", return_value="x86_64"), \
+                mock.patch.object(env_network, "_bind_tcp") as tcp, \
+                mock.patch.object(env_network, "_bind_udp") as udp:
+            with self.assertRaises(env_network.ProbeError) as raised:
+                env_network.server_main(Namespace())
+            self.assertEqual(raised.exception.reason, "linux_arm64_required")
+            tcp.assert_not_called()
+            udp.assert_not_called()
 
     def _pair(self):
         left, right = socket.socketpair()

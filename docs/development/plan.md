@@ -75,7 +75,7 @@
 | 格式、产品 bins、测试 examples、release bins 构建 | PASS | Linux Rust 1.95；产品构建保留两个既有非 RDMA fallback 警告。测试探针仍是显式 example，不属于产品 bin。 |
 | Clippy workspace/all-features/all-targets | PASS | `-D warnings`；不等于运行验收。 |
 | 配置合约 | 10 PASS | `config_contract`；不能代替完整 POSIX。 |
-| 受影响工具回归 | 整组 538 核对；probes 163 PASS | 整组 534 PASS、3 FAIL、1 SKIP；3 个失败均因 root 看不到已有 Hypothesis，在显式绑定同版本依赖后对应 11 项定向回归全部 PASS，不重复无影响项。1 SKIP 为已有可选 STD-01 历史夹具缺失，不计通过。首轮用户/校验和/路径失败均保留。 |
+| 受影响工具回归 | 固定 f6a6acdf 主工具 535 PASS / 4 SKIP；后续 probes 定向 21 PASS | CI 主组发现 539 项，无失败；4 SKIP 为可选历史夹具及三个限定平台 coordinator。probes 的四个前置平台隔离错误保留，修复后既有 Linux ARM64 两模块 21 PASS；模拟 x86_64 为 20 PASS / 1 SKIP，不能冒充真实 x86 内核证据。其它未变项复用，未重跑本地主组。 |
 | 打包可复现性、进程控制、试用配置和自检引用 | PASS | 说明文件新路径正确、manifest 一致、测试探针不入普通包；不证明 bind 功能或性能。 |
 | 新候选 bind ON 安装运行 | 限定 PASS | `f540c242` 的新 release 包在无编译器 VM 上全新安装；真实 Home bind、UID501/502、64KiB 读写删除、FUSE 正反对照及 4 次实际 wait0。未运行远端、恢复、性能或完整 POSIX。 |
 | 官方 fuser 无补丁迁移 | BLOCKED | 锁类型和 interrupt 公开 API 缺口尚未解决；未向上游提交 Issue/PR。 |
@@ -89,6 +89,6 @@
 
 这些检查关闭的是本次快照的受影响工程子项，不新增 G1/G2 产品完成项。官方依赖整改 S4 未完成，正式 Agent DX 导入仍未开始。
 
-远端 CI 首轮 [37913786563](https://github.com/lelezi257/dms/actions/runs/37913786563) 在 Check 阶段因工作流未安装 libfuse3 开发包失败，后续步骤未运行；失败日志留在本地。修复只补工作流依赖声明和前置检查。第二轮 [37914022225](https://github.com/lelezi257/dms/actions/runs/37914022225) 已通过 Format、Check、Clippy，随后 vendor `reply::test::reply_create` 在 ABI 7.40 下因测试标志/断言冲突而 SIGABRT；产品已执行的测试保留实际通过/ignored 范围，不能称完整 workspace 通过。CI 允许准入后的其它独立工程步骤继续执行，但保留此测试失败及整轮失败状态，不排除测试、不关闭 feature、不修改第三方源码。
+远端 CI 以固定 `f6a6acdf` 的 [37923964098](https://github.com/lelezi257/dms/actions/runs/37923964098) 为已结束记录：整轮 FAIL；Format、Check、Clippy、后端矩阵、产品/examples 构建及打包安装 PASS；主工具 539 项为 535 PASS/4 SKIP。probes 163 项为 158 PASS/2 FAIL/2 ERROR/1 SKIP，四项均被 ARM64 前置限制挡住，未到单元测试意图验证的清理/OFD/输出保护分支。随后只隔离这些单元测试的前置条件，并补真实拒绝哨兵；Linux ARM64 受影响两模块 21 PASS（含实际 ext4 原语），同 VM 模拟 x86_64 为 20 PASS/1 SKIP。探针生产源码、架构/root 限制及产品行为未改；针对性结果不改写为完整 CI 通过。
 
-固定 `609bf030` 的第三轮 [37921408568](https://github.com/lelezi257/dms/actions/runs/37921408568) 已结束，整轮 FAIL。Format、Check、Clippy、后端 feature matrix、产品及 examples 构建、打包安装回归 PASS；vendor 测试仍 FAIL。工具整组 538 项为 533 PASS、1 FAIL、4 SKIP；唯一失败是测试要求 ARM64 专用 inventory CLI 在 x86_64 上成功，实际拒绝符合工具合同。probes 命令在前项失败后未执行，不计本轮通过。随后仅修测试预期及补拒绝路径，既有 Linux ARM64 上受影响 inventory 10 项 PASS（含真实采集和模拟 x86_64 拒绝）；其它无影响项复用既有证据，未重跑本地整组，也不把针对性通过改写为整轮 CI 通过。上游 fuser 问题草稿按当前决定仅留本地，S4 仍阻塞。
+vendor `reply::test::reply_create` 的 ABI 7.40 断言/SIGABRT 仍未解决，不排除测试、不关闭 feature、不改第三方源码。早期依赖声明、inventory 平台预期及本轮全部失败日志在本地归档保留；[原 CI 37921408568](https://github.com/lelezi257/dms/actions/runs/37921408568) 保留原结果。S4 官方 API 缺口仍阻塞，上游问题草稿按决定仅留本地；正式迁移未开始。

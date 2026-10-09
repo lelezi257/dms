@@ -49,7 +49,9 @@ class NativeLockKernelTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             work = Path(td).resolve()
             out = work / "out"
-            with patch.object(probe, "F_OFD_GETLK", None):
+            with patch.object(probe.platform, "machine", return_value="aarch64"), \
+                    patch.object(probe.os, "geteuid", return_value=0), \
+                    patch.object(probe, "F_OFD_GETLK", None):
                 with self.assertRaisesRegex(RuntimeError, "missing F_OFD"):
                     probe.run_probe(work, out)
 
@@ -61,9 +63,23 @@ class NativeLockKernelTests(unittest.TestCase):
             out.mkdir()
             sentinel = out / "sentinel.txt"
             sentinel.write_text("keep\n", encoding="utf-8")
-            with self.assertRaisesRegex(RuntimeError, "fresh"):
-                probe.run_probe(work, out)
+            with patch.object(probe.platform, "machine", return_value="aarch64"), \
+                    patch.object(probe.os, "geteuid", return_value=0):
+                with self.assertRaisesRegex(RuntimeError, "fresh"):
+                    probe.run_probe(work, out)
             self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep\n")
+
+    def test_other_architecture_is_rejected_before_creating_output(self) -> None:
+        probe = load_probe_module()
+        with tempfile.TemporaryDirectory() as td:
+            work = Path(td).resolve()
+            out = work / "out"
+            with patch.object(probe.platform, "machine", return_value="x86_64"), \
+                    patch.object(probe.subprocess, "check_output") as command:
+                with self.assertRaisesRegex(RuntimeError, "requires aarch64"):
+                    probe.run_probe(work, out)
+                command.assert_not_called()
+            self.assertEqual(list(work.iterdir()), [])
 
     def test_silent_child_timeout_is_bounded_and_killed(self) -> None:
         probe = load_probe_module()

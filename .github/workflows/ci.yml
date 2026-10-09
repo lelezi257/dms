@@ -37,6 +37,7 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/afs-tools-venv"
           "$RUNNER_TEMP/afs-tools-venv/bin/python" -m pip install -r tests/acceptance/requirements.txt
       - name: Dependency preflight
+        id: preflight
         run: |
           pkg-config --modversion fuse3 libibverbs
           protoc --version
@@ -51,14 +52,18 @@ jobs:
       - name: Test
         run: cargo test --locked --workspace --all-features
       - name: Backend feature matrix
+        if: ${{ !cancelled() && steps.preflight.outcome == 'success' }}
         run: bash tests/feature-matrix.sh
       - name: Build product processes and test examples
+        if: ${{ !cancelled() && steps.preflight.outcome == 'success' }}
         run: cargo build --locked --workspace --all-features --bins --examples
       - name: Acceptance tool regressions
+        if: ${{ !cancelled() && steps.preflight.outcome == 'success' }}
         run: |
           sudo env PYTHONDONTWRITEBYTECODE=1 "$RUNNER_TEMP/afs-tools-venv/bin/python" -m unittest discover -s tests/acceptance -p 'test_*.py'
           sudo env PYTHONDONTWRITEBYTECODE=1 "$RUNNER_TEMP/afs-tools-venv/bin/python" -m unittest discover -s tests/acceptance/probes -p 'test_*.py'
       - name: Package and installer regressions
+        if: ${{ !cancelled() && steps.preflight.outcome == 'success' }}
         run: |
           bash scripts/deploy/test-package-reproducible.sh
           bash scripts/deploy/selftest.sh

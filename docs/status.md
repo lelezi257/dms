@@ -1,4 +1,4 @@
-**当前出口（2026-10-09，G2.09一次Moose对照已收口）：** mainf57/产品53e、Meta650/Node b62；原B/ext4/local-file/OFF数据，64MiB/C1/1MiB，一预热五交替正式对照。功能限定PASS、测量COMPLETE；吞吐5706.058/19695.507MiB/s=0.289714×、独立p95 0.226087/0.035667ms=6.338829×，两项FAIL，未达1.2/.8。双方物理全热；客户端Owner0/Moose64MiB为测前默认策略差异，明确披露。五actualwait0、原数据/配置/ELF/挂载恢复及Linux保存数据审计通过。[完整范围和证据](../development/evidence/20261009-owner-local-read-moose-b62/README.md)。无新产品改动/包，不重跑本项或扩本地矩阵；返回bind/远端主线，既有远端READ吞吐FAIL/p95PASS、R2未完成及用户暂缓专题不变，G1历史8/8和原G2 12/0/15不变。
+**当前出口（2026-10-09，G2.09一次Moose对照已收口）：** mainf57/产品53e、Meta650/Node b62；原B/ext4/local-file/OFF数据，64MiB/C1/1MiB，一预热五交替正式对照。功能限定PASS、测量COMPLETE；吞吐5706.058/19695.507MiB/s=0.289714×、独立p95 0.226087/0.035667ms=6.338829×，两项FAIL，未达1.2/.8。双方物理全热；客户端Owner0/Moose64MiB为测前默认策略差异，明确披露。五actualwait0、原数据/配置/ELF/挂载恢复及Linux保存数据审计通过。[完整范围和证据](../development/evidence/20261009-owner-local-read-moose-b62/README.md)。无新产品改动/包，不重跑本项或扩本地矩阵；返回bind/远端主线，既有远端READ吞吐FAIL/p95PASS、R2未完成及用户暂缓专题不变，G1历史8/8和原G2 12/0/15不变。 用户授权的[C匹配perf环境前置](../development/evidence/20261009-perf-tools-c/README.md)已关闭；无产品验收新增，下一一个有限远端CPU诊断窗口。
 
 以下日期快照保留原版本、原判据与原结论；当前入口以上述结果为准。
 

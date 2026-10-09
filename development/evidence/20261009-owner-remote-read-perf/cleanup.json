@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "actual_recovery_before_cleanup": true,
+  "removed_ELF_files": 3,
+  "removed_logical_bytes": 47425104,
+  "files": [
+    {
+      "path": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-write-bytes-20261008-r1/stage/owner-remote-read-perf-20261009-r1/tested-2",
+      "bytes": 15808368,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+    },
+    {
+      "path": "/var/tmp/owner-remote-read-perf-20261009-r1-meta",
+      "bytes": 15808368,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-read-perf-20261009-r1/candidate-meta",
+      "bytes": 15808368,
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+    }
+  ]
+}

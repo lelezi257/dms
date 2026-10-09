@@ -16,7 +16,9 @@ AFS 是面向 Agent、Sandbox 和 VM 集群的近计算文件系统原型。当�
 
 G1 历史试用范围保持 8/8 关闭；当前快照不重开、不重标历史结论。a103 试用包证明的是有限范围：真实 Home bind ON、UID501/UID502 权限检查、Owner64KiB 与 DFS64MiB 在 local-file Meta 下正常全停重启恢复，以及正常退出。它不是完整 POSIX、完整远端标准、性能达标或复杂可靠性通过。
 
-仍未完成的主要项包括：普通 OwnerFs 本地/远端性能双目标、DFS 对 3FS 的三同步持久副本对照、完整远端 POSIX、复杂可靠性、多 Meta、etcd/Redis 后端验收，以及官方 `fuser` 无私有补丁迁移。
+仍未完成的主要项包括：普通 OwnerFs 本地/远端性能双目标、DFS 对 3FS 的三同步持久副本对照、完整远端 POSIX、复杂可靠性、多 Meta、etcd/Redis 后端验收。
+
+当前源码已使用固定官方 `fuser =0.18.0`，移除私有 vendor，并完成限定 Linux 正确性回归；不代表完整 POSIX、性能或所有拓扑通过。此次版本将 FUSE 跨节点 `fcntl/flock`、阻塞锁等待取消及 bind/native↔FUSE 锁一致性后置；内核可能在单个 FUSE 挂载内本地加锁，bind 路径则使用本机 ext4 锁，两者是不同锁域，均不代表分布式锁。该范围调整不放宽新鲜度、close-to-open、权限、错误传播、持久化、direct-I/O mmap 协商和正常卸载/排空要求，详见 [依赖决策与验收](docs/development/fuser-official-blocker.md)。
 
 ## 文档入口
 

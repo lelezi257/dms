@@ -1943,16 +1943,32 @@ async fn run_node(
     if let Some(mounted) = mounted_dfs {
         match tokio::task::spawn_blocking(move || mounted.join()).await {
             Ok(Ok(())) => {}
-            Ok(Err(error)) => remember_shutdown_error(&mut shutdown_error, error.into()),
-            Err(error) => remember_shutdown_error(&mut shutdown_error, error.into()),
+            Ok(Err(error)) => {
+                afs_logging::error!("node.fuse_closure_failed"; "error" => error.to_string());
+                remember_shutdown_error(&mut shutdown_error, error.into());
+                std::future::pending::<()>().await;
+            }
+            Err(error) => {
+                afs_logging::error!("node.fuse_closure_failed"; "error" => error.to_string());
+                remember_shutdown_error(&mut shutdown_error, error.into());
+                std::future::pending::<()>().await;
+            }
         }
     }
     #[cfg(feature = "ownerfs")]
     if let Some(mounted) = mounted_ownerfs {
         match tokio::task::spawn_blocking(move || mounted.join()).await {
             Ok(Ok(())) => {}
-            Ok(Err(error)) => remember_shutdown_error(&mut shutdown_error, error.into()),
-            Err(error) => remember_shutdown_error(&mut shutdown_error, error.into()),
+            Ok(Err(error)) => {
+                afs_logging::error!("node.fuse_closure_failed"; "error" => error.to_string());
+                remember_shutdown_error(&mut shutdown_error, error.into());
+                std::future::pending::<()>().await;
+            }
+            Err(error) => {
+                afs_logging::error!("node.fuse_closure_failed"; "error" => error.to_string());
+                remember_shutdown_error(&mut shutdown_error, error.into());
+                std::future::pending::<()>().await;
+            }
         }
     }
     #[cfg(feature = "dfs")]

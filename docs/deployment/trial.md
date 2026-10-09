@@ -128,6 +128,7 @@ Home底层真实`state/node/ownerfs/root-…-e…`覆盖本Home的FUSE一级目�
 ## 当前使用限制
 
 - 混合 native/FUSE 同时 append 的偏移、混合经典锁和 watch 传播仍有历史失败，当前不支持。依赖这些操作的工作负载不属于本次可用范围。
+- 当前源码已迁移固定官方 `fuser =0.18.0` 并通过限定 Linux 回归；本页 a103 包及其历史结果保持原版本身份，不能用于证明新依赖通过。此次迁移版本不承诺 FUSE 跨节点 `fcntl/flock`、阻塞锁等待取消或 bind/native↔FUSE 锁一致性。单个 FUSE 挂载可能发生内核本地锁回退，不保证所有锁请求进入用户态；bind 路径本机 ext4 锁是另一锁域，两者均不是分布式锁。
 - 已打开 FD/mmap 的即时刷新、即时撤权，以及描述符转移或二级 clone 不在当前保证内；停止或变更 root/epoch 前先停止受管用户并排空引用。
 - 撤权 issuer/durable ACK、扩展 namespace 和拓扑后置。控制面失联或授权失败不能绕过 Home/root/epoch 核验。
 - direct-I/O mmap 必须经真实内核能力协商；配置不能替代内核支持。

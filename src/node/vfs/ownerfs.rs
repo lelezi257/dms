@@ -3343,7 +3343,7 @@ impl LocalOwnerFs {
         // keeps further peer admissions behind this invalidation barrier.
         if let Some(notifier) = notifier {
             for ino in 2..next_fuse_ino {
-                if let Err(error) = notifier.inval_inode(ino, 0, 0) {
+                if let Err(error) = notifier.inval_inode(fuser::INodeNo(ino), 0, 0) {
                     self.private_cache
                         .lock()
                         .map_err(|_| poisoned())?
@@ -3617,6 +3617,8 @@ impl LocalOwnerFs {
                             "ftruncate requires a writable open handle",
                         ));
                     }
+                    let (change, kernel_mode_clear) =
+                        normalize_kernel_mode_clear(&current, change, options)?;
                     // An open writable FD retains its write authority even after
                     // chmod(0). Other requested attribute changes still use caller permissions.
                     let mut non_size_change = change.clone();
@@ -3625,8 +3627,10 @@ impl LocalOwnerFs {
                     if change.size.is_some() {
                         file.check_no_fatal_sync_error()?;
                     }
-                    apply_local_file_attr_change(&file.handle.file, change)?;
-                    if options.kill_suidgid && apply_killpriv_to_change(change) {
+                    apply_local_file_attr_change(&file.handle.file, &change)?;
+                    if options.kill_suidgid
+                        && (kernel_mode_clear || apply_killpriv_to_change(&change))
+                    {
                         clear_suidgid_on_file(&file.handle.file)?;
                     }
                     if change.size.is_some() {
@@ -3709,9 +3713,13 @@ impl LocalOwnerFs {
         let identity = identity_from_metadata(&metadata)?;
         check_expected_identity(Some(&record.identity), &identity)?;
         let current = attributes_from_metadata(metadata)?;
-        authorize_setattr_with_options(ctx, &current, change, options)?;
-        apply_local_path_attr_change(&self.disk, &physical, change)?;
-        if options.kill_suidgid && apply_killpriv_to_change(change) {
+        let (change, kernel_mode_clear) = normalize_kernel_mode_clear(&current, change, options)?;
+        // Kernel clear requests can lack fh even for a previously opened
+        // writable FD. Kernel default_permissions has already checked ordinary
+        // chmod; this exact clear grants no permissions and must preserve FD rights.
+        authorize_setattr_with_options(ctx, &current, &change, options)?;
+        apply_local_path_attr_change(&self.disk, &physical, &change)?;
+        if options.kill_suidgid && (kernel_mode_clear || apply_killpriv_to_change(&change)) {
             clear_suidgid_on_path(&self.disk, &physical)?;
         }
         let metadata = self.disk.metadata(&physical).map_err(Error::from)?;
@@ -6285,6 +6293,27 @@ fn clear_suidgid_on_path(disk: &LocalFs, path: &StoragePath) -> Result<()> {
     Ok(())
 }
 
+// Only the trusted FUSE adapter marks a legacy kernel clear request. Recheck
+// the current mode at Home, then remove the stale mode assignment: clearing
+// privilege bits must never restore old rwx bits after a concurrent chmod.
+fn normalize_kernel_mode_clear(
+    current: &FileAttributes,
+    change: &AttributeChange,
+    options: SetAttrOptions,
+) -> Result<(AttributeChange, bool)> {
+    let mut normalized = change.clone();
+    let kernel_clear = options.kill_suidgid && change.mode.is_some();
+    if kernel_clear {
+        if !super::types::is_legacy_privilege_clear(current, change) {
+            return Err(permission_denied(
+                "kernel privilege clear does not match current attributes",
+            ));
+        }
+        normalized.mode = None;
+    }
+    Ok((normalized, kernel_clear))
+}
+
 fn apply_killpriv_to_change(change: &AttributeChange) -> bool {
     change.size.is_some()
 }
@@ -7116,6 +7145,10 @@ impl OwnerFs {
 
 #[cfg(test)]
 mod tests {
+    mod official_fuser {
+        include!("ownerfs/official_fuser_tests.rs");
+    }
+
     use super::*;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::{env, process::Command};
@@ -9331,6 +9364,80 @@ mod tests {
         );
         fs.release(&owner_ctx, opened_existing.handle).unwrap();
         fs.release(&owner_ctx, created.handle).unwrap();
+    }
+
+    #[test]
+    fn legacy_kernel_mode_clear_preserves_permissions_and_rejects_stale_mode() {
+        let (_temp, fs, ctx) = fixture();
+        let workspace = fs
+            .mkdir(
+                &ctx,
+                backend_inode(OWNERFS_ROOT_INODE),
+                OsStr::new("legacy-clear"),
+                0o777,
+            )
+            .unwrap();
+        let created = fs
+            .create(
+                &ctx,
+                workspace.inode,
+                OsStr::new("data"),
+                0o666,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let owner = context_for_attrs(ctx.clone(), &created.entry.attributes);
+        let writer = non_owner_context(owner.clone());
+        let change = AttributeChange {
+            mode: Some(0o776),
+            ..Default::default()
+        };
+        let options = SetAttrOptions {
+            kill_suidgid: true,
+            timestamps_now: false,
+        };
+        for handle in [None, Some(created.handle)] {
+            fs.setattr(
+                &owner,
+                created.entry.inode,
+                None,
+                &AttributeChange {
+                    mode: Some(0o6776),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert!(
+                fs.setattr(&writer, created.entry.inode, handle, &change)
+                    .is_err(),
+                "ordinary chmod must still require ownership"
+            );
+            let attrs = fs
+                .setattr_with_options(&writer, created.entry.inode, handle, &change, options)
+                .unwrap();
+            assert_eq!(attrs.mode & 0o7777, 0o776);
+            assert!(
+                fs.setattr_with_options(&writer, created.entry.inode, handle, &change, options)
+                    .is_err(),
+                "stale clear cannot assign a previous mode"
+            );
+        }
+        fs.setattr(
+            &owner,
+            created.entry.inode,
+            None,
+            &AttributeChange {
+                mode: Some(0o4644),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(
+            fs.setattr_with_options(&writer, created.entry.inode, None, &change, options)
+                .is_err(),
+            "clear must not add permission bits"
+        );
+        fs.release(&owner, created.handle).unwrap();
     }
 
     #[test]

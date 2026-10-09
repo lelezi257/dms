@@ -211,6 +211,63 @@ fn fuse_mount_binds_backend_at_mount_root() {
 }
 
 #[test]
+#[ignore = "requires Linux /dev/fuse and fusermount3; supports non-root mount owner"]
+fn fuse_empty_mount_normal_join_as_mount_owner() {
+    let retained = tempfile::tempdir().unwrap().keep();
+    let mount = retained.join("mnt");
+    std::fs::create_dir(&mount).unwrap();
+    let session = fuse::mount_test_backend(Arc::new(MockBackend::default()), &mount).unwrap();
+    wait_until_mounted(&mount).unwrap();
+    session.join().unwrap();
+    assert!(
+        !std::fs::read_to_string("/proc/self/mountinfo")
+            .unwrap()
+            .lines()
+            .any(|line| line.split_whitespace().nth(4) == mount.to_str())
+    );
+    std::fs::remove_dir_all(retained).unwrap();
+}
+
+#[test]
+#[ignore = "requires Linux private mount namespace, /dev/fuse and fusermount3"]
+fn fuse_normal_join_rejects_busy_mount_without_detaching() {
+    let retained = tempfile::tempdir().unwrap().keep();
+    let mount = retained.join("mnt");
+    std::fs::create_dir(&mount).unwrap();
+    let backend = Arc::new(MockBackend::default());
+    let session = fuse::mount_test_backend(backend, &mount).unwrap();
+    wait_until_mounted(&mount).unwrap();
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let held = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_PATH)
+        .open(&mount)
+        .unwrap();
+    let error = session.join().unwrap_err();
+    assert!(error.to_string().contains("normal FUSE unmount failed"));
+    assert!(
+        std::fs::read_to_string("/proc/self/mountinfo")
+            .unwrap()
+            .lines()
+            .any(|line| line.split_whitespace().nth(4) == mount.to_str())
+    );
+    drop(held);
+    let output = std::process::Command::new("fusermount3")
+        .args(["-u", "--"])
+        .arg(&mount)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert!(
+        !std::fs::read_to_string("/proc/self/mountinfo")
+            .unwrap()
+            .lines()
+            .any(|line| line.split_whitespace().nth(4) == mount.to_str())
+    );
+    // Keep failure-path evidence; the private namespace owns all mounts.
+}
+
+#[test]
 #[ignore = "requires Linux /dev/fuse, fusermount3 and GNU stat"]
 fn fuse_statfs_returns_backend_capacity_fields_to_kernel_stat() {
     let temp = tempfile::tempdir().unwrap();

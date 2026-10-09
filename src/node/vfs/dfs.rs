@@ -5775,6 +5775,16 @@ impl Backend for DistributedFs {
                 killpriv_setattr = true;
                 let state = self.ensure_inode_write_state(&current)?;
                 let mut state = self.lock_for_mutation(&inode_id, &state)?;
+                if change.mode.is_some()
+                    && !super::types::is_legacy_privilege_clear(
+                        &attributes(&state.inode, state.logical_length, 0),
+                        &change,
+                    )
+                {
+                    return Err(Error::from(std::io::Error::from(
+                        std::io::ErrorKind::PermissionDenied,
+                    )));
+                }
                 Self::apply_kernel_killpriv_to_state(&mut state);
                 change.mode = None;
             }
@@ -10416,6 +10426,77 @@ mod tests {
         assert_eq!(attrs.mode, 0o0777);
         fs.flush(&context(), created.handle).unwrap();
         assert!(meta.commits.lock().unwrap()[0].metadata_delta.kill_suidgid);
+    }
+
+    #[test]
+    fn legacy_kernel_mode_clear_rechecks_current_dfs_state() {
+        let (_temp, meta, fs) = test_fs();
+        meta.inode.lock().unwrap().attributes.mode = 0o6777;
+        let created = fs
+            .create(
+                &context(),
+                fs.root_inode(),
+                OsStr::new("legacy-clear.bin"),
+                0o640,
+                libc::O_RDWR,
+            )
+            .unwrap();
+        let options = SetAttrOptions {
+            kill_suidgid: true,
+            timestamps_now: false,
+        };
+        let invalid = AttributeChange {
+            mode: Some(0o666),
+            ..Default::default()
+        };
+        assert!(
+            fs.setattr_with_options(
+                &context(),
+                created.entry.inode,
+                Some(created.handle),
+                &invalid,
+                options
+            )
+            .is_err()
+        );
+        assert_eq!(
+            fs.getattr(&context(), created.entry.inode, Some(created.handle))
+                .unwrap()
+                .mode,
+            0o6777
+        );
+        let clear = AttributeChange {
+            mode: Some(0o777),
+            ..Default::default()
+        };
+        let attrs = fs
+            .setattr_with_options(
+                &context(),
+                created.entry.inode,
+                Some(created.handle),
+                &clear,
+                options,
+            )
+            .unwrap();
+        assert_eq!(attrs.mode, 0o777);
+        assert!(
+            fs.setattr_with_options(
+                &context(),
+                created.entry.inode,
+                Some(created.handle),
+                &clear,
+                options
+            )
+            .is_err()
+        );
+        fs.flush(&context(), created.handle).unwrap();
+        assert!(
+            meta.metadata_syncs
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|sync| sync.metadata_delta.kill_suidgid)
+        );
     }
 
     #[test]

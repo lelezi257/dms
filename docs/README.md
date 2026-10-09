@@ -10,7 +10,7 @@
 - [测试与验收](testing/acceptance.md)：标准测试、核心功能、性能目标和后置项。
 - [部署与试用](deployment/trial.md)：当前 a103 试用包、ON 配置和支持范围。
 - [验证方式](testing/validation.md)：Linux 验证原则和受影响检查选择。
-- [fuser 官方版迁移阻塞说明](development/fuser-official-blocker.md)：记录第三方依赖暂不能无损解耦的原因。
+- [fuser 官方依赖决策与迁移验收](development/fuser-official-blocker.md)：固定官方版本、私有差异分类、必要正确性与后置锁专题。
 
 ## 目录约定
 

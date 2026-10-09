@@ -20,3 +20,16 @@ cargo build --release --locked --bin afs-node --bin afs-meta
 ## 验收工具
 
 维护中的验收工具在 `tests/acceptance/`。运行前检查配置文件、二进制路径、挂载点、容量门禁和套件版本。原始运行输出放在仓库外归档，不提交到源码树。
+
+## 官方 FUSE 依赖受影响回归
+
+固定 `fuser =0.18.0` 的依赖身份、覆盖与边界见 [决策说明](../development/fuser-official-blocker.md)。先完成必要依赖、候选身份、挂载和容量准入；编译后使用同一测试二进制，分别运行：
+
+```sh
+cargo test --locked --lib node::fuse::dispatch_tests
+cargo test --locked --lib legacy_kernel_mode_clear
+cargo test --locked --lib killpriv
+cargo test --locked --test config_contract --test fuse_contract
+```
+
+`fuse_contract` 的 ignored 用例、OwnerFs `official_fuser` 权限用例及 `native_home_tests` 两个 bind/排空用例必须在受控 Linux 私有 mount namespace 中按独立用例执行。权限用例要求 root；非 root 正常卸载使用显式支持 mount owner 的用例，不能把 MockBackend 的 root-only 权限假设误记为产品失败。测试实际覆盖和结果在 [当前计划](../development/plan.md) 登记；这不是完整标准或性能验收。

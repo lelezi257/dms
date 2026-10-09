@@ -22,7 +22,7 @@ POSIX 功能完整性优先参考标准套件，例如 pjdfstest、LTP filesyste
 3. DFS 一写多读核心场景。
 4. 普通 OwnerFs 本地 FUSE 访问和性能优化。
 
-大规模、长时间、复杂可靠性、多 Meta、etcd 和 Redis 后置。
+大规模、长时间、复杂可靠性、多 Meta、etcd 和 Redis 后置。此次快照也不承诺跨节点 fcntl/flock、阻塞等待取消或 bind/native↔FUSE 锁域一致性；标准测试涉及这些能力时单独登记不支持，不能以本地回退成功冒充通过。
 
 ## 性能判据
 

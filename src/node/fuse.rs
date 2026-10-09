@@ -11,6 +11,7 @@ use std::{
     borrow::Cow,
     collections::{HashMap, HashSet, VecDeque},
     ffi::OsStr,
+    io,
     path::{Path, PathBuf},
     sync::{
         Arc, Condvar, Mutex,
@@ -22,30 +23,28 @@ use std::{
 
 use afs_error::{Error, Result};
 use fuser::{
-    BackgroundSession, FileAttr, FileType, Filesystem, KernelConfig, LockOptions, MountOption,
-    ReplyAttr, ReplyCreate, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyLock,
-    ReplyOpen, ReplyStatfs, ReplyWrite, ReplyXattr, Request, TimeOrNow, consts,
+    AccessFlags, BackgroundSession, Config, Errno, FileAttr, FileHandle as FuseFileHandle,
+    FileType, Filesystem, FopenFlags, Generation, INodeNo, InitFlags, KernelConfig, LockOwner,
+    MountOption, OpenFlags, RenameFlags as FuseRenameFlags, ReplyAttr, ReplyCreate, ReplyData,
+    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyLock, ReplyOpen, ReplyStatfs, ReplyWrite,
+    ReplyXattr, Request, SessionACL, TimeOrNow, WriteFlags,
 };
 
 #[cfg(feature = "ownerfs")]
 use crate::node::vfs::ownerfs::OwnerFs;
 use crate::node::vfs::{
     Backend,
-    locks::{LockRequest, LockWaiterId},
     types::{
-        AttributeChange, BackendInode, DirectoryEntry, Entry, FileAttributes, FileHandle, FileKind,
-        FileLockConflict, FileLockKind, FileLockOwner, FileLockRange, FileLockType,
-        FilesystemCapacity, OpenOptions, ReleaseKind, RenameFlags, RequestContext, SetAttrOptions,
-        SpecialFileKind, SyncMode, WriteOptions,
+        AttributeChange, BackendInode, DirectoryEntry, Entry, FileAttributes, FileKind,
+        FileLockOwner, FilesystemCapacity, OpenOptions, ReleaseKind, RenameFlags, RequestContext,
+        SetAttrOptions, SpecialFileKind, SyncMode, WriteOptions, is_legacy_privilege_clear,
     },
 };
 
 use self::state::{FuseNode, FuseState, ROOT_INO};
 
 const TTL: Duration = Duration::ZERO;
-const DIRECT_IO: u32 = consts::FOPEN_DIRECT_IO;
-const LOCK_WORKERS: usize = 4;
-const MAX_PENDING_LOCK_INTERRUPTS: usize = 4096;
+const DIRECT_IO: FopenFlags = FopenFlags::FOPEN_DIRECT_IO;
 const MAX_INLINE_LOCAL_READ_SCRATCH: usize = 1024 * 1024;
 
 fn inline_local_read_data(
@@ -127,9 +126,8 @@ const FUSE_CALLBACKS: &[&str] = &[
     "releasedir",
     "fsyncdir",
     "create",
-    "getlk_with_options",
-    "setlk_with_options",
-    "interrupt",
+    "getlk",
+    "setlk",
     "mknod",
     "access",
     "getxattr",
@@ -140,17 +138,77 @@ const FUSE_CALLBACKS: &[&str] = &[
 
 static NEXT_INGRESS_SESSION: AtomicU64 = AtomicU64::new(1);
 
-/// Process-owned mount with an observable backend cleanup result. Plain drop
-/// still unmounts; a clean Node stop must call join and inspect its result.
+/// Process-owned mount. A clean Node stop must use normal unmount and observe
+/// callback cleanup through join; upstream Drop is not a closure proof.
 #[derive(Debug)]
 pub struct MountedFuse {
     session: BackgroundSession,
+    mount_path: PathBuf,
+    mount_id: u64,
     cleanup_error: Arc<Mutex<Option<Error>>>,
 }
 
 impl MountedFuse {
+    fn new(
+        session: BackgroundSession,
+        path: &Path,
+        cleanup_error: Arc<Mutex<Option<Error>>>,
+    ) -> Result<Self> {
+        match current_mount_id(path).and_then(|id| {
+            id.ok_or_else(|| Error::from(io::Error::other("new FUSE mount identity is missing")))
+        }) {
+            Ok(mount_id) => Ok(Self {
+                session,
+                mount_path: path.to_path_buf(),
+                mount_id,
+                cleanup_error,
+            }),
+            Err(error) => {
+                // Never let upstream Drop detach an unverified live mount.
+                std::mem::forget(session);
+                Err(error)
+            }
+        }
+    }
+
     pub fn join(self) -> Result<()> {
-        let joined = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.session.join()));
+        let unmounted = (|| {
+            if let Some(id) = current_mount_id(&self.mount_path)? {
+                if id != self.mount_id {
+                    return Err(Error::from(io::Error::other(
+                        "FUSE mount identity changed; refusing to unmount replacement",
+                    )));
+                }
+                // The upstream EPERM fallback can use lazy unmount. Require
+                // normal fusermount semantics for root and non-root alike.
+                let output = std::process::Command::new("fusermount3")
+                    .arg("-u")
+                    .arg("--")
+                    .arg(&self.mount_path)
+                    .output()
+                    .map_err(Error::from)?;
+                if !output.status.success() {
+                    return Err(Error::from(io::Error::other(format!(
+                        "normal FUSE unmount failed: {}",
+                        String::from_utf8_lossy(&output.stderr)
+                    ))));
+                }
+                if current_mount_id(&self.mount_path)?.is_some() {
+                    return Err(Error::from(io::Error::other(
+                        "FUSE mount remains after normal unmount",
+                    )));
+                }
+            }
+            Ok(())
+        })();
+        if let Err(error) = unmounted {
+            // Node must retain the backend and wait for its shutdown watchdog.
+            // Dropping this session here could lazily detach the busy mount.
+            std::mem::forget(self.session);
+            return Err(error);
+        }
+        let joined =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || self.session.join()));
         let cleanup_error = self
             .cleanup_error
             .lock()
@@ -159,7 +217,9 @@ impl MountedFuse {
         if let Some(error) = cleanup_error {
             return Err(error);
         }
-        joined.map_err(|_| Error::from(std::io::Error::other("FUSE session cleanup thread failed")))
+        joined
+            .map_err(|_| Error::from(std::io::Error::other("FUSE session cleanup thread failed")))?
+            .map_err(Error::from)
     }
 }
 
@@ -189,21 +249,9 @@ fn mount_dfs_inner(
     // ordinary opens must refresh after another mount's close barrier.
     fs.cached_io = true;
     let cleanup_error = fs.cleanup_error.clone();
-    let session = fuser::spawn_mount2(
-        fs,
-        path,
-        &[
-            MountOption::FSName("afs-dfs".into()),
-            MountOption::NoAtime,
-            MountOption::AllowOther,
-            MountOption::DefaultPermissions,
-        ],
-    )
-    .map_err(Error::from)?;
-    Ok(MountedFuse {
-        session,
-        cleanup_error,
-    })
+    let session =
+        fuser::spawn_mount(fs, path, &mount_config("afs-dfs", true)).map_err(Error::from)?;
+    MountedFuse::new(session, path, cleanup_error)
 }
 
 /// OwnerFs 使用相同 FUSE 实现，并额外接入其本地 Home 缓存策略与 notifier。
@@ -232,22 +280,10 @@ fn mount_ownerfs_inner(
     fs.requests = metrics.map(|metrics| (metrics, "ownerfs"));
     fs.ownerfs = Some(ownerfs.clone());
     let cleanup_error = fs.cleanup_error.clone();
-    let session = fuser::spawn_mount2(
-        fs,
-        path,
-        &[
-            MountOption::FSName("afs-ownerfs".into()),
-            MountOption::NoAtime,
-            MountOption::AllowOther,
-            MountOption::DefaultPermissions,
-        ],
-    )
-    .map_err(Error::from)?;
+    let session =
+        fuser::spawn_mount(fs, path, &mount_config("afs-ownerfs", true)).map_err(Error::from)?;
     ownerfs.register_fuse_notifier(session.notifier());
-    Ok(MountedFuse {
-        session,
-        cleanup_error,
-    })
+    MountedFuse::new(session, path, cleanup_error)
 }
 
 #[doc(hidden)]
@@ -255,32 +291,56 @@ pub fn mount_test_backend(backend: Arc<dyn Backend>, path: &Path) -> Result<Moun
     reject_existing_mount(path)?;
     let fs = AfsFuse::new(backend);
     let cleanup_error = fs.cleanup_error.clone();
-    let session = fuser::spawn_mount2(
-        fs,
-        path,
-        &[MountOption::FSName("afs-test".into()), MountOption::NoAtime],
-    )
-    .map_err(Error::from)?;
-    Ok(MountedFuse {
-        session,
-        cleanup_error,
-    })
+    let session =
+        fuser::spawn_mount(fs, path, &mount_config("afs-test", false)).map_err(Error::from)?;
+    MountedFuse::new(session, path, cleanup_error)
+}
+
+fn mount_config(fs_name: &str, allow_other: bool) -> Config {
+    let mut config = Config::default();
+    config.mount_options = vec![MountOption::FSName(fs_name.into()), MountOption::NoAtime];
+    if allow_other {
+        config.acl = SessionACL::All;
+    }
+    config.mount_options.push(MountOption::DefaultPermissions);
+    config
 }
 
 fn reject_existing_mount(path: &Path) -> Result<()> {
-    let target = path.canonicalize().map_err(Error::from)?;
-    for mountpoint in current_mountpoints()? {
-        if mountpoint
-            .canonicalize()
-            .is_ok_and(|mounted| mounted == target)
-        {
-            return Err(afs_error::Error::coded(
-                afs_error::NODE_MOUNT_CONFLICT,
-                format!("mount point '{}' is already mounted", path.display()),
-            ));
-        }
+    if mountpoint_is_current(path)? {
+        return Err(afs_error::Error::coded(
+            afs_error::NODE_MOUNT_CONFLICT,
+            format!("mount point '{}' is already mounted", path.display()),
+        ));
     }
     Ok(())
+}
+
+fn mountpoint_is_current(path: &Path) -> Result<bool> {
+    let target = path.canonicalize().map_err(Error::from)?;
+    Ok(current_mountpoints()?.into_iter().any(|mountpoint| {
+        mountpoint
+            .canonicalize()
+            .is_ok_and(|mounted| mounted == target)
+    }))
+}
+
+fn current_mount_id(path: &Path) -> Result<Option<u64>> {
+    let target = path.canonicalize().map_err(Error::from)?;
+    let mountinfo = std::fs::read_to_string("/proc/self/mountinfo").map_err(Error::from)?;
+    for line in mountinfo.lines().rev() {
+        let fields: Vec<_> = line.split_whitespace().collect();
+        if fields.len() < 6 {
+            return Err(Error::from(io::Error::other("malformed mountinfo")));
+        }
+        if decode_mountinfo_path(fields[4])? == target {
+            return fields[0]
+                .parse()
+                .map(Some)
+                .map_err(|_| Error::from(io::Error::other("invalid mount ID")));
+        }
+    }
+    Ok(None)
 }
 
 fn current_mountpoints() -> Result<Vec<PathBuf>> {
@@ -451,19 +511,6 @@ impl FuseDispatch {
         }
     }
 
-    fn try_submit_or_reject(&self, job: impl FnOnce() -> FuseJob, reject: impl FnOnce()) {
-        let (queue, wake) = &*self.shared;
-        let mut queue = queue.lock().unwrap();
-        if queue.jobs >= self.capacity || queue.closed {
-            drop(queue);
-            reject();
-            return;
-        }
-        queue.jobs += 1;
-        queue.ready.push_back((None, job()));
-        wake.notify_one();
-    }
-
     fn close_and_drain(&self) {
         let (queue, wake) = &*self.shared;
         let mut state = queue.lock().unwrap();
@@ -483,57 +530,14 @@ impl Drop for FuseDispatch {
     }
 }
 
-#[derive(Debug, Default)]
-struct PendingLockRegistry {
-    state: Mutex<PendingLockState>,
-}
-
-#[derive(Debug, Default)]
-struct PendingLockState {
-    pending: HashMap<u64, LockWaiterId>,
-    interrupted_before_register: HashSet<u64>,
-}
-
-impl PendingLockRegistry {
-    fn register(&self, unique: u64, waiter: LockWaiterId) -> bool {
-        let mut state = self.state.lock().unwrap();
-        let interrupted = state.interrupted_before_register.remove(&unique);
-        state.pending.insert(unique, waiter);
-        interrupted
-    }
-
-    fn finish(&self, unique: u64) {
-        self.state.lock().unwrap().pending.remove(&unique);
-    }
-
-    fn interrupt(&self, unique: u64) -> Option<LockWaiterId> {
-        let mut state = self.state.lock().unwrap();
-        if let Some(waiter) = state.pending.remove(&unique) {
-            return Some(waiter);
-        }
-        if state.interrupted_before_register.len() < MAX_PENDING_LOCK_INTERRUPTS {
-            state.interrupted_before_register.insert(unique);
-        }
-        None
-    }
-
-    fn clear(&self) {
-        let mut state = self.state.lock().unwrap();
-        state.pending.clear();
-        state.interrupted_before_register.clear();
-    }
-}
-
 pub struct AfsFuse {
     requests: Option<(FuseRequestMetrics, &'static str)>,
     backend: Arc<dyn Backend>,
     cached_io: bool,
-    inline_local_read_scratch: Vec<u8>,
+    inline_local_read_scratch: Mutex<Vec<u8>>,
     state: Arc<Mutex<FuseState>>,
     file_handle_inodes: Arc<Mutex<HashMap<u64, u64>>>,
     dispatch: FuseDispatch,
-    lock_dispatch: FuseDispatch,
-    pending_locks: Arc<PendingLockRegistry>,
     ingress_session_id: String,
     lock_session_cleaned: bool,
     callbacks_drained: bool,
@@ -550,12 +554,10 @@ impl AfsFuse {
             requests: None,
             backend,
             cached_io: false,
-            inline_local_read_scratch: Vec::new(),
+            inline_local_read_scratch: Mutex::new(Vec::new()),
             state,
             file_handle_inodes: Arc::new(Mutex::new(HashMap::new())),
             dispatch: FuseDispatch::new(8),
-            lock_dispatch: FuseDispatch::new(LOCK_WORKERS),
-            pending_locks: Arc::new(PendingLockRegistry::default()),
             ingress_session_id: next_ingress_session_id(),
             lock_session_cleaned: false,
             callbacks_drained: false,
@@ -594,7 +596,7 @@ impl AfsFuse {
         reply(TTL, false)
     }
 
-    fn context(req: &Request<'_>, umask: u32) -> RequestContext {
+    fn context(req: &Request, umask: u32) -> RequestContext {
         RequestContext {
             uid: req.uid(),
             gid: req.gid(),
@@ -604,7 +606,7 @@ impl AfsFuse {
         }
     }
 
-    fn metadata_context(req: &Request<'_>, umask: u32) -> RequestContext {
+    fn metadata_context(req: &Request, umask: u32) -> RequestContext {
         let mut context = Self::context(req, umask);
         context.supplementary_gids = request_groups(&context);
         context
@@ -618,35 +620,10 @@ impl AfsFuse {
             .ok_or(libc::ESTALE)
     }
 
-    fn file_handle_for_inode_in(
-        state: &Mutex<FuseState>,
-        file_handle_inodes: &Mutex<HashMap<u64, u64>>,
-        ino: u64,
-        fh: u64,
-    ) -> std::result::Result<FileHandle, i32> {
-        Self::validate_handle_inode_in(state, ino)?;
-        match file_handle_inodes.lock().unwrap().get(&fh).copied() {
-            Some(mapped_ino) if mapped_ino == ino => state
-                .lock()
-                .unwrap()
-                .file_handle(fh)
-                .map(|file| file.handle)
-                .ok_or(libc::ESTALE),
-            _ => Err(libc::ESTALE),
-        }
-    }
-
-    fn file_lock_owner(&self, kernel_owner: u64) -> FileLockOwner {
+    fn file_lock_owner(&self, kernel_owner: LockOwner) -> FileLockOwner {
         FileLockOwner {
             ingress_session_id: self.ingress_session_id.clone(),
-            kernel_owner,
-        }
-    }
-
-    fn lock_waiter_id(&self, unique: u64) -> LockWaiterId {
-        LockWaiterId {
-            ingress_session_id: self.ingress_session_id.clone(),
-            request_id: unique,
+            kernel_owner: kernel_owner.0,
         }
     }
 
@@ -655,7 +632,6 @@ impl AfsFuse {
             return;
         }
         self.lock_session_cleaned = true;
-        self.pending_locks.clear();
         self.release_lock_session();
     }
 
@@ -671,11 +647,11 @@ impl AfsFuse {
         if self.callbacks_drained {
             return;
         }
-        // Fence the session and cancel blocking lock waits first. OwnerFs,
-        // DFS and LockTable reject late lock acquisition for this session.
+        // Fence the session before draining accepted callbacks. This official
+        // fuser delivery does not forward advisory locks, but existing backend
+        // lock state is still released for recoverable historical sessions.
         self.cleanup_lock_session();
         self.dispatch.close_and_drain();
-        self.lock_dispatch.close_and_drain();
         // Final idempotent sweep observes every accepted callback's terminal
         // outcome before a joined mount can report successful cleanup.
         self.release_lock_session();
@@ -690,23 +666,11 @@ impl Drop for AfsFuse {
 }
 
 impl Filesystem for AfsFuse {
-    fn init(&mut self, _: &Request<'_>, config: &mut KernelConfig) -> std::result::Result<(), i32> {
+    fn init(&mut self, _: &Request, config: &mut KernelConfig) -> io::Result<()> {
         self.record_request("init");
         let _ = config.set_max_write(1024 * 1024);
-        // Linux otherwise serializes LOOKUPs in one directory even when our
-        // FUSE receive thread dispatches them to independent workers.
-        let _ = config.add_capabilities(fuser::consts::FUSE_PARALLEL_DIROPS);
-        // OwnerFs remote opens use FOPEN_DIRECT_IO so ordinary read/write calls
-        // bypass the kernel page cache and preserve close-to-open freshness.
-        // Linux 6.8 advertises this connection capability to permit shared mmap
-        // on direct_io handles without changing that read/write cache policy.
-        let _ = config.add_capabilities(fuser::consts::FUSE_DIRECT_IO_ALLOW_MMAP);
-        if self.backend.supports_killpriv_v2() {
-            let _ = config.add_capabilities(fuser::consts::FUSE_HANDLE_KILLPRIV_V2);
-        }
-        if self.backend.supports_advisory_locks() {
-            let _ = config.add_capabilities(fuser::consts::FUSE_POSIX_LOCKS);
-            let _ = config.add_capabilities(fuser::consts::FUSE_FLOCK_LOCKS);
+        for capability in negotiated_init_flags(config.capabilities()) {
+            let _ = config.add_capabilities(capability);
         }
         Ok(())
     }
@@ -716,10 +680,10 @@ impl Filesystem for AfsFuse {
         self.finish_callbacks();
     }
 
-    fn lookup(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEntry) {
+    fn lookup(&self, req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEntry) {
         self.record_request("lookup");
-        let Ok(parent_inode) = self.backend_inode(parent) else {
-            reply.error(libc::ESTALE);
+        let Ok(parent_inode) = self.backend_inode(parent.0) else {
+            reply.error(fuse_errno(libc::ESTALE));
             return;
         };
         // A local Home directory lookup has no network wait. Keep it on the
@@ -749,13 +713,13 @@ impl Filesystem for AfsFuse {
                             // A native or remote writer may rename or unlink between
                             // opens. Apply the freshness policy to names as well as
                             // attributes so an old dentry cannot open a new alias.
-                            reply.entry(&ttl, &file_attr(ino, &entry.attributes), 0);
+                            reply.entry(&ttl, &file_attr(ino, &entry.attributes), Generation(0));
                         });
                         return;
                     }
-                    reply.entry(&TTL, &file_attr(ino, &entry.attributes), 0);
+                    reply.entry(&TTL, &file_attr(ino, &entry.attributes), Generation(0));
                 }
-                Err(error) => reply.error(error),
+                Err(error) => reply.error(fuse_errno(error)),
             }
         };
         if inline_local_lookup {
@@ -765,13 +729,15 @@ impl Filesystem for AfsFuse {
         }
     }
 
-    fn forget(&mut self, _: &Request<'_>, ino: u64, nlookup: u64) {
+    fn forget(&self, _: &Request, ino: INodeNo, nlookup: u64) {
         self.record_request("forget");
-        self.state.lock().unwrap().forget(ino, nlookup);
+        self.state.lock().unwrap().forget(ino.0, nlookup);
     }
 
-    fn getattr(&mut self, req: &Request<'_>, ino: u64, fh: Option<u64>, reply: ReplyAttr) {
+    fn getattr(&self, req: &Request, ino: INodeNo, fh: Option<FuseFileHandle>, reply: ReplyAttr) {
         self.record_request("getattr");
+        let ino = ino.0;
+        let fh = fh.map(|fh| fh.0);
         let inline_local_read = fh.is_some_and(|fh| {
             self.state
                 .lock()
@@ -815,7 +781,7 @@ impl Filesystem for AfsFuse {
                     }
                     None => reply.attr(&TTL, &attr),
                 },
-                Err(error) => reply.error(error),
+                Err(error) => reply.error(fuse_errno(error)),
             }
         };
         if let Some(fh) = fh.filter(|_| !inline_local_read) {
@@ -825,10 +791,10 @@ impl Filesystem for AfsFuse {
         }
     }
 
-    fn statfs(&mut self, req: &Request<'_>, ino: u64, reply: ReplyStatfs) {
+    fn statfs(&self, req: &Request, ino: INodeNo, reply: ReplyStatfs) {
         self.record_request("statfs");
-        let Ok(inode) = self.backend_inode(ino) else {
-            reply.error(libc::ESTALE);
+        let Ok(inode) = self.backend_inode(ino.0) else {
+            reply.error(fuse_errno(libc::ESTALE));
             return;
         };
         #[cfg(feature = "ownerfs")]
@@ -842,7 +808,7 @@ impl Filesystem for AfsFuse {
         let context = Self::metadata_context(req, 0);
         let run = move || match backend.statfs(&context, inode) {
             Ok(capacity) => reply_statfs(reply, capacity),
-            Err(error) => reply.error(errno(error)),
+            Err(error) => reply.error(fuse_errno(errno(error))),
         };
         if inline_local_statfs {
             run();
@@ -852,9 +818,9 @@ impl Filesystem for AfsFuse {
     }
 
     fn setattr(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
+        &self,
+        req: &Request,
+        ino: INodeNo,
         mode: Option<u32>,
         uid: Option<u32>,
         gid: Option<u32>,
@@ -862,15 +828,16 @@ impl Filesystem for AfsFuse {
         atime: Option<TimeOrNow>,
         mtime: Option<TimeOrNow>,
         _ctime: Option<SystemTime>,
-        fh: Option<u64>,
+        fh: Option<FuseFileHandle>,
         _crtime: Option<SystemTime>,
         _chgtime: Option<SystemTime>,
         _bkuptime: Option<SystemTime>,
-        _flags: Option<u32>,
-        kill_suidgid: bool,
+        _flags: Option<fuser::BsdFileFlags>,
         reply: ReplyAttr,
     ) {
         self.record_request("setattr");
+        let ino = ino.0;
+        let fh = fh.map(|fh| fh.0);
         let inline_local_read = fh.is_some_and(|fh| {
             self.state
                 .lock()
@@ -890,10 +857,6 @@ impl Filesystem for AfsFuse {
             atime: atime.map(time_or_now),
             mtime: mtime.map(time_or_now),
         };
-        let options = SetAttrOptions {
-            kill_suidgid,
-            timestamps_now,
-        };
         let run = move || {
             let inode = state.lock().unwrap().backend_inode(ino);
             let result = inode.ok_or(libc::ESTALE).and_then(|inode| {
@@ -901,6 +864,13 @@ impl Filesystem for AfsFuse {
                 if handle.is_some() {
                     AfsFuse::validate_handle_inode_in(&state, ino)?;
                 }
+                let current = backend
+                    .getattr(&context, inode, handle.map(|handle| handle.handle))
+                    .map_err(errno)?;
+                let options = SetAttrOptions {
+                    kill_suidgid: is_legacy_privilege_clear(&current, &change),
+                    timestamps_now,
+                };
                 Ok(backend.as_ref()).and_then(|backend| {
                     backend
                         .setattr_with_options(
@@ -915,7 +885,7 @@ impl Filesystem for AfsFuse {
             });
             match result {
                 Ok(attributes) => reply.attr(&TTL, &file_attr(ino, &attributes)),
-                Err(error) => reply.error(error),
+                Err(error) => reply.error(fuse_errno(error)),
             }
         };
         if let Some(fh) = fh.filter(|_| !inline_local_read) {
@@ -925,9 +895,9 @@ impl Filesystem for AfsFuse {
         }
     }
 
-    fn readlink(&mut self, req: &Request<'_>, ino: u64, reply: ReplyData) {
+    fn readlink(&self, req: &Request, ino: INodeNo, reply: ReplyData) {
         self.record_request("readlink");
-        let result = self.backend_inode(ino).and_then(|inode| {
+        let result = self.backend_inode(ino.0).and_then(|inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .readlink(&Self::context(req, 0), inode)
@@ -937,21 +907,21 @@ impl Filesystem for AfsFuse {
         });
         match result {
             Ok(data) => reply.data(&data),
-            Err(error) => reply.error(error),
+            Err(error) => reply.error(fuse_errno(error)),
         }
     }
 
     fn mkdir(
-        &mut self,
-        req: &Request<'_>,
-        parent: u64,
+        &self,
+        req: &Request,
+        parent: INodeNo,
         name: &OsStr,
         mode: u32,
         umask: u32,
         reply: ReplyEntry,
     ) {
         self.record_request("mkdir");
-        let result = self.backend_inode(parent).and_then(|parent_inode| {
+        let result = self.backend_inode(parent.0).and_then(|parent_inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .mkdir(&Self::context(req, umask), parent_inode, name, mode)
@@ -961,15 +931,15 @@ impl Filesystem for AfsFuse {
         match result {
             Ok(entry) => {
                 let ino = self.state.lock().unwrap().remember_lookup(&entry);
-                reply.entry(&TTL, &file_attr(ino, &entry.attributes), 0);
+                reply.entry(&TTL, &file_attr(ino, &entry.attributes), Generation(0));
             }
-            Err(error) => reply.error(error),
+            Err(error) => reply.error(fuse_errno(error)),
         }
     }
 
-    fn unlink(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+    fn unlink(&self, req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEmpty) {
         self.record_request("unlink");
-        let result = self.backend_inode(parent).and_then(|parent_inode| {
+        let result = self.backend_inode(parent.0).and_then(|parent_inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .unlink(&Self::context(req, 0), parent_inode, name)
@@ -979,9 +949,9 @@ impl Filesystem for AfsFuse {
         reply_empty(reply, result);
     }
 
-    fn rmdir(&mut self, req: &Request<'_>, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+    fn rmdir(&self, req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEmpty) {
         self.record_request("rmdir");
-        let result = self.backend_inode(parent).and_then(|parent_inode| {
+        let result = self.backend_inode(parent.0).and_then(|parent_inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .rmdir(&Self::context(req, 0), parent_inode, name)
@@ -992,15 +962,15 @@ impl Filesystem for AfsFuse {
     }
 
     fn symlink(
-        &mut self,
-        req: &Request<'_>,
-        parent: u64,
+        &self,
+        req: &Request,
+        parent: INodeNo,
         name: &OsStr,
         target: &Path,
         reply: ReplyEntry,
     ) {
         self.record_request("symlink");
-        let result = self.backend_inode(parent).and_then(|parent_inode| {
+        let result = self.backend_inode(parent.0).and_then(|parent_inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .symlink(
@@ -1015,33 +985,33 @@ impl Filesystem for AfsFuse {
         match result {
             Ok(entry) => {
                 let ino = self.state.lock().unwrap().remember_lookup(&entry);
-                reply.entry(&TTL, &file_attr(ino, &entry.attributes), 0);
+                reply.entry(&TTL, &file_attr(ino, &entry.attributes), Generation(0));
             }
-            Err(error) => reply.error(error),
+            Err(error) => reply.error(fuse_errno(error)),
         }
     }
 
     fn rename(
-        &mut self,
-        req: &Request<'_>,
-        parent: u64,
+        &self,
+        req: &Request,
+        parent: INodeNo,
         name: &OsStr,
-        newparent: u64,
+        newparent: INodeNo,
         newname: &OsStr,
-        flags: u32,
+        flags: FuseRenameFlags,
         reply: ReplyEmpty,
     ) {
         self.record_request("rename");
         afs_logging::debug!(
             "fuse.rename";
-            "parent" => parent,
+            "parent" => parent.0,
             "name" => name.to_string_lossy().into_owned(),
-            "newparent" => newparent,
+            "newparent" => newparent.0,
             "newname" => newname.to_string_lossy().into_owned(),
-            "flags" => flags,
+            "flags" => flags.bits(),
         );
-        let result = self.backend_inode(parent).and_then(|from_parent| {
-            let to_parent = self.backend_inode(newparent)?;
+        let result = self.backend_inode(parent.0).and_then(|from_parent| {
+            let to_parent = self.backend_inode(newparent.0)?;
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .rename(
@@ -1050,7 +1020,7 @@ impl Filesystem for AfsFuse {
                         name,
                         to_parent,
                         newname,
-                        RenameFlags(flags),
+                        RenameFlags(flags.bits()),
                     )
                     .map_err(errno)
             })
@@ -1059,16 +1029,16 @@ impl Filesystem for AfsFuse {
     }
 
     fn link(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
-        newparent: u64,
+        &self,
+        req: &Request,
+        ino: INodeNo,
+        newparent: INodeNo,
         newname: &OsStr,
         reply: ReplyEntry,
     ) {
         self.record_request("link");
-        let result = self.backend_inode(ino).and_then(|inode| {
-            let parent = self.backend_inode(newparent)?;
+        let result = self.backend_inode(ino.0).and_then(|inode| {
+            let parent = self.backend_inode(newparent.0)?;
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .link(&Self::context(req, 0), inode, parent, newname)
@@ -1078,20 +1048,22 @@ impl Filesystem for AfsFuse {
         match result {
             Ok(entry) => {
                 let ino = self.state.lock().unwrap().remember_lookup(&entry);
-                reply.entry(&TTL, &file_attr(ino, &entry.attributes), 0);
+                reply.entry(&TTL, &file_attr(ino, &entry.attributes), Generation(0));
             }
-            Err(error) => reply.error(error),
+            Err(error) => reply.error(fuse_errno(error)),
         }
     }
 
-    fn open(&mut self, req: &Request<'_>, ino: u64, flags: i32, open_flags: u32, reply: ReplyOpen) {
+    fn open(&self, req: &Request, ino: INodeNo, flags: OpenFlags, reply: ReplyOpen) {
         self.record_request("open");
+        let ino = ino.0;
+        let flags = flags.0;
         let Ok(inode) = self.backend_inode(ino) else {
-            reply.error(libc::ESTALE);
+            reply.error(fuse_errno(libc::ESTALE));
             return;
         };
         let options = OpenOptions {
-            kill_suidgid: open_flags & consts::FUSE_OPEN_KILL_SUIDGID != 0,
+            kill_suidgid: false,
         };
         // The kernel cannot submit operations on this fh until open replies.
         // This lets independent writable opens overlap with read-only ones;
@@ -1107,10 +1079,10 @@ impl Filesystem for AfsFuse {
                     let fh = self.state.lock().unwrap().insert_file_handle(handle);
                     self.file_handle_inodes.lock().unwrap().insert(fh, ino);
                     self.with_cache_policy(inode, |_, private| {
-                        reply.opened(fh, if private { 0 } else { DIRECT_IO });
+                        reply.opened(FuseFileHandle(fh), open_reply_flags(!private));
                     });
                 }
-                Err(error) => reply.error(error),
+                Err(error) => reply.error(fuse_errno(error)),
             }
             return;
         }
@@ -1143,13 +1115,13 @@ impl Filesystem for AfsFuse {
                     #[cfg(feature = "ownerfs")]
                     if let Some(ownerfs) = &ownerfs {
                         ownerfs.with_fuse_cache_policy(inode, |_, private| {
-                            reply.opened(fh, if private { 0 } else { DIRECT_IO });
+                            reply.opened(FuseFileHandle(fh), open_reply_flags(!private));
                         });
                         return;
                     }
-                    reply.opened(fh, if cached_io { 0 } else { DIRECT_IO });
+                    reply.opened(FuseFileHandle(fh), open_reply_flags(!cached_io));
                 }
-                Err(error) => reply.error(error),
+                Err(error) => reply.error(fuse_errno(error)),
             }
         };
         if inline_local_read {
@@ -1160,17 +1132,19 @@ impl Filesystem for AfsFuse {
     }
 
     fn read(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        offset: i64,
+        &self,
+        req: &Request,
+        ino: INodeNo,
+        fh: FuseFileHandle,
+        offset: u64,
         size: u32,
-        _flags: i32,
-        _lock_owner: Option<u64>,
+        _flags: OpenFlags,
+        _lock_owner: Option<LockOwner>,
         reply: ReplyData,
     ) {
         self.record_request("read");
+        let ino = ino.0;
+        let fh = fh.0;
         let inline_local_read = self
             .state
             .lock()
@@ -1181,23 +1155,27 @@ impl Filesystem for AfsFuse {
         let state = self.state.clone();
         let context = Self::context(req, 0);
         if inline_local_read {
-            let result = checked_offset(offset).and_then(|offset| {
-                let file = state.lock().unwrap().file_handle(fh).ok_or(libc::ESTALE)?;
-                AfsFuse::validate_handle_inode_in(&state, ino)?;
-                inline_local_read_data(&mut self.inline_local_read_scratch, size as usize, |out| {
+            let mut scratch = self.inline_local_read_scratch.lock().unwrap();
+            let file = state.lock().unwrap().file_handle(fh);
+            let file = file
+                .ok_or(libc::ESTALE)
+                .and_then(|file| AfsFuse::validate_handle_inode_in(&state, ino).map(|()| file));
+            let result = match file {
+                Ok(file) => inline_local_read_data(&mut scratch, size as usize, |out| {
                     backend
                         .read(&context, file.handle, offset, out)
                         .map_err(errno)
-                })
-            });
+                }),
+                Err(error) => Err(error),
+            };
             match result {
                 Ok(data) => reply.data(&data),
-                Err(error) => reply.error(error),
+                Err(error) => reply.error(fuse_errno(error)),
             }
             return;
         }
         let run = move || {
-            let result = checked_offset(offset).and_then(|offset| {
+            let result = (|| {
                 let file = state.lock().unwrap().file_handle(fh).ok_or(libc::ESTALE)?;
                 AfsFuse::validate_handle_inode_in(&state, ino)?;
                 let mut out = vec![0; size as usize];
@@ -1210,37 +1188,39 @@ impl Filesystem for AfsFuse {
                         })
                         .map_err(errno)
                 })
-            });
+            })();
             match result {
                 Ok(data) => reply.data(&data),
-                Err(error) => reply.error(error),
+                Err(error) => reply.error(fuse_errno(error)),
             }
         };
         self.dispatch.submit_keyed(fh, run);
     }
 
     fn write(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        offset: i64,
+        &self,
+        req: &Request,
+        ino: INodeNo,
+        fh: FuseFileHandle,
+        offset: u64,
         data: &[u8],
-        write_flags: u32,
-        _flags: i32,
-        _lock_owner: Option<u64>,
+        write_flags: WriteFlags,
+        _flags: OpenFlags,
+        _lock_owner: Option<LockOwner>,
         reply: ReplyWrite,
     ) {
         self.record_request("write");
+        let ino = ino.0;
+        let fh = fh.0;
         let backend = self.backend.clone();
         let state = self.state.clone();
         let context = Self::context(req, 0);
         let data = data.to_vec();
         let options = WriteOptions {
-            kill_suidgid: write_flags & consts::FUSE_WRITE_KILL_SUIDGID != 0,
+            kill_suidgid: write_kill_suidgid(write_flags),
         };
         self.dispatch.submit_keyed(fh, move || {
-            let result = checked_offset(offset).and_then(|offset| {
+            let result = (|| {
                 let file = state.lock().unwrap().file_handle(fh).ok_or(libc::ESTALE)?;
                 AfsFuse::validate_handle_inode_in(&state, ino)?;
                 Ok(backend.as_ref()).and_then(|backend| {
@@ -1248,19 +1228,28 @@ impl Filesystem for AfsFuse {
                         .write_with_options(&context, file.handle, offset, &data, options)
                         .map_err(errno)
                 })
-            });
+            })();
             match result {
                 Ok(written) => match u32::try_from(written) {
                     Ok(written) => reply.written(written),
-                    Err(_) => reply.error(libc::EIO),
+                    Err(_) => reply.error(fuse_errno(libc::EIO)),
                 },
-                Err(error) => reply.error(error),
+                Err(error) => reply.error(fuse_errno(error)),
             }
         });
     }
 
-    fn flush(&mut self, req: &Request<'_>, ino: u64, fh: u64, lock_owner: u64, reply: ReplyEmpty) {
+    fn flush(
+        &self,
+        req: &Request,
+        ino: INodeNo,
+        fh: FuseFileHandle,
+        lock_owner: LockOwner,
+        reply: ReplyEmpty,
+    ) {
         self.record_request("flush");
+        let ino = ino.0;
+        let fh = fh.0;
         let inline_local_read = self
             .state
             .lock()
@@ -1301,16 +1290,18 @@ impl Filesystem for AfsFuse {
     }
 
     fn release(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        _flags: i32,
-        lock_owner: Option<u64>,
+        &self,
+        req: &Request,
+        ino: INodeNo,
+        fh: FuseFileHandle,
+        _flags: OpenFlags,
+        lock_owner: Option<LockOwner>,
         _flush: bool,
         reply: ReplyEmpty,
     ) {
         self.record_request("release");
+        let ino = ino.0;
+        let fh = fh.0;
         let inline_local_read = self
             .state
             .lock()
@@ -1349,8 +1340,17 @@ impl Filesystem for AfsFuse {
         }
     }
 
-    fn fsync(&mut self, req: &Request<'_>, ino: u64, fh: u64, datasync: bool, reply: ReplyEmpty) {
+    fn fsync(
+        &self,
+        req: &Request,
+        ino: INodeNo,
+        fh: FuseFileHandle,
+        datasync: bool,
+        reply: ReplyEmpty,
+    ) {
         self.record_request("fsync");
+        let ino = ino.0;
+        let fh = fh.0;
         let inline_local_read = self
             .state
             .lock()
@@ -1379,8 +1379,9 @@ impl Filesystem for AfsFuse {
         }
     }
 
-    fn opendir(&mut self, req: &Request<'_>, ino: u64, _flags: i32, reply: ReplyOpen) {
+    fn opendir(&self, req: &Request, ino: INodeNo, _flags: OpenFlags, reply: ReplyOpen) {
         self.record_request("opendir");
+        let ino = ino.0;
         let node = self.state.lock().unwrap().node(ino);
         match node {
             Some(FuseNode::Root(_)) | Some(FuseNode::Backend(_)) => {
@@ -1392,24 +1393,26 @@ impl Filesystem for AfsFuse {
                 match result {
                     Ok(handle) => {
                         let fh = self.state.lock().unwrap().insert_directory_handle(handle);
-                        reply.opened(fh, 0);
+                        reply.opened(FuseFileHandle(fh), FopenFlags::empty());
                     }
-                    Err(error) => reply.error(error),
+                    Err(error) => reply.error(fuse_errno(error)),
                 }
             }
-            None => reply.error(libc::ESTALE),
+            None => reply.error(fuse_errno(libc::ESTALE)),
         }
     }
 
     fn readdir(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        offset: i64,
+        &self,
+        req: &Request,
+        ino: INodeNo,
+        fh: FuseFileHandle,
+        offset: u64,
         mut reply: ReplyDirectory,
     ) {
         self.record_request("readdir");
+        let ino = ino.0;
+        let fh = fh.0;
         let node = self.state.lock().unwrap().node(ino);
         match node {
             Some(FuseNode::Root(_)) | Some(FuseNode::Backend(_)) => {
@@ -1434,15 +1437,24 @@ impl Filesystem for AfsFuse {
                         );
                         reply.ok();
                     }
-                    Err(error) => reply.error(error),
+                    Err(error) => reply.error(fuse_errno(error)),
                 }
             }
-            None => reply.error(libc::ESTALE),
+            None => reply.error(fuse_errno(libc::ESTALE)),
         }
     }
 
-    fn releasedir(&mut self, req: &Request<'_>, ino: u64, fh: u64, _flags: i32, reply: ReplyEmpty) {
+    fn releasedir(
+        &self,
+        req: &Request,
+        ino: INodeNo,
+        fh: FuseFileHandle,
+        _flags: OpenFlags,
+        reply: ReplyEmpty,
+    ) {
         self.record_request("releasedir");
+        let ino = ino.0;
+        let fh = fh.0;
         let directory = self.state.lock().unwrap().remove_directory_handle(fh);
         let result = directory.ok_or(libc::ESTALE).and_then(|directory| {
             self.validate_handle_inode(ino)?;
@@ -1456,14 +1468,16 @@ impl Filesystem for AfsFuse {
     }
 
     fn fsyncdir(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
-        fh: u64,
+        &self,
+        req: &Request,
+        ino: INodeNo,
+        fh: FuseFileHandle,
         datasync: bool,
         reply: ReplyEmpty,
     ) {
         self.record_request("fsyncdir");
+        let ino = ino.0;
+        let fh = fh.0;
         let directory = self.state.lock().unwrap().directory_handle(fh);
         let result = directory.ok_or(libc::ESTALE).and_then(|directory| {
             self.validate_handle_inode(ino)?;
@@ -1481,22 +1495,21 @@ impl Filesystem for AfsFuse {
     }
 
     fn create(
-        &mut self,
-        req: &Request<'_>,
-        parent: u64,
+        &self,
+        req: &Request,
+        parent: INodeNo,
         name: &OsStr,
         mode: u32,
         umask: u32,
         flags: i32,
-        open_flags: u32,
         reply: ReplyCreate,
     ) {
         self.record_request("create");
-        afs_logging::info!("fuse.create"; "parent" => parent, "name" => name.to_string_lossy().into_owned());
+        afs_logging::info!("fuse.create"; "parent" => parent.0, "name" => name.to_string_lossy().into_owned());
         let options = OpenOptions {
-            kill_suidgid: open_flags & consts::FUSE_OPEN_KILL_SUIDGID != 0,
+            kill_suidgid: false,
         };
-        let result = self.backend_inode(parent).and_then(|parent_inode| {
+        let result = self.backend_inode(parent.0).and_then(|parent_inode| {
             Ok(self.backend.as_ref()).and_then(|backend| {
                 backend
                     .create_with_options(
@@ -1524,147 +1537,55 @@ impl Filesystem for AfsFuse {
                     reply.created(
                         &ttl,
                         &file_attr(ino, &created.entry.attributes),
-                        0,
-                        fh,
-                        if private || self.cached_io {
-                            0
-                        } else {
-                            DIRECT_IO
-                        },
+                        Generation(0),
+                        FuseFileHandle(fh),
+                        open_reply_flags(!private && !self.cached_io),
                     )
                 });
             }
-            Err(error) => reply.error(error),
+            Err(error) => reply.error(fuse_errno(error)),
         }
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn getlk_with_options(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        lock_owner: u64,
+    fn getlk(
+        &self,
+        _req: &Request,
+        _ino: INodeNo,
+        _fh: FuseFileHandle,
+        _lock_owner: LockOwner,
         start: u64,
         end: u64,
         typ: i32,
-        pid: u32,
-        options: LockOptions,
+        _pid: u32,
         reply: ReplyLock,
     ) {
-        self.record_request("getlk_with_options");
-        let backend = self.backend.clone();
-        let state = self.state.clone();
-        let file_handle_inodes = self.file_handle_inodes.clone();
-        let context = Self::context(req, 0);
-        let owner = self.file_lock_owner(lock_owner);
-        let result = self.backend_inode(ino).and_then(|inode| {
-            let handle = Self::file_handle_for_inode_in(&state, &file_handle_inodes, ino, fh)?;
-            let request = lock_request(options, owner, pid, start, end, typ)?;
-            Ok((inode, handle, request))
-        });
-        self.dispatch.submit(move || {
-            let result = result.and_then(|(inode, handle, request)| {
-                backend
-                    .getlk(&context, inode, handle, request)
-                    .map_err(errno)
-            });
-            match result {
-                Ok(Some(conflict)) => reply_conflict(reply, &conflict),
-                Ok(None) => reply.locked(start, end, libc::F_UNLCK, 0),
-                Err(error) => reply.error(error),
-            }
-        });
+        self.record_request("getlk");
+        reply.error(fuse_errno(unsupported_lock_errno(start, end, typ)));
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn setlk_with_options(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
-        fh: u64,
-        lock_owner: u64,
+    fn setlk(
+        &self,
+        _req: &Request,
+        _ino: INodeNo,
+        _fh: FuseFileHandle,
+        _lock_owner: LockOwner,
         start: u64,
         end: u64,
         typ: i32,
-        pid: u32,
-        sleep: bool,
-        options: LockOptions,
+        _pid: u32,
+        _sleep: bool,
         reply: ReplyEmpty,
     ) {
-        self.record_request("setlk_with_options");
-        let owner = self.file_lock_owner(lock_owner);
-        let unique = req.unique();
-        let waiter = sleep.then(|| self.lock_waiter_id(unique));
-        let registered_and_interrupted = waiter
-            .clone()
-            .is_some_and(|waiter| self.pending_locks.register(unique, waiter));
-        if registered_and_interrupted {
-            self.pending_locks.finish(unique);
-            reply.error(libc::EINTR);
-            return;
-        }
-
-        let backend = self.backend.clone();
-        let state = self.state.clone();
-        let file_handle_inodes = self.file_handle_inodes.clone();
-        let context = Self::context(req, 0);
-        let pending = self.pending_locks.clone();
-        let result = self.backend_inode(ino).and_then(|inode| {
-            let handle = Self::file_handle_for_inode_in(&state, &file_handle_inodes, ino, fh)?;
-            let request = lock_request(options, owner, pid, start, end, typ)?;
-            Ok((inode, handle, request))
-        });
-        let reply = Arc::new(Mutex::new(Some(reply)));
-        let run = {
-            let reply = reply.clone();
-            move || {
-                let result = result.and_then(|(inode, handle, request)| {
-                    backend
-                        .setlk(&context, inode, handle, request, waiter)
-                        .map_err(errno)
-                });
-                if sleep {
-                    pending.finish(unique);
-                }
-                if let Some(reply) = reply.lock().unwrap().take() {
-                    reply_empty(reply, result);
-                }
-            }
-        };
-        if sleep {
-            let pending = self.pending_locks.clone();
-            let reply = reply.clone();
-            self.lock_dispatch.try_submit_or_reject(
-                move || -> FuseJob { Box::new(run) },
-                move || {
-                    pending.finish(unique);
-                    if let Some(reply) = reply.lock().unwrap().take() {
-                        reply.error(libc::ENOLCK);
-                    }
-                },
-            );
-        } else {
-            self.dispatch.submit_keyed(fh, run);
-        }
-    }
-
-    fn interrupt(&mut self, _: &Request<'_>, unique: u64, reply: ReplyEmpty) {
-        self.record_request("interrupt");
-        let Some(waiter) = self.pending_locks.interrupt(unique) else {
-            reply.error(libc::EAGAIN);
-            return;
-        };
-        match self.backend.cancel_lock_wait(waiter).map_err(errno) {
-            Ok(()) => reply.ok(),
-            Err(error) => reply.error(error),
-        }
+        self.record_request("setlk");
+        reply.error(fuse_errno(unsupported_lock_errno(start, end, typ)));
     }
 
     fn mknod(
-        &mut self,
-        req: &Request<'_>,
-        parent: u64,
+        &self,
+        req: &Request,
+        parent: INodeNo,
         name: &OsStr,
         mode: u32,
         umask: u32,
@@ -1672,6 +1593,7 @@ impl Filesystem for AfsFuse {
         reply: ReplyEntry,
     ) {
         self.record_request("mknod");
+        let parent = parent.0;
         let raw_kind = mode & libc::S_IFMT;
         let context = Self::metadata_context(req, umask);
         let permissions = mode & !libc::S_IFMT;
@@ -1735,28 +1657,21 @@ impl Filesystem for AfsFuse {
             Ok(entry) => {
                 let ino = self.state.lock().unwrap().remember_lookup(&entry);
                 self.remember_cached_inode(entry.inode, ino);
-                reply.entry(&TTL, &file_attr(ino, &entry.attributes), 0);
+                reply.entry(&TTL, &file_attr(ino, &entry.attributes), Generation(0));
             }
-            Err(error) => reply.error(error),
+            Err(error) => reply.error(fuse_errno(error)),
         }
     }
 
-    fn access(&mut self, _: &Request<'_>, _: u64, _: i32, reply: ReplyEmpty) {
+    fn access(&self, _: &Request, _: INodeNo, _: AccessFlags, reply: ReplyEmpty) {
         self.record_request("access");
-        reply.error(libc::ENOSYS);
+        reply.error(fuse_errno(libc::ENOSYS));
     }
 
-    fn getxattr(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
-        name: &OsStr,
-        size: u32,
-        reply: ReplyXattr,
-    ) {
+    fn getxattr(&self, req: &Request, ino: INodeNo, name: &OsStr, size: u32, reply: ReplyXattr) {
         self.record_request("getxattr");
-        let Ok(inode) = self.backend_inode(ino) else {
-            reply.error(libc::ESTALE);
+        let Ok(inode) = self.backend_inode(ino.0) else {
+            reply.error(fuse_errno(libc::ESTALE));
             return;
         };
         let backend = self.backend.clone();
@@ -1767,10 +1682,10 @@ impl Filesystem for AfsFuse {
         });
     }
 
-    fn listxattr(&mut self, req: &Request<'_>, ino: u64, size: u32, reply: ReplyXattr) {
+    fn listxattr(&self, req: &Request, ino: INodeNo, size: u32, reply: ReplyXattr) {
         self.record_request("listxattr");
-        let Ok(inode) = self.backend_inode(ino) else {
-            reply.error(libc::ESTALE);
+        let Ok(inode) = self.backend_inode(ino.0) else {
+            reply.error(fuse_errno(libc::ESTALE));
             return;
         };
         let backend = self.backend.clone();
@@ -1781,9 +1696,9 @@ impl Filesystem for AfsFuse {
     }
 
     fn setxattr(
-        &mut self,
-        req: &Request<'_>,
-        ino: u64,
+        &self,
+        req: &Request,
+        ino: INodeNo,
         name: &OsStr,
         value: &[u8],
         flags: i32,
@@ -1792,11 +1707,11 @@ impl Filesystem for AfsFuse {
     ) {
         self.record_request("setxattr");
         if let Err(error) = validate_xattr_set(flags, position) {
-            reply.error(error);
+            reply.error(fuse_errno(error));
             return;
         }
-        let Ok(inode) = self.backend_inode(ino) else {
-            reply.error(libc::ESTALE);
+        let Ok(inode) = self.backend_inode(ino.0) else {
+            reply.error(fuse_errno(libc::ESTALE));
             return;
         };
         let backend = self.backend.clone();
@@ -1813,10 +1728,10 @@ impl Filesystem for AfsFuse {
         });
     }
 
-    fn removexattr(&mut self, req: &Request<'_>, ino: u64, name: &OsStr, reply: ReplyEmpty) {
+    fn removexattr(&self, req: &Request, ino: INodeNo, name: &OsStr, reply: ReplyEmpty) {
         self.record_request("removexattr");
-        let Ok(inode) = self.backend_inode(ino) else {
-            reply.error(libc::ESTALE);
+        let Ok(inode) = self.backend_inode(ino.0) else {
+            reply.error(fuse_errno(libc::ESTALE));
             return;
         };
         let backend = self.backend.clone();
@@ -1851,12 +1766,12 @@ fn add_backend_entries(
     state: &mut FuseState,
     reply: &mut ReplyDirectory,
     parent: u64,
-    offset: i64,
+    offset: u64,
     entries: &[DirectoryEntry],
 ) {
-    if offset <= 0 {
-        let _ = reply.add(parent, 1, FileType::Directory, ".");
-        let _ = reply.add(ROOT_INO, 2, FileType::Directory, "..");
+    if offset == 0 {
+        let _ = reply.add(INodeNo(parent), 1, FileType::Directory, ".");
+        let _ = reply.add(INodeNo(ROOT_INO), 2, FileType::Directory, "..");
     }
     for entry in entries {
         let fuse_entry = Entry {
@@ -1875,20 +1790,20 @@ fn add_backend_entries(
             },
         };
         let ino = state.remember_readdir_entry(&fuse_entry);
-        let cookie = i64::try_from(entry.next_cookie.max(3)).unwrap_or(i64::MAX);
-        if reply.add(ino, cookie, file_type(entry.kind), &entry.name) {
+        let cookie = entry.next_cookie.max(3);
+        if reply.add(INodeNo(ino), cookie, file_type(entry.kind), &entry.name) {
             break;
         }
     }
 }
 
-fn backend_cookie(offset: i64) -> u64 {
-    if offset <= 2 { 0 } else { offset as u64 }
+fn backend_cookie(offset: u64) -> u64 {
+    if offset <= 2 { 0 } else { offset }
 }
 
 fn file_attr(ino: u64, attributes: &FileAttributes) -> FileAttr {
     FileAttr {
-        ino,
+        ino: INodeNo(ino),
         size: attributes.size,
         blocks: attributes.blocks,
         atime: attributes.atime,
@@ -1940,14 +1855,48 @@ fn file_rdev(kind: FileKind) -> u32 {
     }
 }
 
-fn checked_offset(offset: i64) -> std::result::Result<u64, i32> {
-    u64::try_from(offset).map_err(|_| libc::EINVAL)
-}
-
 fn reply_empty(reply: ReplyEmpty, result: std::result::Result<(), i32>) {
     match result {
         Ok(()) => reply.ok(),
-        Err(error) => reply.error(error),
+        Err(error) => reply.error(fuse_errno(error)),
+    }
+}
+
+fn fuse_errno(error: i32) -> Errno {
+    Errno::from_i32(error)
+}
+
+fn requested_init_flags() -> InitFlags {
+    // Linux otherwise serializes LOOKUPs in one directory even when our FUSE
+    // receive thread dispatches them to independent workers. Direct-IO mmap is
+    // requested so mmap on direct_io handles remains capability-gated; ordinary
+    // read/write still use FOPEN_DIRECT_IO for close-to-open freshness.
+    InitFlags::FUSE_PARALLEL_DIROPS | InitFlags::FUSE_DIRECT_IO_ALLOW_MMAP
+}
+
+fn negotiated_init_flags(available: InitFlags) -> impl Iterator<Item = InitFlags> {
+    requested_init_flags()
+        .iter()
+        .filter(move |capability| available.contains(*capability))
+}
+
+fn write_kill_suidgid(write_flags: WriteFlags) -> bool {
+    write_flags.contains(WriteFlags::FUSE_WRITE_KILL_SUIDGID)
+}
+
+fn open_reply_flags(direct_io: bool) -> FopenFlags {
+    if direct_io {
+        DIRECT_IO
+    } else {
+        FopenFlags::empty()
+    }
+}
+
+fn unsupported_lock_errno(start: u64, end: u64, typ: i32) -> i32 {
+    if start > end || !matches!(typ, libc::F_RDLCK | libc::F_WRLCK | libc::F_UNLCK) {
+        libc::EINVAL
+    } else {
+        libc::EOPNOTSUPP
     }
 }
 
@@ -1976,9 +1925,9 @@ fn reply_xattr(reply: ReplyXattr, requested: u32, result: Result<Vec<u8>>) {
         Ok(data) => match xattr_response_size(data.len(), requested) {
             Ok(Some(size)) => reply.size(size),
             Ok(None) => reply.data(&data),
-            Err(error) => reply.error(error),
+            Err(error) => reply.error(fuse_errno(error)),
         },
-        Err(error) => reply.error(errno(error)),
+        Err(error) => reply.error(fuse_errno(errno(error))),
     }
 }
 
@@ -2006,61 +1955,6 @@ fn sync_mode(datasync: bool) -> SyncMode {
 fn next_ingress_session_id() -> String {
     let sequence = NEXT_INGRESS_SESSION.fetch_add(1, Ordering::Relaxed);
     format!("fuse-{}-{sequence}", std::process::id())
-}
-
-fn lock_kind(options: LockOptions) -> FileLockKind {
-    if options.is_flock() {
-        FileLockKind::Flock
-    } else {
-        FileLockKind::Posix
-    }
-}
-
-fn lock_type(typ: i32) -> std::result::Result<FileLockType, i32> {
-    match typ {
-        libc::F_RDLCK => Ok(FileLockType::Read),
-        libc::F_WRLCK => Ok(FileLockType::Write),
-        libc::F_UNLCK => Ok(FileLockType::Unlock),
-        _ => Err(libc::EINVAL),
-    }
-}
-
-fn linux_lock_type(lock_type: FileLockType) -> i32 {
-    match lock_type {
-        FileLockType::Read => libc::F_RDLCK,
-        FileLockType::Write => libc::F_WRLCK,
-        FileLockType::Unlock => libc::F_UNLCK,
-    }
-}
-
-fn lock_request(
-    options: LockOptions,
-    owner: FileLockOwner,
-    pid: u32,
-    start: u64,
-    end: u64,
-    typ: i32,
-) -> std::result::Result<LockRequest, i32> {
-    let range = FileLockRange { start, end };
-    if !range.is_valid() {
-        return Err(libc::EINVAL);
-    }
-    Ok(LockRequest {
-        kind: lock_kind(options),
-        owner,
-        pid,
-        range,
-        lock_type: lock_type(typ)?,
-    })
-}
-
-fn reply_conflict(reply: ReplyLock, conflict: &FileLockConflict) {
-    reply.locked(
-        conflict.range.start,
-        conflict.range.end,
-        linux_lock_type(conflict.lock_type),
-        conflict.pid,
-    );
 }
 
 fn combine_empty_results(
@@ -2583,96 +2477,37 @@ mod dispatch_tests {
     }
 
     #[test]
-    fn lock_request_conversion_preserves_flock_namespace_and_unlock() {
-        let owner = super::FileLockOwner {
-            ingress_session_id: "mount-a".to_owned(),
-            kernel_owner: 55,
-        };
-        let request = super::lock_request(
-            fuser::LockOptions {
-                flags: fuser::consts::FUSE_LK_FLOCK,
-            },
-            owner.clone(),
-            123,
-            10,
-            99,
-            libc::F_UNLCK,
-        )
-        .unwrap();
+    fn official_fuser_delivery_does_not_request_lock_or_killpriv_capabilities() {
+        let flags = super::requested_init_flags();
+        assert!(flags.contains(fuser::InitFlags::FUSE_PARALLEL_DIROPS));
+        assert!(flags.contains(fuser::InitFlags::FUSE_DIRECT_IO_ALLOW_MMAP));
+        assert!(!flags.contains(fuser::InitFlags::FUSE_POSIX_LOCKS));
+        assert!(!flags.contains(fuser::InitFlags::FUSE_FLOCK_LOCKS));
+        assert!(!flags.contains(fuser::InitFlags::FUSE_HANDLE_KILLPRIV));
+        assert!(!flags.contains(fuser::InitFlags::FUSE_HANDLE_KILLPRIV_V2));
+    }
 
-        assert_eq!(request.kind, super::FileLockKind::Flock);
-        assert_eq!(request.owner, owner);
-        assert_eq!(request.pid, 123);
-        assert_eq!(request.range, super::FileLockRange { start: 10, end: 99 });
-        assert_eq!(request.lock_type, super::FileLockType::Unlock);
-        assert_eq!(super::linux_lock_type(request.lock_type), libc::F_UNLCK);
+    #[test]
+    fn init_capabilities_are_requested_independently() {
+        let available = fuser::InitFlags::FUSE_DIRECT_IO_ALLOW_MMAP;
+        let negotiated = super::negotiated_init_flags(available)
+            .fold(fuser::InitFlags::empty(), |flags, capability| {
+                flags | capability
+            });
+        assert!(negotiated.contains(fuser::InitFlags::FUSE_DIRECT_IO_ALLOW_MMAP));
+        assert!(!negotiated.contains(fuser::InitFlags::FUSE_PARALLEL_DIROPS));
+    }
+
+    #[test]
+    fn fuser_lock_callbacks_reject_user_space_locking_explicitly() {
         assert_eq!(
-            super::lock_request(
-                fuser::LockOptions::default(),
-                request.owner,
-                123,
-                100,
-                99,
-                libc::F_WRLCK,
-            )
-            .unwrap_err(),
+            super::unsupported_lock_errno(0, 99, libc::F_RDLCK),
+            libc::EOPNOTSUPP
+        );
+        assert_eq!(
+            super::unsupported_lock_errno(10, 9, libc::F_WRLCK),
             libc::EINVAL
         );
-    }
-
-    #[test]
-    fn pending_lock_registry_remembers_interrupt_before_worker_registration() {
-        let registry = super::PendingLockRegistry::default();
-        assert_eq!(registry.interrupt(88), None);
-        let waiter = super::LockWaiterId {
-            ingress_session_id: "mount-a".to_owned(),
-            request_id: 88,
-        };
-        assert!(registry.register(88, waiter.clone()));
-        assert_eq!(registry.interrupt(88), Some(waiter));
-        registry.finish(88);
-        assert_eq!(registry.interrupt(88), None);
-    }
-
-    #[test]
-    fn blocking_lock_pool_rejects_when_queue_is_full_without_running_inline() {
-        let dispatch = FuseDispatch::new(1);
-        let (started_tx, started_rx) = mpsc::channel();
-        let (release_tx, release_rx) = mpsc::channel();
-        let mut release_rx = Some(release_rx);
-
-        for index in 0..8 {
-            let started_tx = started_tx.clone();
-            if index == 0 {
-                let release_rx = release_rx.take().unwrap();
-                dispatch.submit(move || {
-                    started_tx.send(index).unwrap();
-                    release_rx.recv().unwrap();
-                });
-            } else {
-                dispatch.submit(move || {
-                    started_tx.send(index).unwrap();
-                });
-            }
-        }
-        assert_eq!(started_rx.recv_timeout(Duration::from_secs(1)).unwrap(), 0);
-
-        let (rejected_tx, rejected_rx) = mpsc::channel();
-        dispatch.try_submit_or_reject(
-            || -> super::FuseJob {
-                Box::new(move || {
-                    panic!("full blocking lock pool ran a rejected job inline");
-                })
-            },
-            move || rejected_tx.send(()).unwrap(),
-        );
-        rejected_rx.recv_timeout(Duration::from_secs(1)).unwrap();
-        release_tx.send(()).unwrap();
-        for expected in 1..8 {
-            assert_eq!(
-                started_rx.recv_timeout(Duration::from_secs(1)).unwrap(),
-                expected
-            );
-        }
+        assert_eq!(super::unsupported_lock_errno(0, 9, -1), libc::EINVAL);
     }
 }

@@ -1,3 +1,9 @@
+**当前出口（2026-10-09，G2.04/G2.14）：** [远端 statfs 修复及限定回归](evidence/20261009-owner-remote-statfs/README.md)通过：Linux release Node/Meta 构建、严格 ownerfs,rdma Clippy 和针对性合同测试通过；Node217＋既有Meta650在真实Home bind ON/C远端FUSE下，Home容量、UID501跨节点写入/重开读取/重命名/删除、pjdfstest smoke4/241 TAP及三正常wait0通过。完整236首次零TAP失败保留，不升级为完整POSIX；新构建Meta尚未实跑。
+
+**决策／下一（G2.27）：** 现在冻结候选，集中完成可编译、可安装、可运行及local-file恢复的阶段性交付，不再追加性能优化。新候选包/安装/恢复待验；d47已发布ON包保留原结论。未完成功能、性能、复杂可靠性和R2官方fuser迁移明确保留，G1历史8/8关闭、G2原12/0/15不变。
+
+以下为历史时点记录，原版本、范围和结论保留；旧下一步由上述当前入口替代。
+
 **当前出口（2026-10-09，G2.09一次Moose对照已收口）：** mainf57/产品53e、Meta650/Node b62；原B/ext4/local-file/OFF数据，64MiB/C1/1MiB，一预热五交替正式对照。功能限定PASS、测量COMPLETE；吞吐5706.058/19695.507MiB/s=0.289714×、独立p95 0.226087/0.035667ms=6.338829×，两项FAIL，未达1.2/.8。双方物理全热；客户端Owner0/Moose64MiB为测前默认策略差异，明确披露。五actualwait0、原数据/配置/ELF/挂载恢复及Linux保存数据审计通过。[完整范围和证据](evidence/20261009-owner-local-read-moose-b62/README.md)。无新产品改动/包，不重跑本项或扩本地矩阵；返回bind/远端主线，既有远端READ吞吐FAIL/p95PASS、R2未完成及用户暂缓专题不变，G1历史8/8和原G2 12/0/15不变。
 
 以下日期快照保留原版本、原判据与原结论；当前入口以上述结果为准。
@@ -136,6 +142,18 @@ The required usage enables **OwnerFs workspace bind mount**. First deliver usabl
 Large/long/complex reliability, multi-Meta, etcd and Redis stay deferred. Reuse unaffected version-scoped standard/recovery/performance proofs. Once a real gap is measured, optimize one main product issue per round with same-condition before/after metrics and correctness; no endless measurement qualification or tiny-residual polishing. Package/install at the explicit ON delivery node, not every small change.
 
 Record **function / measurement / performance / delivery** independently under existing IDs. Tool readiness, evidence checks, document updates and commit counts do not close product goals or increase original stage counts. G1 historical 8/8 stays closed; current regressions belong to G2. Report only ID/exit, newly closed subclaims, actual product change/metrics, failures/evidence and next item.
+
+### 阶段性集成收尾（2026-10-09，现有 G2.27 交付子项）
+
+当前停止新增性能试改，先收住已开始的远端 `statfs` 修复，再固定可编译、可安装、可运行的候选。此次收尾不要求完成全部 G2/G3，也不改变性能目标或历史结论。
+
+| 收尾出口 | 所需证据 | 当前版本的处理方式 |
+| --- | --- | --- |
+| 可编译 | Linux 固定源码输入、构建命令/退出码、Node/Meta ELF 身份 | 构建待交付候选，不能以历史构建或版本号代替 |
+| 可安装、可运行 | 对应包、明确 ON 配置，真实 Home bind 与远端核心操作、正常退出及 local-file 恢复 | 只补受实际改动影响的检查；未受影响证据按版本与范围复用，打包安装集中完成 |
+| 边界可交接 | 当前通过、历史通过、待回归与已知限制分别登记，源码/包/证据可追溯 | 性能差距、扩展功能和复杂可靠性列入后续，不假称已完成 |
+
+完整 POSIX、全部 MooseFS/3FS 性能目标、大规模/长时间及复杂可靠性不是本次阶段收尾前置。当前支持流程中的数据错误、越权、错误成功或核心恢复缺陷仍须解决。第三方原版一致性整改 R2 保持独立未完成，不以可运行或阶段一 8/8 宣称其已解决；本收尾本身不代表已合入 GitCode。
 
 
 

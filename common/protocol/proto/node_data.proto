@@ -248,6 +248,7 @@ message DfsReadRangesFrame {
 service OwnerFiles {
   rpc Lookup(OwnerLookupRequest) returns (OwnerLookupReply);
   rpc GetAttr(OwnerGetAttrRequest) returns (OwnerGetAttrReply);
+  rpc StatFs(OwnerStatFsRequest) returns (OwnerStatFsReply);
   rpc SetAttr(OwnerSetAttrRequest) returns (OwnerSetAttrReply);
   rpc GetXattr(OwnerGetXattrRequest) returns (OwnerGetXattrReply);
   rpc ListXattr(OwnerListXattrRequest) returns (OwnerListXattrReply);
@@ -394,6 +395,27 @@ message OwnerGetAttrRequest {
 message OwnerGetAttrReply {
   OwnerFileAttr attr = 1;
   string owner_session_id = 2;
+}
+
+message OwnerFilesystemCapacity {
+  uint64 blocks = 1;
+  uint64 bfree = 2;
+  uint64 bavail = 3;
+  uint64 files = 4;
+  uint64 ffree = 5;
+  uint32 bsize = 6;
+  uint32 namelen = 7;
+  uint32 frsize = 8;
+}
+
+message OwnerStatFsRequest {
+  RootAccess access = 1;
+  bytes path = 2;
+  FileIdentity expected_file_identity = 3;
+}
+
+message OwnerStatFsReply {
+  OwnerFilesystemCapacity capacity = 1;
 }
 
 message OwnerCaller {

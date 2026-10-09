@@ -100,6 +100,8 @@ G3 is deferred. Long soak, broad random/POSIX matrices, complex fault matrices, 
 
 ## Immediate sequence
 
+2026-10-09 阶段性收尾覆盖当前下一步：收住已开始的远端 statfs 缺口，固定候选，完成 Linux 构建、对应安装包与必要运行/恢复核对，登记已知限制后准备集成。按 [G2.27 有限收尾出口](trial-release-goals.md) 执行；不再新增性能试改，不要求全部 G2/G3 先完成。G1 历史 8/8 关闭，当前版本仅补受影响回归。R2 第三方一致性保持独立未完成。收尾后继续以下既定顺序。
+
 The required usage enables **OwnerFs workspace bind mount**. First deliver usable bind ON with correct remote access, then close the relevant performance gaps. Ordinary distribution defaults remain OFF; this scenario must have an explicit ON configuration and runtime evidence.
 
 1. **G2.12** finite necessary functional closure and ON scenario trial delivery; **G2.13** reuse the eight scoped core performance passes (>=0.90 native ext4), regress only affected cases.

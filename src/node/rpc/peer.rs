@@ -49,7 +49,7 @@ use afs_protocol::node_data::{
     OwnerOpenRequest, OwnerOpendirRequest, OwnerReadRequest, OwnerReaddirRequest,
     OwnerReadlinkRequest, OwnerReleaseDirRequest, OwnerReleaseRequest, OwnerRemoveXattrRequest,
     OwnerRenameRequest, OwnerRmdirRequest, OwnerSetAttr, OwnerSetAttrRequest, OwnerSetXattrRequest,
-    OwnerSymlinkRequest, OwnerUnlinkRequest, OwnerWriteRequest, RootAccess,
+    OwnerStatFsRequest, OwnerSymlinkRequest, OwnerUnlinkRequest, OwnerWriteRequest, RootAccess,
     owner_files_client::OwnerFilesClient,
 };
 use afs_protocol::node_data::{
@@ -81,8 +81,8 @@ use crate::node::vfs::{
         root::RootGrant,
     },
     types::{
-        AttributeChange, FileAttributes, FileKind, OpenOptions, RenameFlags, RequestContext,
-        SetAttrOptions, SpecialFileKind, WriteOptions,
+        AttributeChange, FileAttributes, FileKind, FilesystemCapacity, OpenOptions, RenameFlags,
+        RequestContext, SetAttrOptions, SpecialFileKind, WriteOptions,
     },
 };
 
@@ -2931,6 +2931,24 @@ impl RemoteFiles for OwnerPeerClient {
         owner_entry(grant, reply.attr)
     }
 
+    fn statfs(
+        &self,
+        grant: &RootGrant,
+        path: &OsStr,
+        expected_identity: Option<&FileIdentity>,
+    ) -> afs_error::Result<FilesystemCapacity> {
+        let reply = owner_rpc!(
+            self,
+            stat_fs,
+            OwnerStatFsRequest {
+                access: Some(root_access(grant)),
+                path: path.as_bytes().to_vec(),
+                expected_file_identity: expected_identity.map(file_identity),
+            }
+        );
+        filesystem_capacity(reply.capacity)
+    }
+
     fn setattr_with_options(
         &self,
         ctx: &RequestContext,
@@ -4254,6 +4272,32 @@ fn file_attributes(attr: OwnerFileAttr) -> afs_error::Result<FileAttributes> {
         atime: ns_to_time(attr.atime_ns),
         mtime: ns_to_time(attr.mtime_ns),
         ctime: ns_to_time(attr.ctime_ns),
+    })
+}
+
+#[cfg(feature = "ownerfs")]
+fn filesystem_capacity(
+    capacity: Option<afs_protocol::node_data::OwnerFilesystemCapacity>,
+) -> afs_error::Result<FilesystemCapacity> {
+    let capacity = capacity.ok_or_else(|| protocol_error("OwnerStatFsReply missing capacity"))?;
+    if capacity.bsize == 0 || capacity.frsize == 0 || capacity.namelen == 0 {
+        return Err(protocol_error("OwnerStatFsReply capacity shape is invalid"));
+    }
+    if capacity.blocks < capacity.bfree || capacity.bfree < capacity.bavail {
+        return Err(protocol_error("OwnerStatFsReply free blocks are invalid"));
+    }
+    if capacity.files < capacity.ffree {
+        return Err(protocol_error("OwnerStatFsReply free files are invalid"));
+    }
+    Ok(FilesystemCapacity {
+        blocks: capacity.blocks,
+        bfree: capacity.bfree,
+        bavail: capacity.bavail,
+        files: capacity.files,
+        ffree: capacity.ffree,
+        bsize: capacity.bsize,
+        namelen: capacity.namelen,
+        frsize: capacity.frsize,
     })
 }
 

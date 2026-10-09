@@ -15,8 +15,9 @@ use super::{
 
 use crate::node::vfs::locks::{LockRequest, LockWaiterId, LockWaiterOutcome};
 use crate::node::vfs::types::{
-    AttributeChange, FileAttributes, FileLockConflict, FileLockOwner, OpenOptions, ReleaseKind,
-    RenameFlags, RequestContext, SetAttrOptions, SpecialFileKind, WriteOptions,
+    AttributeChange, FileAttributes, FileLockConflict, FileLockOwner, FilesystemCapacity,
+    OpenOptions, ReleaseKind, RenameFlags, RequestContext, SetAttrOptions, SpecialFileKind,
+    WriteOptions,
 };
 
 /// `create` 的远端结果必须同时返回目录项和打开句柄，匹配 FUSE/POSIX 的
@@ -89,6 +90,12 @@ pub trait RemoteFiles: Send + Sync {
         expected_identity: Option<&FileIdentity>,
         file: Option<&RemoteFile>,
     ) -> Result<OwnerEntry>;
+    fn statfs(
+        &self,
+        grant: &RootGrant,
+        path: &OsStr,
+        expected_identity: Option<&FileIdentity>,
+    ) -> Result<FilesystemCapacity>;
     fn setattr(
         &self,
         ctx: &RequestContext,

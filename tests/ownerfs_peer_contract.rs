@@ -11,7 +11,7 @@ use std::{
 use afs::node::rpc::{
     control::{PeerSessionIdentity, RDMA_HANDSHAKE_VERSION, RdmaSessionRegistry},
     data::{OwnerFilesHandler, OwnerFilesService},
-    peer::DataMode as ClientDataMode,
+    peer::{DataMode as ClientDataMode, owner_files_client_from_channel_with_runtime},
 };
 use afs::node::{
     rpc::{
@@ -49,7 +49,8 @@ use afs_protocol::node_data::{
 };
 #[cfg(feature = "rdma")]
 use afs_protocol::node_data::{
-    OwnerFileAttr, OwnerFileKind, OwnerFsyncRequest, OwnerHandle, OwnerOpenReply, OwnerReadReply,
+    OwnerFileAttr, OwnerFileKind, OwnerFilesystemCapacity, OwnerFsyncRequest, OwnerHandle,
+    OwnerOpenReply, OwnerReadReply, OwnerStatFsReply, OwnerStatFsRequest,
     owner_files_server::OwnerFilesServer,
 };
 #[cfg(feature = "rdma")]
@@ -620,6 +621,41 @@ async fn owner_rdma_fixture_with_authority(
 }
 
 #[cfg(feature = "rdma")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ownerfiles_mtls_statfs_roundtrip_reports_home_capacity() {
+    let fixture = owner_rdma_fixture(None, "statfs-home").await;
+    let expected = LocalFs::open(fixture._temp.path())
+        .expect("localfs")
+        .statvfs()
+        .expect("fixture capacity");
+    let client = owner_files_client_from_channel_with_runtime(
+        fixture.channel.clone(),
+        tokio::runtime::Handle::current(),
+    );
+
+    let grant = fixture.grant.clone();
+    let capacity = tokio::task::spawn_blocking(move || {
+        client
+            .statfs(&grant, OsStr::new(""), None)
+            .expect("statfs over OwnerFiles")
+    })
+    .await
+    .expect("statfs worker");
+
+    assert_eq!(capacity.blocks, expected.blocks);
+    assert_eq!(capacity.files, expected.files);
+    assert_eq!(capacity.bsize, expected.bsize);
+    assert_eq!(capacity.frsize, expected.frsize);
+    assert_eq!(capacity.namelen, expected.namelen);
+    assert!(capacity.bfree <= capacity.blocks);
+    assert!(capacity.bavail <= capacity.bfree);
+    assert!(capacity.ffree <= capacity.files);
+    assert_eq!(*fixture.meta.validate_calls.lock().unwrap(), 1);
+
+    fixture.server.abort();
+}
+
+#[cfg(feature = "rdma")]
 #[derive(Default)]
 struct PrefetchDespiteDisableHandler {
     open_disable_prefetch: Mutex<Vec<bool>>,
@@ -683,8 +719,64 @@ impl OwnerFilesHandler for PrefetchDespiteDisableHandler {
 }
 
 #[cfg(feature = "rdma")]
+#[derive(Default)]
+struct MalformedStatFsHandler;
+
+#[cfg(feature = "rdma")]
+impl OwnerFilesHandler for MalformedStatFsHandler {
+    fn statfs(
+        &self,
+        authenticated_peer_node_id: &str,
+        _request: OwnerStatFsRequest,
+    ) -> afs_error::Result<OwnerStatFsReply> {
+        assert_eq!(authenticated_peer_node_id, "node-b");
+        Ok(OwnerStatFsReply {
+            capacity: Some(OwnerFilesystemCapacity {
+                blocks: 1,
+                bfree: 2,
+                bavail: 0,
+                files: 1,
+                ffree: 0,
+                bsize: 0,
+                namelen: 255,
+                frsize: 4096,
+            }),
+        })
+    }
+}
+
+#[cfg(feature = "rdma")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ownerpeerclient_rejects_malformed_statfs_capacity_shape() {
+    let (channel, server) = prefetch_despite_disable_server(Arc::new(MalformedStatFsHandler)).await;
+    let grant = RootGrant {
+        id: RootId("statfs-shape".to_owned()),
+        epoch: 1,
+        home_node_id: "node-a".to_owned(),
+        home_session_id: "session-a".to_owned(),
+        holder_node_id: "node-b".to_owned(),
+        session_id: "session-b".to_owned(),
+        access_generation: 1,
+        rights: vec![RootRight::Read],
+        fencing_token: "fence".to_owned(),
+    };
+    let client =
+        owner_files_client_from_channel_with_runtime(channel, tokio::runtime::Handle::current());
+
+    let error = tokio::task::spawn_blocking(move || {
+        client.statfs(&grant, OsStr::new(""), None).unwrap_err()
+    })
+    .await
+    .expect("statfs worker");
+
+    assert_eq!(error.code(), afs_error::CLIENT_PROTOCOL_VIOLATION);
+    assert!(error.message().contains("capacity shape"));
+    server.abort();
+}
+
+#[cfg(feature = "rdma")]
 async fn prefetch_despite_disable_server(
-    handler: Arc<PrefetchDespiteDisableHandler>,
+    handler: Arc<dyn OwnerFilesHandler>,
 ) -> (Channel, tokio::task::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let endpoint = format!(
@@ -694,11 +786,8 @@ async fn prefetch_despite_disable_server(
     let server_tls = ServerTlsConfig::new()
         .client_ca_root(Certificate::from_pem(CA_PEM))
         .identity(Identity::from_pem(SERVER_CERT_PEM, SERVER_KEY_PEM));
-    let service_handler: Arc<dyn OwnerFilesHandler> = handler;
-    let owner_files = OwnerFilesServer::new(OwnerFilesService::new(
-        service_handler,
-        Arc::new(RequireMtlsNodeB),
-    ));
+    let owner_files =
+        OwnerFilesServer::new(OwnerFilesService::new(handler, Arc::new(RequireMtlsNodeB)));
     let server = tokio::spawn(async move {
         Server::builder()
             .tls_config(server_tls)

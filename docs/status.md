@@ -1,3 +1,9 @@
+**当前出口（2026-10-09，G2.04/G2.14）：** [远端 statfs 修复及限定回归](../development/evidence/20261009-owner-remote-statfs/README.md)通过：Linux release Node/Meta 构建、严格 ownerfs,rdma Clippy 和针对性合同测试通过；Node217＋既有Meta650在真实Home bind ON/C远端FUSE下，Home容量、UID501跨节点写入/重开读取/重命名/删除、pjdfstest smoke4/241 TAP及三正常wait0通过。完整236首次零TAP失败保留，不升级为完整POSIX；新构建Meta尚未实跑。
+
+**决策／下一（G2.27）：** 现在冻结候选，集中完成可编译、可安装、可运行及local-file恢复的阶段性交付，不再追加性能优化。新候选包/安装/恢复待验；d47已发布ON包保留原结论。未完成功能、性能、复杂可靠性和R2官方fuser迁移明确保留，G1历史8/8关闭、G2原12/0/15不变。
+
+以下为历史时点记录，原版本、范围和结论保留；旧下一步由上述当前入口替代。
+
 **当前出口（2026-10-09，G2.21维护观察器接线与当前B/C测量收口）：** [本轮证据](../development/evidence/20261009-dfs-read-maintained/README.md)。维护观察器早已正确，前轮误用旧存档；原15guards精确SHA复用，新接线5Linux guards通过。当前Meta650/Nodesb62一次64MiB/R3 B/C各1预热5正式读，吞吐46.324/46.686MiB/s，独立预设p95 24.804/24.787ms；内容/EOF、读前liveR3及48物理身份、四wait0/原身份恢复限定PASS。汇总器identity字段误读使pair FAIL，候选未启/改善未测，生产64KiB保持；准备symlink失败与原KeyError均保留，无重跑正式读/修VM。959raw及138guest实际Linux恢复后，仅回收本轮232596160B重复ELF（逻辑字节）和两归档链接；无新产品改动/最终性能达标。下一Owner远端一项产品成本，不再重试扫描微调；G1历史8/8、原G2 12/0/15、Owner性能FAIL和用户后置专题不变。
 
 以下日期快照保留原版本、原判据与原结论；当前入口以上述结果为准。

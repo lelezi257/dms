@@ -398,6 +398,16 @@ impl OwnerFsPeerExecutor {
             .peer_getattr(peer_node_id, access, path, expected, file)
     }
 
+    pub fn statfs(
+        &self,
+        peer_node_id: &str,
+        access: &PresentedRootAccess,
+        path: &OsStr,
+        expected: Option<&files::FileIdentity>,
+    ) -> Result<FilesystemCapacity> {
+        self.local.peer_statfs(peer_node_id, access, path, expected)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         &self,
@@ -2371,6 +2381,26 @@ impl LocalOwnerFs {
         self.owner_entry_for_path(&access.id, storage_path_from_os(path)?, expected)
     }
 
+    fn peer_statfs(
+        &self,
+        peer_node_id: &str,
+        access: &PresentedRootAccess,
+        path: &OsStr,
+        expected: Option<&files::FileIdentity>,
+    ) -> Result<FilesystemCapacity> {
+        self.validate_peer(access, peer_node_id, RootRight::Read)?;
+        let relative = storage_path_from_os(path)?;
+        let root_use = self.roots.enter_root(&access.id, RootRight::Read)?;
+        let physical = root_use
+            .data_dir()
+            .join_path(&relative)
+            .map_err(Error::from)?;
+        let metadata = self.disk.metadata(&physical).map_err(Error::from)?;
+        let identity = identity_from_metadata(&metadata)?;
+        check_expected_identity(expected, &identity)?;
+        self.disk.statvfs().map_err(Error::from)
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn peer_create_with_options(
         &self,
@@ -3548,15 +3578,17 @@ impl LocalOwnerFs {
                     .map_err(|_| poisoned())?
                     .get(&record.root_id)
                     .is_some_and(|remote| remote.grant.home_node_id != remote.grant.holder_node_id);
-                if remote_home {
-                    Err(Error::coded(
-                        afs_error::NODE_VFS_UNIMPLEMENTED,
-                        "remote OwnerFs statfs requires OwnerFiles capacity RPC",
-                    ))
-                } else {
+                if !remote_home {
                     // Revoked local authority is not evidence of a remote Home.
-                    Err(error)
+                    return Err(error);
                 }
+                self.with_remote_root_retry(&record.root_id, RootRight::Read, |remote| {
+                    remote.files.statfs(
+                        &remote.grant,
+                        record.relative.as_path().as_os_str(),
+                        Some(&record.identity),
+                    )
+                })
             }
             Err(error) => Err(error),
         }
@@ -7326,6 +7358,8 @@ mod tests {
         root_id: RootId,
         restarted: Arc<AtomicBool>,
         lookup_calls: AtomicUsize,
+        statfs_calls: AtomicUsize,
+        fail_statfs_permission: AtomicBool,
         open_calls: AtomicUsize,
         last_open_killpriv: AtomicBool,
     }
@@ -7437,6 +7471,15 @@ mod tests {
             _: Option<&files::FileIdentity>,
             _: Option<&files::RemoteFile>,
         ) -> Result<files::OwnerEntry> {
+            self.unsupported()
+        }
+
+        fn statfs(
+            &self,
+            _: &RootGrant,
+            _: &OsStr,
+            _: Option<&files::FileIdentity>,
+        ) -> Result<FilesystemCapacity> {
             self.unsupported()
         }
 
@@ -7742,6 +7785,48 @@ mod tests {
             Err(Error::coded(afs_error::NODE_VFS_UNIMPLEMENTED, "test"))
         }
 
+        fn statfs(
+            &self,
+            grant: &RootGrant,
+            path: &OsStr,
+            expected: Option<&files::FileIdentity>,
+        ) -> Result<FilesystemCapacity> {
+            self.statfs_calls.fetch_add(1, Ordering::SeqCst);
+            if grant.home_session_id == "home-old" {
+                self.restarted.store(true, Ordering::SeqCst);
+                return Err(Error::coded(
+                    afs_error::NODE_OWNER_INVALID_GRANT,
+                    "old home session",
+                ));
+            }
+            if self.fail_statfs_permission.swap(false, Ordering::SeqCst) {
+                return Err(Error::coded(
+                    afs_error::IO_PERMISSION_DENIED,
+                    "injected remote statfs permission denial",
+                ));
+            }
+            self.reject_old_child_access(grant, path)?;
+            if !path.as_bytes().is_empty()
+                && expected
+                    .is_some_and(|expected| expected != &self.entry(FileKind::Regular).identity)
+            {
+                return Err(Error::coded(
+                    afs_error::NODE_OWNER_STALE_HANDLE,
+                    "statfs identity mismatch",
+                ));
+            }
+            Ok(FilesystemCapacity {
+                blocks: 98_765,
+                bfree: 90_000,
+                bavail: 89_000,
+                files: 4_321,
+                ffree: 4_000,
+                bsize: 8_192,
+                namelen: 255,
+                frsize: 4_096,
+            })
+        }
+
         fn setattr(
             &self,
             _: &RequestContext,
@@ -8036,6 +8121,8 @@ mod tests {
             root_id: root_id.clone(),
             restarted,
             lookup_calls: AtomicUsize::new(0),
+            statfs_calls: AtomicUsize::new(0),
+            fail_statfs_permission: AtomicBool::new(false),
             open_calls: AtomicUsize::new(0),
             last_open_killpriv: AtomicBool::new(false),
         });
@@ -10958,16 +11045,106 @@ mod tests {
     }
 
     #[test]
-    fn remote_home_statfs_fails_closed_until_ownerfiles_rpc_exists() {
-        let (_temp, fs, ctx, _meta, _remote, _root_id) = remote_fixture();
+    fn remote_home_statfs_reports_home_capacity_through_ownerfiles_rpc() {
+        let (_temp, fs, ctx, _meta, remote, _root_id) = remote_fixture();
         let root = BackendInode {
             value: OWNERFS_ROOT_INODE,
         };
         let workspace = fs.lookup(&ctx, root, OsStr::new("job-42")).unwrap();
 
+        let capacity = fs.statfs(&ctx, workspace.inode).unwrap();
+        let local_capacity = fs.require_local().unwrap().disk.statvfs().unwrap();
+
+        assert_eq!(capacity.blocks, 98_765);
+        assert_ne!(capacity.blocks, local_capacity.blocks);
+        assert_eq!(capacity.bsize, 8_192);
+        assert_eq!(capacity.frsize, 4_096);
+        assert_eq!(remote.statfs_calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn remote_home_statfs_preserves_ownerfiles_error_errno() {
+        let (_temp, fs, ctx, _meta, remote, _root_id) = remote_fixture();
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        let workspace = fs.lookup(&ctx, root, OsStr::new("job-42")).unwrap();
+        assert!(fs.statfs(&ctx, workspace.inode).is_ok());
+        remote.fail_statfs_permission.store(true, Ordering::SeqCst);
+
         let error = fs.statfs(&ctx, workspace.inode).unwrap_err();
 
-        assert_eq!(error.code(), afs_error::NODE_VFS_UNIMPLEMENTED);
+        assert_eq!(error.code(), afs_error::IO_PERMISSION_DENIED);
+    }
+
+    #[test]
+    fn peer_statfs_requires_read_epoch_and_identity() {
+        let (_temp, fs, ctx) = fixture();
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        let workspace = fs
+            .mkdir(&ctx, root, OsStr::new("job-peer-statfs"), 0o755)
+            .unwrap();
+        let local = fs.require_local().unwrap();
+        let executor = fs.peer_executor().unwrap();
+        let record = local.record(workspace.inode.value).unwrap();
+        let grant = test_grant(record.root_id.clone());
+        let access = presented(&grant);
+        let path = record.relative.as_path().as_os_str();
+
+        let capacity = executor
+            .statfs("node-b", &access, path, Some(&record.identity))
+            .unwrap();
+        assert!(capacity.blocks > 0);
+
+        let wrong_peer = executor
+            .statfs("node-c", &access, path, Some(&record.identity))
+            .unwrap_err();
+        assert_eq!(wrong_peer.code(), afs_error::NODE_OWNER_INVALID_GRANT);
+
+        let mut stale_epoch = access.clone();
+        stale_epoch.epoch = stale_epoch.epoch.saturating_add(1);
+        let stale_epoch_error = executor
+            .statfs("node-b", &stale_epoch, path, Some(&record.identity))
+            .unwrap_err();
+        assert_eq!(
+            stale_epoch_error.code(),
+            afs_error::NODE_OWNER_INVALID_GRANT
+        );
+
+        let wrong_identity = executor
+            .statfs(
+                "node-b",
+                &access,
+                path,
+                Some(&files::FileIdentity(b"wrong-statfs-identity".to_vec())),
+            )
+            .unwrap_err();
+        assert_eq!(wrong_identity.code(), afs_error::NODE_OWNER_STALE_HANDLE);
+    }
+
+    #[test]
+    fn peer_statfs_requires_root_read_right() {
+        let (_temp, fs, ctx) = fixture_with_rights(vec![RootRight::Lookup, RootRight::Write]);
+        let root = BackendInode {
+            value: OWNERFS_ROOT_INODE,
+        };
+        let workspace = fs
+            .mkdir(&ctx, root, OsStr::new("job-peer-statfs-no-read"), 0o755)
+            .unwrap();
+        let local = fs.require_local().unwrap();
+        let executor = fs.peer_executor().unwrap();
+        let record = local.record(workspace.inode.value).unwrap();
+        let grant = test_grant(record.root_id.clone());
+        let access = presented(&grant);
+        let path = record.relative.as_path().as_os_str();
+
+        let error = executor
+            .statfs("node-b", &access, path, Some(&record.identity))
+            .unwrap_err();
+
+        assert_eq!(error.code(), afs_error::NODE_OWNER_RIGHT_DENIED);
     }
 
     #[test]
@@ -11973,6 +12150,8 @@ mod tests {
             root_id: binding.root_id.clone(),
             restarted: Arc::new(AtomicBool::new(false)),
             lookup_calls: AtomicUsize::new(0),
+            statfs_calls: AtomicUsize::new(0),
+            fail_statfs_permission: AtomicBool::new(false),
             open_calls: AtomicUsize::new(0),
             last_open_killpriv: AtomicBool::new(false),
         });

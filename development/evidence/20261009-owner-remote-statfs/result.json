@@ -1,0 +1,65 @@
+{
+  "task_ids": [
+    "G2.04",
+    "G2.14",
+    "G2.27"
+  ],
+  "source_base": "ba30cffdb1aba4c5207d426d580ba8849dc00940",
+  "candidate": {
+    "input_manifest_sha256": "3f40769b6b3ebff62c47e5061c1b27288d191617a35990038d0d3738feb3d912",
+    "input_map_sha256": "dc06adcc9f8ddb1270b1ac9911755c01345b2698925aa8ee8e37238d9abd6651",
+    "node_bytes": 25219504,
+    "node_sha256": "217993272a77a830b0bd491d71e07cd598ba71779d6dfda8ab18ec4cb7716672",
+    "patch_sha256": "0085f370c76d2d175aa86670f18b3c8f3d8873936a46b08751b3bc5fa5eede16",
+    "performance": "NOT_RUN",
+    "release_build_returncode": 0,
+    "release_meta_built": {
+      "bytes": 15793600,
+      "sha256": "cda97aa819c7784f1f9a6ef86bff9958d117fdb4b0fb63b20a96f0b2b19eaa9e"
+    },
+    "runtime_meta_sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
+    "source": "ba30cffdb1aba4c5207d426d580ba8849dc00940+working-tree",
+    "source_base": "ba30cffdb1aba4c5207d426d580ba8849dc00940"
+  },
+  "function": "PASS_REMOTE_STATFS_AND_LIMITED_CORE",
+  "measurement": "NOT_RUN",
+  "performance": "NOT_EVALUATED",
+  "delivery": "NEW_FIXED_PACKAGE_PENDING",
+  "standard": {
+    "suite_revision": "d25636a227606f8960e5179741d8f4ad7030ef41",
+    "elf_sha256": "83f27ae21a4de5c2dabc447238c83f21c1a17558e61762ec52fe7ffbcf61f780",
+    "discovered": 236,
+    "selected": 4,
+    "completed": 4,
+    "not_selected": 232,
+    "tap_planned": 241,
+    "tap_ok": 241,
+    "unexpected_fail": 0,
+    "skip": 0,
+    "todo": 0,
+    "profile": "smoke",
+    "full_posix": false
+  },
+  "core": "UID501/gid501 create/update/fdatasync/close/fresh remote and physical Home read/rename/delete; eight receipts",
+  "lifecycle": {
+    "actual_wait0": 3,
+    "original_payload_identity_unchanged": true,
+    "protected_unchanged": true,
+    "status": "PASS"
+  },
+  "validation": [
+    "Linux fmt PASS",
+    "Linux release afs-node + afs-meta build PASS",
+    "Linux workspace/all-targets ownerfs,rdma check and strict Clippy PASS",
+    "remote capacity stale-grant retry, permission and identity rejection, malformed reply and mTLS contract tests PASS"
+  ],
+  "g1": "HISTORICAL_8_OF_8_CLOSED",
+  "g2_counts_unchanged": "12 limited complete / 0 bind in progress / 15 pending",
+  "remaining": [
+    "New fixed candidate package/install/local-file recovery not yet verified",
+    "Full remote POSIX remains pending; original 236-script/zero-TAP failure preserved",
+    "Owner performance conjunction not met; DFS/3FS pending",
+    "R2 official fuser migration remains unresolved",
+    "Extended functionality and complex reliability deferred"
+  ]
+}

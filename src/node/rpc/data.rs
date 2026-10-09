@@ -1645,8 +1645,8 @@ use afs_protocol::node_data::{
     OwnerReleaseDirRequest, OwnerReleaseReply, OwnerReleaseRequest, OwnerRemoveXattrReply,
     OwnerRemoveXattrRequest, OwnerRenameReply, OwnerRenameRequest, OwnerRmdirReply,
     OwnerRmdirRequest, OwnerSetAttrReply, OwnerSetAttrRequest, OwnerSetXattrReply,
-    OwnerSetXattrRequest, OwnerSymlinkReply, OwnerSymlinkRequest, OwnerUnlinkReply,
-    OwnerUnlinkRequest, OwnerWriteReply, OwnerWriteRequest,
+    OwnerSetXattrRequest, OwnerStatFsReply, OwnerStatFsRequest, OwnerSymlinkReply,
+    OwnerSymlinkRequest, OwnerUnlinkReply, OwnerUnlinkRequest, OwnerWriteReply, OwnerWriteRequest,
     owner_files_server::{OwnerFiles, OwnerFilesServer},
 };
 
@@ -1658,8 +1658,8 @@ use crate::node::vfs::{
         root::{PresentedRootAccess, RootId},
     },
     types::{
-        AttributeChange, FileAttributes, FileKind, OpenOptions, RenameFlags, RequestContext,
-        SetAttrOptions, SpecialFileKind, WriteOptions,
+        AttributeChange, FileAttributes, FileKind, FilesystemCapacity, OpenOptions, RenameFlags,
+        RequestContext, SetAttrOptions, SpecialFileKind, WriteOptions,
     },
 };
 
@@ -1687,6 +1687,14 @@ pub trait OwnerFilesHandler: Send + Sync + 'static {
     ) -> afs_error::Result<OwnerGetAttrReply> {
         let _ = (authenticated_peer_node_id, request);
         Err(owner_handler_unimplemented("OwnerFiles.GetAttr"))
+    }
+    fn statfs(
+        &self,
+        authenticated_peer_node_id: &str,
+        request: OwnerStatFsRequest,
+    ) -> afs_error::Result<OwnerStatFsReply> {
+        let _ = (authenticated_peer_node_id, request);
+        Err(owner_handler_unimplemented("OwnerFiles.StatFs"))
     }
     fn set_attr(
         &self,
@@ -1968,6 +1976,26 @@ impl OwnerFilesHandler for OwnerFsPeerHandler {
         Ok(OwnerGetAttrReply {
             attr: Some(owner_attr(entry.identity, entry.attributes)),
             owner_session_id: access.home_session_id,
+        })
+    }
+
+    fn statfs(
+        &self,
+        authenticated_peer_node_id: &str,
+        request: OwnerStatFsRequest,
+    ) -> afs_error::Result<OwnerStatFsReply> {
+        let access = presented_access(request.access)?;
+        let expected = request
+            .expected_file_identity
+            .map(|identity| FileIdentity(identity.opaque));
+        let capacity = self.executor.statfs(
+            authenticated_peer_node_id,
+            &access,
+            &path_os(request.path),
+            expected.as_ref(),
+        )?;
+        Ok(OwnerStatFsReply {
+            capacity: Some(owner_capacity(capacity)),
         })
     }
 
@@ -2709,6 +2737,22 @@ fn owner_attr(
 }
 
 #[cfg(feature = "ownerfs")]
+fn owner_capacity(
+    capacity: FilesystemCapacity,
+) -> afs_protocol::node_data::OwnerFilesystemCapacity {
+    afs_protocol::node_data::OwnerFilesystemCapacity {
+        blocks: capacity.blocks,
+        bfree: capacity.bfree,
+        bavail: capacity.bavail,
+        files: capacity.files,
+        ffree: capacity.ffree,
+        bsize: capacity.bsize,
+        namelen: capacity.namelen,
+        frsize: capacity.frsize,
+    }
+}
+
+#[cfg(feature = "ownerfs")]
 fn owner_kind(
     kind: FileKind,
 ) -> (
@@ -3360,6 +3404,16 @@ impl OwnerFiles for OwnerFilesService {
     ) -> Result<Response<OwnerGetAttrReply>, Status> {
         self.dispatch(request, "OwnerFiles.GetAttr", |handler, peer, request| {
             handler.get_attr(&peer, request)
+        })
+        .await
+    }
+
+    async fn stat_fs(
+        &self,
+        request: Request<OwnerStatFsRequest>,
+    ) -> Result<Response<OwnerStatFsReply>, Status> {
+        self.dispatch(request, "OwnerFiles.StatFs", |handler, peer, request| {
+            handler.statfs(&peer, request)
         })
         .await
     }

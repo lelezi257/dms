@@ -1,0 +1,96 @@
+{
+  "external_directory": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1",
+  "archive": {
+    "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/raw-evidence.tar",
+    "bytes": 1853440,
+    "sha256": "1e95219f9e2e30b163eb112520d859dff23367e2c3b1c554145be578c2b01905",
+    "source_files": 678,
+    "unique_members": 450,
+    "duplicate_aliases": 228
+  },
+  "files": [
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/raw-evidence-index.json",
+      "sha256": "8d373c0694c0b1dc055767ec0337c30d1f6be43b8e563013d363f2589c66d4fc"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/compiler-inputs.json",
+      "sha256": "3f40769b6b3ebff62c47e5061c1b27288d191617a35990038d0d3738feb3d912"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/saved-data-audit.json",
+      "sha256": "727567c14e48f6515d215f0c798be9518ecdb5cb024ba9c2ed6b89ffaa389c84"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/archive-restoration.json",
+      "sha256": "d1a3f7644bcdcc6fa1ba0ad9246c9bdb70d2ea834a10c3ea4dffc0615799c10e"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/release-build.result.json",
+      "sha256": "44f51361382767298648a2dedaa5d375e145cf83e1c5b7ada9ac03a5c58c2bc8"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/final-clippy.result.json",
+      "sha256": "9c44f2f8bb257f452a1caaa08d6b7866fc4e9591fb33cc25ef28e9e73c2af964"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/run-result.json",
+      "sha256": "9927b3f57368b33d9ec5a0f822f5e8d94dd14ddde596bd10e91519caa87fbc51"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/statfs-runtime.json",
+      "sha256": "8b8f7b842cfe4f7ecfbc181bf86051e7e9354dcd2a2e5a6bd953f51e7770c0b6"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/tiny-remote-correctness.json",
+      "sha256": "dd282737dbd81f2cfe57dd5f25d0dda15ba36d20f3c5deb38dd6f398dd430601"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/closure.json",
+      "sha256": "ce6642f20737cc55f204c05f0db4239fd54be2af1a6bcb92b2b4dede39cef4b8"
+    },
+    {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/restoration.json",
+      "sha256": "63329c246310f84fae7bf56d94b411a6825e37082c99ebeaa0d2e59b50860426"
+    }
+  ],
+  "restoration": {
+    "archive_sha256": "1e95219f9e2e30b163eb112520d859dff23367e2c3b1c554145be578c2b01905",
+    "external_elf_restoration": [
+      {
+        "bytes": 25219504,
+        "path": "/workspace/dms/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/candidate-node",
+        "sha256": "217993272a77a830b0bd491d71e07cd598ba71779d6dfda8ab18ec4cb7716672"
+      },
+      {
+        "bytes": 25122568,
+        "path": "/workspace/dms/evidence/afs-delivery/owner-local-read-scratch-20261009-r1/candidate-node",
+        "sha256": "b62ade56fb2b06e3110b9c762c2393c5f1ef5c23b0a64123f2fa7702f11bf50b"
+      },
+      {
+        "bytes": 15808368,
+        "path": "/workspace/dms/evidence/afs-delivery/owner-local-read-scratch-20261009-r1/current-meta",
+        "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+      }
+    ],
+    "files": 678,
+    "status": "PASS_ACTUAL_LINUX_EXTRACTION",
+    "unique_members": 450
+  },
+  "fixed_external_elf_references": [
+    {
+      "bytes": 15808368,
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/candidate-meta",
+      "reason": "fixed ELF reference outside Git; not copied into text archive",
+      "sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58"
+    },
+    {
+      "bytes": 25219504,
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/candidate-node",
+      "reason": "fixed ELF reference outside Git; not copied into text archive",
+      "sha256": "217993272a77a830b0bd491d71e07cd598ba71779d6dfda8ab18ec4cb7716672"
+    }
+  ],
+  "earlier_failure": "../20261009-owner-remote-standard/README.md",
+  "note": "Raw logs/scripts/ELFs remain outside Git; fix raw-output.md is explicitly transcribed, fresh rerun/build/Clippy/runtime logs are raw."
+}

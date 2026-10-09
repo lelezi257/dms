@@ -1,0 +1,15 @@
+# OwnerFs bind ON / remote FUSE standard supplement — first run
+
+**Function: FAIL (remote statfs unimplemented); POSIX assertions: 0; performance: NOT EVALUATED.** [Result](result.json). This is a new functional scope under G2.04/G2.14, not reopening historical G1 8/8, G2.04 local full-suite results or G2.12 finite ON delivery. Original G2 counts remain12/0/15.
+
+Main at run `ba30cffdb1aba4c5207d426d580ba8849dc00940`; selected product inputs `53e33587ab4dbce92c4a62ace608fb2137acbd9b`, Meta650/Node b62 exact SHA in result. Existing ctl/B/C ARM64 Linux/ext4 fixture, local-file Meta, B real physical Home directory bound over FUSE first-level workspace, C remote FUSE with no bind cover. Necessary tools, suite Git/ELF identity, mounts, stopped services and space were checked before startup. No environment rebuild, dependency install or third-party change.
+
+Pinned suite `d25636a227606f8960e5179741d8f4ad7030ef41`, ELF `83f27ae21a4de5c2dabc447238c83f21c1a17558e61762ec52fe7ffbcf61f780`; all236 scripts selected with1800s timeout and no exclusions. They exited during `df .` filesystem identification:236 occurrences of `Function not implemented`, **zero TAP assertions**. Script invocation/completion counts do not prove semantic coverage; the canonical driver correctly reported FAIL, without timeout. Existing source explicitly requires an OwnerFiles capacity RPC for remote statfs; reporting C disk capacity or injecting a suite filesystem type would hide this product gap.
+
+Canonical host identity checks passed before/after for live ctl Meta/C Node, mount stability and complete raw artifact identities; separate B bind proof establishes the physical Home path. Three actual service wait0 receipts, original ELF/helper/runtime identities and protected inventories, original64MiB full SHA and B/C workspace0700 permissions restored. Failed test directory is retained. Linux saved-data audit69 predicates passed; this is evidence validation, not product acceptance.
+
+[Raw archive and immutable file references](raw-index-pointer.json):609 text/command/receipt files restored from391 unique contents,2,631,680B; actual Linux extraction and every-file SHA/mode passed. Product binaries and the once-qualified suite archive are fixed external references, not copied into Git. Original safe-extraction failure on upstream generated automake symlinks and audit `actual_wait.child` schema correction remain archived; neither reran the product. C suite copy is identical to the qualified B suite, including all346 entries; no compilation or packages installed.
+
+Next independent product item: authenticated remote Home capacity RPC with root/Home/epoch/Read-right validation and preserved errno; synthetic mount root still has no single Home authority. The failed full run remains immutable. A changed candidate needs its own affected regression; no performance conclusion, new package or GitCode-ready claim follows from this run.
+
+**Later bounded follow-up:** [remote statfs repair and four-file smoke](../20261009-owner-remote-statfs/README.md) passed on Node217. This original full-run failure remains FAIL; the follow-up does not establish full POSIX.

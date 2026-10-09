@@ -1,8 +1,0 @@
-{
-  "type": "USER_DECISION",
-  "answer": "等待GitHub恢复，继续独立标准核对",
-  "fixed_release_stays_blocked": true,
-  "no_upload_retry_until_remote_reconciliation": true,
-  "independent_standard_audit_started": true,
-  "source_status_not_runtime_verdict": true
-}

@@ -1,8 +1,0 @@
-{
-  "status": "PASS",
-  "scope": "text/source identity check only; not runtime validation",
-  "product_commit": "6d51aeb45c1ed8669d80f612b3817e6d1bdabe04",
-  "compiler_input_count": 157,
-  "compiler_map_sha256": "66dbbe3e0071fcec1efc9cf370c709a99f025d39acd4f37ba57582c874429304",
-  "handoff_sha256": "ad5e9ce000b662800511263b185e4fc1a2619a6539f06f335dc14c88c9f3d441"
-}

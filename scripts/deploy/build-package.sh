@@ -141,8 +141,8 @@ install -m 0755 "$SCRIPT_DIR/afs-trial-config" "$PACKAGE_DIR/bin/afs-trial-confi
 install -m 0755 "$SCRIPT_DIR/afs-selfcheck" "$PACKAGE_DIR/bin/afs-selfcheck"
 install -m 0755 "$SCRIPT_DIR/dep02-smoke.sh" "$PACKAGE_DIR/bin/dep02-smoke.sh"
 install -m 0644 "$SCRIPT_DIR/DEPENDENCIES.md" "$PACKAGE_DIR/DEPENDENCIES.md"
-mkdir -p "$PACKAGE_DIR/docs/guides"
-install -m 0644 "$SOURCE_ROOT/docs/guides/trial.md" "$PACKAGE_DIR/docs/guides/trial.md"
+mkdir -p "$PACKAGE_DIR/docs/deployment"
+install -m 0644 "$SOURCE_ROOT/docs/deployment/trial.md" "$PACKAGE_DIR/docs/deployment/trial.md"
 find "$SCRIPT_DIR/templates" -type f ! -name '._*' -print | sort | while IFS= read -r template; do
   rel=${template#"$SCRIPT_DIR/templates/"}
   mkdir -p "$PACKAGE_DIR/templates/$(dirname "$rel")"
@@ -195,7 +195,7 @@ cat >"$PACKAGE_DIR/manifest.json" <<EOF
     "afs-meta": {"sha256": "$meta_sha"},
     "afs-node": {"sha256": "$node_sha"}
   },
-  "contains": ["afs-meta", "afs-node", "afs-processctl", "afs-trial-config", "afs-selfcheck", "dep02-smoke.sh", "docs/guides/trial.md"],
+  "contains": ["afs-meta", "afs-node", "afs-processctl", "afs-trial-config", "afs-selfcheck", "dep02-smoke.sh", "docs/deployment/trial.md"],
   "installer": "install.sh",
   "notes": "Built from existing Linux release binaries; no Cargo or Git required on target guests."
 }

@@ -53,6 +53,17 @@ tar -xzf "$pkg_a" -C "$TMP"
 manifest="$TMP/afs-0.1.0-linux-$(uname -m)/manifest.json"
 grep -q '"source_date_epoch": 1234567890' "$manifest"
 python3 -m json.tool "$manifest" >/dev/null
+package_dir=$(dirname "$manifest")
+cmp "$ROOT/../../docs/deployment/trial.md" "$package_dir/docs/deployment/trial.md"
+test ! -e "$package_dir/bin/afs-workspace-probe"
+python3 - "$manifest" <<'PY_MANIFEST'
+import json
+import sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    manifest = json.load(stream)
+assert "docs/deployment/trial.md" in manifest["contains"]
+assert "docs/guides/trial.md" not in manifest["contains"]
+PY_MANIFEST
 tar -tzvf "$pkg_b" | grep '^drwxr-xr-x 0/0 .* afs-0.1.0-linux-'"$(uname -m)"'/$' >/dev/null
 (cd "$TMP/out-a" && sha256sum -c "afs-0.1.0-linux-$(uname -m).tar.gz.sha256") >/dev/null
 

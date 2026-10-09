@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "/var/tmp/afs-e2e-20261006-r1/tools/run-small.py", line 13, in <module>
-    raise RuntimeError('optimized Python disables validation; run without -O/PYTHONOPTIMIZE')
-RuntimeError: optimized Python disables validation; run without -O/PYTHONOPTIMIZE

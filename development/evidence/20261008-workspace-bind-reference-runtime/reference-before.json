@@ -1,8 +1,0 @@
-{
-  "path": "/opt/afs-workspace-bind-reference-runtime-20261008-r1/mount/ownerfs/workspace/epoch-proof",
-  "device": 64769,
-  "inode": 829880,
-  "bytes": 4096,
-  "opened_through_bind": true,
-  "sha256": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193"
-}

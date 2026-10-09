@@ -1,7 +1,0 @@
-{
-  "source_path": "development/acceptance/test_owner_remote_small.py",
-  "current_sha256": "f858dc6aded97dd5ea61131ca3eab01c87ee7e2959401ee313cc06f1364ea234",
-  "original_sha256": "04cc669c9726f2a20259b0ba5af32a2383331305a789d027776189639e4a333f",
-  "reverse_delta_sha256": "256a145964dfc5c342670f12cf3a8e3604081927c048d3e29a77dc445c550dc9",
-  "scope": "restore initial guards/review identity; original full script outside Git"
-}

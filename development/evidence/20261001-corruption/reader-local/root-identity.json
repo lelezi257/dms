@@ -1,7 +1,0 @@
-{
-  "status": "PASS",
-  "input_count": 143,
-  "exact_source_inputs": true,
-  "handoff_sha256": "8941901e6b6f8b8b10e057a7477695dfa9b1fc4876b5762e71b66d8930eb7216",
-  "scope": "Local source identity and selected regression logs only; no fullgate/release claim"
-}

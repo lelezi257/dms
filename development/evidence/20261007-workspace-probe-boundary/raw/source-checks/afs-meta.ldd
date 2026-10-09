@@ -1,8 +1,0 @@
-	linux-vdso.so.1 (0x0000ecea749bf000)
-	libibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000ecea73e80000)
-	libgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000ecea73e40000)
-	libm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000ecea73d90000)
-	libc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000ecea73bd0000)
-	/lib/ld-linux-aarch64.so.1 (0x0000ecea74970000)
-	libnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000ecea73b20000)
-	libnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000ecea73ad0000)

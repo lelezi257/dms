@@ -1,7 +1,0 @@
-bash: line 1: cd: /Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/source: No such file or directory
-bash: line 1: cd: /Users/lzc: No such file or directory
-.....................................
-----------------------------------------------------------------------
-Ran 37 tests in 6.821s
-
-OK

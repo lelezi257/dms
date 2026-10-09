@@ -1,6 +1,0 @@
-{"msg":"Mounting /mnt/lima-afscdata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/mount/dfs","level":"INFO","ts":"2026-10-07T11:53:09.621682717Z","instance":"dfs-c-r3","service_name":"afs-node"}
-{"msg":"node.ready","level":"INFO","ts":"2026-10-07T11:53:09.625324615Z","instance":"dfs-c-r3","service_name":"afs-node","dfs":true,"ownerfs":false,"uds":"/mnt/lima-afscdata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/run/node.sock","rest":"0.0.0.0:24801","grpc":"0.0.0.0:24800"}
-{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T11:53:10.034890256Z","instance":"dfs-c-r3","service_name":"afs-node"}
-{"msg":"Mounting /mnt/lima-afscdata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/mount/dfs","level":"INFO","ts":"2026-10-07T11:55:22.257285739Z","instance":"dfs-c-r3","service_name":"afs-node"}
-{"msg":"node.ready","level":"INFO","ts":"2026-10-07T11:55:22.260426506Z","instance":"dfs-c-r3","service_name":"afs-node","dfs":true,"ownerfs":false,"uds":"/mnt/lima-afscdata/afs-delivery/dfs-r3-local-read-7e6-20261007-r1/run/node.sock","rest":"0.0.0.0:24801","grpc":"0.0.0.0:24800"}
-{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T11:55:35.012129877Z","instance":"dfs-c-r3","service_name":"afs-node"}

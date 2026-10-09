@@ -1,8 +1,0 @@
-pid=15589
-exe=/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/prefix/bin/afs-node
-config=/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/etc/node.toml
-start_ticks=47194892
-boot_id=0cf26d13-bc67-4f98-999e-7aeac4cc9b30
-lifecycle=/mnt/lima-afscdata/afs-delivery/dfs-small-6d-20261007-r1/run/node.lifecycle.PciqrC
-supervisor_pid=15573
-exit_code=0

@@ -1,7 +1,0 @@
-pid=166079
-exe=/var/tmp/afs-e2e-release-20261006-r1/prefix/bin/afs-meta
-config=/var/tmp/afs-e2e-release-20261006-r1/etc/meta.toml
-start_ticks=8151276
-boot_id=11484faf-9d34-4967-86e0-940daea1fffc
-lifecycle=/var/tmp/afs-e2e-release-20261006-r1/run/meta.lifecycle.l5LMp6
-supervisor_pid=166063

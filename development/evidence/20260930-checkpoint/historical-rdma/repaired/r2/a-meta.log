@@ -1,2 +1,0 @@
-{"msg":"meta.store.memory_volatile","level":"WARN","ts":"2026-09-30T10:15:51.490421546Z","instance":"rdma-meta","service_name":"afs-meta","instance":"rdma-meta"}
-{"msg":"meta.ready","level":"INFO","ts":"2026-09-30T10:15:51.494260789Z","instance":"rdma-meta","service_name":"afs-meta","rest":"0.0.0.0:18421","grpc":"0.0.0.0:18420"}

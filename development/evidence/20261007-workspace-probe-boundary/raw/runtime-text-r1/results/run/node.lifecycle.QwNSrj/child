@@ -1,7 +1,0 @@
-pid=89334
-exe=/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix/bin/afs-node
-config=/opt/afs-managed-workspace-probe-remediation-20261007-r1/etc/node.toml
-start_ticks=9620743
-boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
-lifecycle=/opt/afs-managed-workspace-probe-remediation-20261007-r1/run/node.lifecycle.QwNSrj
-supervisor_pid=89318

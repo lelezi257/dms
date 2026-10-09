@@ -1,6 +1,0 @@
-test_archive_preserves_text_and_indexes_owned_runtime_special_files_without_copying_them (test_native_orderly_recovery.OrderlyGuards.test_archive_preserves_text_and_indexes_owned_runtime_special_files_without_copying_them) ... ok
-
-----------------------------------------------------------------------
-Ran 1 test in 0.001s
-
-OK

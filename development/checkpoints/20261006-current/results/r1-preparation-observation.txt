@@ -1,3 +1,0 @@
-Orchestration observation, before testing, retained from the original tool output:
-OSError: [Errno 95] Operation not supported: '/workspace/dms/source/evidence/s5-performance/s5-measurement-v2-dev-20260922/dms-runtime/run/worker.fd.sock'
-The input scan was corrected to prune ignored runtime/output directories. No original R1 stderr file was captured. No source/product qualification was claimed for R1.

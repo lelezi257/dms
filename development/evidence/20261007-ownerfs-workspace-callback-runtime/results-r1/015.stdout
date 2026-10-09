@@ -1,8 +1,0 @@
-{
-  "request_id": "callback-native",
-  "response": {
-    "production_ready": false,
-    "status": "Executed",
-    "stdout_bytes": 0
-  }
-}

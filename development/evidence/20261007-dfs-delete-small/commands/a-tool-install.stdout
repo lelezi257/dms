@@ -1,8 +1,0 @@
-{
-  "status": "PASS_CANONICAL_TOOL_INSTALL",
-  "files": {
-    "dfs_small_fixture.py": "e5bb9639514c482177516e159bf244ee329b7f23f8bf8fa696a85d5b2e85a54c",
-    "test_dfs_small_fixture.py": "15c93a5fc1ab3c478bd09a3b9b313a1e7318bbf87eca35a761434ab85f2ed23d",
-    "owner_remote_small.py": "d901442e19740143f84c106bd31d2ed6162fe0b278267cde5460a947584aaf98"
-  }
-}

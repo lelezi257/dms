@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "/tmp/afs-verbs-predicate-v70/linux/consumer_check.py", line 21, in <module>
-    assert report["summary"] == {"pass": 37, "blocked": 9, "fail": 0}, report["summary"]
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: {'pass': 36, 'blocked': 10, 'fail': 0}

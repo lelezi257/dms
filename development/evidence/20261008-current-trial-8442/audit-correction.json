@@ -1,8 +1,0 @@
-{
-  "status": "SAVED_FIRST_AUDIT_FAIL_TOOL_ONLY",
-  "reason": "The audit omitted the existing run/ lifecycle receipt member prefix; runtime export has 15 run/ records, all indexed.",
-  "first_sha256": "a2d05cd73adbb0560a78c146d3ac9e4c32c0599c13c4eadac7da2f9cd0e7db4b",
-  "current_sha256": "7c931c880bc419b73dae92544ca90b775978154cb7745fb775301efb7c29d250",
-  "product_runtime_repeated": false,
-  "original_command": "commands/independent-stored-audit.command.json"
-}

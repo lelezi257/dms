@@ -1,1 +1,0 @@
-First broad source staging included historical generated artifacts; stopped exact owned rsync before Cargo. Removed only new copied artifacts/evidence; originals preserved. This staging attempt is unqualified.

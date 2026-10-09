@@ -1,6 +1,0 @@
-test_legal_exec_requires_complete_exact_bytes (__main__.SourceRejectionGuards.test_legal_exec_requires_complete_exact_bytes) ... ok
-
-----------------------------------------------------------------------
-Ran 1 test in 0.000s
-
-OK

@@ -1,9 +1,0 @@
-{
-  "status": "PASS",
-  "local_links": 181,
-  "missing_links": [],
-  "protected_handoff_unchanged": true,
-  "rust_vendor_dependencies_unchanged": true,
-  "phase_one": "historical8/8 retained",
-  "tools": "13 Linux unit tests PASS; metadata case FAIL; independent evidence117 PASS"
-}

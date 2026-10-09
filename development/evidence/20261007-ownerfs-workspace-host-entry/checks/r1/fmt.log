@@ -1,9 +1,0 @@
-error: expected item, found `/`
-   --> /workspace/dms/source/src/node.rs:725:1
-    |
-725 | /workspace/dms/source/src/node/api/rest.rs:
-    | ^ expected item
-    |
-    = note: for a full list of items that can appear in modules, see <https://doc.rust-lang.org/reference/items.html>
-
-Error writing files: failed to resolve mod `node`: cannot parse /workspace/dms/source/src/node.rs

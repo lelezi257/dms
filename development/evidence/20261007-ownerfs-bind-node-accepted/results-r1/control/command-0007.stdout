@@ -1,1 +1,0 @@
-{"flags":["rw","nosuid","nodev","relatime"],"mount_id":420,"namespace":{"dev":4,"ino":4026532355},"scope":"final-view identity; not production READY or revocation ACK","source":{"dev":64769,"ino":826020},"unique_mount_id":4294979183}

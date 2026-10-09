@@ -1,1 +1,0 @@
-{"argv":["--root","/opt/afs-container-perf-20261007-r1/on/control/runtime-state","exec","afs-native-perf-start","/io","/workspace/io-on-experiment-r02","seq-read","67108864","1048576","1","close","67108864","90","existing","unobserved"],"program":"/usr/local/sbin/runc","timeout_ms":120000}

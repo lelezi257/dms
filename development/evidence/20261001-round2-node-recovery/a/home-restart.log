@@ -1,4 +1,0 @@
-removing stale pid file for node: 740964
-recovering disconnected dfs mount at /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/mount/dfs
-recovering disconnected ownerfs mount at /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-archive-async/mount/ownerfs
-started node pid=741501 ready=true

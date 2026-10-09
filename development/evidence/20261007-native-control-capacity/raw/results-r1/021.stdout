@@ -1,7 +1,0 @@
-{
-  "request_id": "after-stop",
-  "response": {
-    "production_ready": false,
-    "state": "Idle"
-  }
-}

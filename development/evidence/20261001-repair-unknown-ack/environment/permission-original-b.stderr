@@ -1,1 +1,0 @@
-inventory error: pid 137921 identity is not readable: [Errno 13] Permission denied: '/proc/137921/exe'

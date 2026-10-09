@@ -1,5 +1,0 @@
-{
-  "baseline_chunk_sha256": "0548b635214863b6a86c17dbd8fbd486b05fea2fcb89a3843cc88f2148a06d2a",
-  "diagnostic_chunk_sha256": "e325ca76fd9b97b4f5ffadb84298bb18d391a02d0ccc72eb273dbd9278e42237",
-  "scope": "only test fixture injected in prior v61 reader snapshot; product unchanged"
-}

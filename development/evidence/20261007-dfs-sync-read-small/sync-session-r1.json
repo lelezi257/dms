@@ -1,6 +1,0 @@
-{
-  "session_token": "dfs-sync-r1-8f9b25f2d4a84eee976e45c346d02557",
-  "protocol": "afs.dfs_manyread.sync_stdio.v1",
-  "coordinator": "ctl Linux monotonic_ns",
-  "host": "JSONL transport only, watchdog does not produce performance timestamps"
-}

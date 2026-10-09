@@ -1,9 +1,0 @@
-test_control_artifacts_do_not_multiply_permission_denials (test_native_workspace.EvidenceGuards.test_control_artifacts_do_not_multiply_permission_denials) ... ok
-test_final_claim_rejects_wrong_namespace_source_and_flags (test_native_workspace.EvidenceGuards.test_final_claim_rejects_wrong_namespace_source_and_flags) ... ok
-test_lock_probe_preserves_descriptor_path (test_native_workspace.EvidenceGuards.test_lock_probe_preserves_descriptor_path) ... ok
-test_size_and_content_required (test_native_workspace.EvidenceGuards.test_size_and_content_required) ... ok
-
-----------------------------------------------------------------------
-Ran 4 tests in 0.005s
-
-OK

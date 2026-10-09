@@ -1,5 +1,0 @@
-{"msg":"Mounting /opt/afs-bind-node-startup-20261007-r1/mount/ownerfs","level":"INFO","ts":"2026-10-07T04:56:36.636467713Z","instance":"node-a","service_name":"afs-node"}
-{"msg":"services.stopped","level":"INFO","ts":"2026-10-07T04:56:36.649637849Z","instance":"node-a","service_name":"afs-node"}
-{"msg":"node.startup_services_failed","level":"ERRO","ts":"2026-10-07T04:56:36.649644183Z","instance":"node-a","service_name":"afs-node","error":"native workspace startup failed after node services started"}
-{"msg":"node.shutdown_failed","level":"ERRO","ts":"2026-10-07T04:56:36.650085269Z","instance":"node-a","service_name":"afs-node","error":"No such file or directory (os error 2)"}
-Error: Custom { kind: Other, error: "No such file or directory (os error 2)" }

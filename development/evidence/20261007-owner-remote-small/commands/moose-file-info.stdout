@@ -1,3 +1,0 @@
-/mnt/lima-afsadata/afs-delivery/owner-remote-6d-bhome-20261007-r1/mount/moose/small-r1/payload64m.bin:
-	chunk 0: 0000000000000001_00000001 / (id:1 ver:1) ; mtime:1791322896 (2026-10-07 05:41:36)
-		copy 1: 192.168.109.13:23043 ; status:VALID ; path: /mnt/lima-afsbdata/afs-delivery/owner-remote-6d-bhome-20261007-r1/state/moose/chunks/00/chunk_0000000000000001_00000001.mfs

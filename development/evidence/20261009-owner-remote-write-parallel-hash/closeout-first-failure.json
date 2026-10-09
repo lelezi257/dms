@@ -1,8 +1,0 @@
-{
-  "status": "TOOL_FAIL_CORRECTED",
-  "error": "archive-closeout.py assertion: prior archived stream SHA differed from final file",
-  "cause": "finish.stdout and profiler closeout.stdout were append-only streams still receiving closure output after main archive creation",
-  "correction": "read actual prior tar member, verify prior SHA and exact prefix before archiving final stream in closeout delta",
-  "product_rerun": false,
-  "environment_changed": false
-}

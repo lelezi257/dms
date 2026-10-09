@@ -1,7 +1,0 @@
-    Checking afs-tracing v0.1.0 (/home/lzc.guest/afs-build/work/posted-cancel-v76-r2/common/tracing)
-    Checking afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/posted-cancel-v76-r2/common/protocol)
-    Checking afs-logging v0.1.0 (/home/lzc.guest/afs-build/work/posted-cancel-v76-r2/common/logging)
-    Checking afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/posted-cancel-v76-r2/common/transport)
-    Checking afs-client v0.1.0 (/home/lzc.guest/afs-build/work/posted-cancel-v76-r2/client)
-    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/posted-cancel-v76-r2)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.44s

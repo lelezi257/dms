@@ -1,8 +1,0 @@
-{
-  "status": "PASS",
-  "count": 143,
-  "files_match_root": true,
-  "handoff_sha256": "8941901e6b6f8b8b10e057a7477695dfa9b1fc4876b5762e71b66d8930eb7216",
-  "source_base_commit": "982398afa8f32acec7c95303c2f89bd20a1d123e",
-  "working_diff_bound_to_compile_inputs": true
-}

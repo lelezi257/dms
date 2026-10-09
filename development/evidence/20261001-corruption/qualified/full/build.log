@@ -1,4 +1,0 @@
-   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v62-r3/common/protocol)
-   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v62-r3/common/transport)
-   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/root-merged-v62-r3)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 19.05s

@@ -1,4 +1,0 @@
-    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71)
-    Checking afs-client v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71/client)
-    Checking afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71/common/transport)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.28s

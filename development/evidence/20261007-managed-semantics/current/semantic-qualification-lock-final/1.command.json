@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "python3",
-    "development/acceptance/test_native_workspace.py",
-    "-v"
-  ],
-  "cwd": "/var/tmp/afs-managed-workspace-20261007-r1/tools",
-  "timeout": 20
-}

@@ -1,5 +1,0 @@
-Traceback (most recent call last):
-  File "/var/tmp/shutdown-v46-guest.py", line 75, in <module>
-    events.append({'forced_stop':forced});assert forced['status']==124 and 14000<=forced['elapsed_ms']<19000,forced
-                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError: {'status': 1, 'elapsed_ms': 5024.961562005046, 'old_fd_close': {'errno': 107}}

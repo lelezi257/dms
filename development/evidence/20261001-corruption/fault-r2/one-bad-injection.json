@@ -1,8 +1,0 @@
-{
-  "after_sha256": "3d34458e507f929a6501d293a0b8d102dd8ca41387cb6be50f9579e6837fac50",
-  "backup": "/mnt/lima-afsadata/afs-delivery/corrupt-v62-a/corruption-backups/dba81f2a-c1ad-4918-a2ac-ec76fe62dab4-one-bad-dba81f2a-c1ad-4918-a2ac-ec76fe62dab4.bin.chunk",
-  "before_sha256": "3490ca8622e462509b4214eab0ee7c2b94cff2c355a35feb5af3a2361cff0eb0",
-  "bytes": 65536,
-  "chunk": "blake3-0a64063502fb78b16a5203088bf9df9c299f1425d1e197549140657f7b330f3f-65536",
-  "inode": 1577964
-}

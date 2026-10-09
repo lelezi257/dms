@@ -1,7 +1,0 @@
-pid=6847
-exe=/opt/afs-managed-workspace-20261007-r5/prefix/bin/afs-meta
-config=/opt/afs-managed-workspace-20261007-r5/etc/meta.toml
-start_ticks=4723707
-boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
-lifecycle=/opt/afs-managed-workspace-20261007-r5/run/meta.lifecycle.Xm4cvc
-supervisor_pid=6831

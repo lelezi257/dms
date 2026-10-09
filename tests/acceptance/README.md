@@ -1,0 +1,29 @@
+# AFS 验收工具
+
+本目录保留维护中的验收 runner、驱动、探针、套件绑定和必要夹具。它是工程测试资产，不是历史证据归档。
+
+## 目录
+
+- `cases.json`：正式 case ID、适用范围、smoke/full 边界和 driver 注册。
+- `acceptance.lock.json`：环境、套件、参考系统、源码、二进制和 runner 身份锁。`PREPARING` 状态不能产生正式 PASS。
+- `runner.py`：调度注册 driver，并核对结构化结果和矩阵计数。
+- `environment.py`：评估 hash 绑定的环境准备观测。
+- `drivers/`：标准套件、健康、计数、目标身份、挂载隔离和可见性等 driver。
+- `probes/`：OwnerFs、DFS、环境和基线辅助探针。
+- `fixtures/`：当前回归测试实际读取的小型固定夹具。只保留 hash 绑定的源码输入和 receipt/log 片段；不保留 TLS 私钥、VM 数据或大型过程证据。
+
+## 使用边界
+
+工具可运行不等于产品通过。smoke 不能替代 full，memory Meta 不能替代 durable backend，OFF/FUSE 结果不能替代 bind ON 结果。
+
+G2 功能完备性优先使用 pjdfstest、固定 LTP filesystem 子集和短 FSx；项目自定义 case 只补充 OwnerFs bind、远端访问、DFS 复制、Meta 恢复和权限语义。G3 再运行长稳、完整故障矩阵和后端轴。
+
+Linux 运行示例：
+
+```sh
+sudo env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/acceptance -p 'test_*.py' -v
+```
+
+完整工具回归需要 root，以验证真实权限与内核锁辅助程序。三个 coordinator 子进程测试仅在 Linux ARM64 root 下运行，其它平台明确 skip；通用 CI 不能替代这三项的平台验证。固定 helper 校验和只绑定当前工具，不用于重评历史运行记录。
+
+根据具体任务选择更小的测试集合；不要为文档改动扩大成完整矩阵。

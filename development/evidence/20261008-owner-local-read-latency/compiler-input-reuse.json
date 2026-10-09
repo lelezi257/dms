@@ -1,9 +1,0 @@
-{
-  "source_commit": "f03dc2b3679c31daa51caee275fb2087413e949c",
-  "map_sha256": "2b17fad77c87b4977d79e14809b6eada755f648767dd29b5503e49556f8ce7b4",
-  "compiler_inputs": 157,
-  "all_input_hashes_match": true,
-  "no_rust_rebuild": true,
-  "product_compiler_inputs_unchanged": true,
-  "code_changes": "Acceptance C probe and its targeted integration tests only; documentation/evidence also updated."
-}

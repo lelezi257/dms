@@ -1,6 +1,0 @@
-{
-  "status": "BLOCKED",
-  "phase": "host continuation",
-  "reason": "linewise dedent incorrectly changed embedded guest Python indentation; guest parser rejected before mutation",
-  "product_processes_started": false
-}

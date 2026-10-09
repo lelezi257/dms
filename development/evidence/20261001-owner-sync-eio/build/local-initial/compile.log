@@ -1,6 +1,0 @@
-   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/owner-eio-v80/common/protocol)
-    Checking fuser v0.16.0 (/home/lzc.guest/afs-build/work/owner-eio-v80/third_party/fuser)
-    Checking afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/owner-eio-v80/common/transport)
-    Checking afs v0.1.0 (/home/lzc.guest/afs-build/work/owner-eio-v80)
-    Checking afs-client v0.1.0 (/home/lzc.guest/afs-build/work/owner-eio-v80/client)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.81s

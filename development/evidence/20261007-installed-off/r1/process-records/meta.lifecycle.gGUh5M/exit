@@ -1,8 +1,0 @@
-pid=243111
-exe=/var/tmp/afs-off-delivery-20261007-r1/prefix/bin/afs-meta
-config=/var/tmp/afs-off-delivery-20261007-r1/etc/meta.toml
-start_ticks=8999834
-boot_id=11484faf-9d34-4967-86e0-940daea1fffc
-lifecycle=/var/tmp/afs-off-delivery-20261007-r1/run/meta.lifecycle.gGUh5M
-supervisor_pid=243095
-exit_code=0

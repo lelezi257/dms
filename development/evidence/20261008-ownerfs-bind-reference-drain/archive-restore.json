@@ -1,1 +1,0 @@
-{"status": "PASS", "actual_ext4_restore": "/var/tmp/afs-drain-archive-restore-qusqvgiz", "verified_files": 102, "verified_bytes": 895620, "archive_sha256": "2819ec4edf297626ebb28968341447b624168de63f9cc7136b9c96ca7a5dfc1c", "failed_fixture_files": 6, "cleanup": "only owned successful restoration directory removed"}

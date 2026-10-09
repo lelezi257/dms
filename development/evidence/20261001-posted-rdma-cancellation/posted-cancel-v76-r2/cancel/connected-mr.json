@@ -1,1 +1,0 @@
-[{"ifindex":0,"ifname":"rxe0","mrn":0,"rkey":"208","lkey":"208","mrlen":1048576,"pdn":1,"pid":1888,"comm":"posted_rdma_can"},{"ifindex":0,"ifname":"rxe0","mrn":1,"rkey":"33a","lkey":"33a","mrlen":1048576,"pdn":2,"pid":1896,"comm":"tokio-rt-worker"}]

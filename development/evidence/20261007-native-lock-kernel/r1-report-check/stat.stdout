@@ -1,8 +1,0 @@
-  File: /var/tmp/native-lock-kernel-proof-20261007-r1/report.json
-  Size: 33792     	Blocks: 72         IO Block: 4096   regular file
-Device: 253,1	Inode: 568016      Links: 1
-Access: (0644/-rw-r--r--)  Uid: (    0/    root)   Gid: (    0/    root)
-Access: 2026-10-07 06:43:40.680048868 +0800
-Modify: 2026-10-07 06:43:40.667048852 +0800
-Change: 2026-10-07 06:43:40.667048852 +0800
- Birth: 2026-10-07 06:43:40.667048852 +0800

@@ -1,5 +1,0 @@
-{"msg":"meta.store.memory_volatile","level":"WARN","ts":"2026-09-30T23:49:24.060069897Z","instance":"memory-meta-a","service_name":"afs-meta","instance":"memory-meta-a"}
-{"msg":"meta.ready","level":"INFO","ts":"2026-09-30T23:49:24.064274618Z","instance":"memory-meta-a","service_name":"afs-meta","rest":"0.0.0.0:18281","grpc":"0.0.0.0:18280"}
-{"msg":"services.stopped","level":"INFO","ts":"2026-09-30T23:49:44.423188643Z","instance":"memory-meta-a","service_name":"afs-meta"}
-{"msg":"meta.store.memory_volatile","level":"WARN","ts":"2026-09-30T23:56:27.615082809Z","instance":"memory-meta-a","service_name":"afs-meta","instance":"memory-meta-a"}
-{"msg":"meta.ready","level":"INFO","ts":"2026-09-30T23:56:27.619044964Z","instance":"memory-meta-a","service_name":"afs-meta","rest":"0.0.0.0:18281","grpc":"0.0.0.0:18280"}

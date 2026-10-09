@@ -1,7 +1,0 @@
-{
-  "directories": [
-    "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/std-01-pjdfstest-full-fixture",
-    "/var/tmp/afs-dfs-statfs-runtime-20261007-r2/mount/dfs/.ltp-smoke6"
-  ],
-  "status": "PASS"
-}

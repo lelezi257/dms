@@ -1,7 +1,0 @@
-{
-  "meta": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
-  "node": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
-  "environment": "Lima2.1.1/VZ Ubuntu24.04 ARM64 Linux6.8.0-142/ext4; B/C42GiB, ctl8GiB; no VM/config changes",
-  "profiler": "perf6.8.12 /usr/lib/linux-tools-6.8.0-106/perf",
-  "profiler_sha256": "b4e39bed41d5be39445649d6525cb0f24c574537708d2df3b0e244f5814f5fc1"
-}

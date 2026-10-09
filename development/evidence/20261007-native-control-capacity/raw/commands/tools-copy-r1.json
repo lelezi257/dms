@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "limactl",
-    "copy",
-    "/var/tmp/afs-native-control-capacity-tools-r1.tar",
-    "afs-g2-micro:/var/tmp/afs-native-control-capacity-tools-r1.tar"
-  ],
-  "rc": 0
-}

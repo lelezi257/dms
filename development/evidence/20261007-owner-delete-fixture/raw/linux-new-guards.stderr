@@ -1,8 +1,0 @@
-test_delete_fixture_has_independent_root_ports_and_commands (test_owner_remote_fixture.FixtureGuards.test_delete_fixture_has_independent_root_ports_and_commands) ... ok
-test_delete_fixture_config_uses_delete_ports_without_touching_write_fixture (test_owner_remote_fixture.FixtureGuards.test_delete_fixture_config_uses_delete_ports_without_touching_write_fixture) ... ok
-test_historical_fixture_cannot_be_prepared_or_readmitted (test_owner_remote_fixture.FixtureGuards.test_historical_fixture_cannot_be_prepared_or_readmitted) ... ok
-
-----------------------------------------------------------------------
-Ran 3 tests in 0.003s
-
-OK

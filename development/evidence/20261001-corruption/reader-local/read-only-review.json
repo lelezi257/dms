@@ -1,8 +1,0 @@
-{
-  "reviewer": "/root/verified_reader_review",
-  "mode": "read-only; no builds or tests by reviewer",
-  "initial_finding": "Mid-read DataLoss/NotFound was incorrectly source_invalid=false; fixed in existing replication.rs",
-  "final_findings": [],
-  "verdict": "APPROVE",
-  "limits": "normal-read quarantine/report and repair replacement remain unfinished; full-Chunk scan cost explicit; runtime/release gates unqualified"
-}

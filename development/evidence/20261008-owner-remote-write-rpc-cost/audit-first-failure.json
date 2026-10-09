@@ -1,1 +1,0 @@
-{"status":"TOOL_OUTPUT_PATH_FAILED","operation":"saved-record audit output","error":"Errno30: attempted to write audit.json through read-only /workspace/dms share","scope":"all data assertions had passed; output publication only failed","resolution":"Linux emits JSON to stdout; host saves exact stdout. No environment repair, product restart or measurement rerun."}

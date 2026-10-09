@@ -261,7 +261,7 @@ mod tests {
     /// appendonly yes, appendfsync always, no-appendfsync-on-rewrite no and
     /// maxmemory-policy noeviction. This writes the fixed production key.
     #[tokio::test]
-    #[ignore = "requires a fresh dedicated durable Redis; see development/validation.md"]
+    #[ignore = "requires a fresh dedicated durable Redis; see docs/testing/validation.md"]
     async fn redis_ack_reconnect_and_stale_cas_on_dedicated_instance() {
         let endpoint = std::env::var("AFS_TEST_REDIS_STORE_ENDPOINT")
             .expect("AFS_TEST_REDIS_STORE_ENDPOINT is required; no implicit Redis PASS");

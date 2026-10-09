@@ -1,3 +1,0 @@
-Traceback (most recent call last):
-  File "<string>", line 17, in <module>
-AssertionError: [{'pid': 1682039, 'exe': '/usr/bin/sudo'}, {'pid': 1682043, 'exe': '/usr/bin/python3.12'}]

@@ -1,8 +1,0 @@
-{
-  "status": "APPROVE",
-  "mode": "READ_ONLY",
-  "scope": "chunk.rs/dfs_read.rs/replication.rs/rpc/data.rs",
-  "initial_high": "all corruption-report errors retained pending forever; fixed mandatory trait + definitive rejection progress + exact CAS/unknown retry",
-  "final_issues": 0,
-  "validation": "diff inspection and whitespace only; Linux checks owned by root; no LSP available"
-}

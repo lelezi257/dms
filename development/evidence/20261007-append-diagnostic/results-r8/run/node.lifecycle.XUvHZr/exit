@@ -1,8 +1,0 @@
-pid=14735
-exe=/opt/afs-managed-append-20261007-r8/prefix/bin/afs-node
-config=/opt/afs-managed-append-20261007-r8/etc/node.toml
-start_ticks=5083231
-boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
-lifecycle=/opt/afs-managed-append-20261007-r8/run/node.lifecycle.XUvHZr
-supervisor_pid=14719
-exit_code=0

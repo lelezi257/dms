@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "limactl",
-    "copy",
-    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/current-trial-7e6-20261007-r1/compiler-inputs.json",
-    "afs-build:/var/tmp/current-trial-7e6-inputs.json"
-  ],
-  "timeout": 60
-}

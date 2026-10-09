@@ -1,6 +1,0 @@
-{
-  "checked": 600,
-  "expected_errno": "ENOENT",
-  "failures": [],
-  "status": "PASS"
-}

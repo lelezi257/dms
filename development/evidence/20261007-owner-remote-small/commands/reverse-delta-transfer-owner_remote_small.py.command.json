@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "limactl",
-    "copy",
-    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-6d-bhome-20261007-r1/owner_remote_small.py.reverse.patch",
-    "afs-accept-a:/var/tmp/owner-remote-6d-owner_remote_small.py.reverse.patch"
-  ],
-  "exit": 0
-}

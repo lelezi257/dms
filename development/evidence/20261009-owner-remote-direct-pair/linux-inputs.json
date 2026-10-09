@@ -1,7 +1,0 @@
-{
-  "extracted_path": "/var/tmp/owner-remote-direct-read-uid501-20261009-r1-meta",
-  "input_count": 160,
-  "map_sha256": "ec7e2de5ea5e5b83883725fe4175b819af75cd4713c25e0479bb275ff5bab300",
-  "meta_sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
-  "status": "PASS"
-}

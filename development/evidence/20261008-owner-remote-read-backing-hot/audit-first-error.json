@@ -1,8 +1,0 @@
-{
-  "status": "POSTCHECK_ORACLE_ERROR",
-  "first_guest_audit_sha256": "c4c8f9a5a1e9bc124c5dc7298555a57a2bebb69add4622184a750f3c792c95a2",
-  "cause": "Moose A child readiness receipt adds mount identity after supervisor captured spawn identity; full dict equality incorrectly demanded mount in supervisor exit. Only mount absent; all incarnation/ELF/config/boot/argv/script fields match. Correct oracle uses all child fields excluding later mount field and separately verifies original mount plus maintained normal-unmount receipt.",
-  "first_commands_preserved": "live-commands.json a-fresh-independent-audit rc1",
-  "product_rerun": false,
-  "environment_changes": false
-}

@@ -1,8 +1,0 @@
-{
-  "status": "PASS",
-  "scope": "B-to-A owned TCP control/data RPC port outage",
-  "formal_acceptance": "NOT_RUN",
-  "environment": "PREPARING",
-  "rdma_link_fault": false,
-  "firewall_restored": true
-}

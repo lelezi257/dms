@@ -1,13 +1,13 @@
-name: AFS foundation CI
+name: AFS Linux CI
 
 on:
   push:
-    branches: [main, feat/agent-workloads-foundation]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
 
-# 验证正式基础框架；完整文件业务后续实施。
+# 验证源码、维护中的测试工具及打包边界；不替代真实 FUSE/E2E 验收。
 permissions:
   contents: read
 
@@ -42,7 +42,13 @@ jobs:
         run: cargo test --locked --workspace --all-features
       - name: Backend feature matrix
         run: bash tests/feature-matrix.sh
-      - name: Build foundation processes and SDK example
+      - name: Build product processes and test examples
         run: cargo build --locked --workspace --all-features --bins --examples
-      - name: Real process gRPC and SHM acceptance
-        run: python3 tests/foundation_e2e.py --bin-dir target/debug --skip-fuse --output /tmp/afs-foundation-evidence
+      - name: Acceptance tool regressions
+        run: |
+          sudo env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/acceptance -p 'test_*.py'
+          sudo env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/acceptance/probes -p 'test_*.py'
+      - name: Package and installer regressions
+        run: |
+          bash scripts/deploy/test-package-reproducible.sh
+          bash scripts/deploy/selftest.sh

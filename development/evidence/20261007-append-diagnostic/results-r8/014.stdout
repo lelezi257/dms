@@ -1,8 +1,0 @@
-{
-  "request_id": "first",
-  "response": {
-    "error": "operation id was reused with different input",
-    "production_ready": false,
-    "status": "ERROR"
-  }
-}

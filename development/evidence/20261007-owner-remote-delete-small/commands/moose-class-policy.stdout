@@ -1,9 +1,0 @@
-name: owner-remote-delete-1CP-20261007-r1
-	classid: 5
-	priority: 0 ; export_group: 0
-	admin_only: NO ; labels_mode: STD ; arch_mode: C
-	create_labels: *
-	keep_labels: *
-	arch_labels: not defined - using keep settings
-	trash_labels: not defined - using keep/arch settings
-

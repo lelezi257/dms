@@ -1,8 +1,0 @@
-pid=100376
-exe=/var/tmp/afs-e2e-20261006-r1/prefix/bin/afs-node
-config=/var/tmp/afs-e2e-cross-20261006-r1/etc/node.toml
-start_ticks=7916209
-boot_id=11484faf-9d34-4967-86e0-940daea1fffc
-lifecycle=/var/tmp/afs-e2e-cross-20261006-r1/run/node.lifecycle.HNTvru
-supervisor_pid=100360
-cmdline=/var/tmp/afs-e2e-20261006-r1/prefix/bin/afs-node --config /var/tmp/afs-e2e-cross-20261006-r1/etc/node.toml

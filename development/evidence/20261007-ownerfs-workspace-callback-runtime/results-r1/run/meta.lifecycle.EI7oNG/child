@@ -1,7 +1,0 @@
-pid=69494
-exe=/opt/afs-workspace-callback-observed-20261007-r1/prefix/bin/afs-meta
-config=/opt/afs-workspace-callback-observed-20261007-r1/etc/meta.toml
-start_ticks=8555438
-boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
-lifecycle=/opt/afs-workspace-callback-observed-20261007-r1/run/meta.lifecycle.EI7oNG
-supervisor_pid=69478

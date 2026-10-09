@@ -1,1 +1,0 @@
-0: rxe0: pd 5 cq 5 qp 5 cm_id 0 mr 4 ctx 4 srq 0 

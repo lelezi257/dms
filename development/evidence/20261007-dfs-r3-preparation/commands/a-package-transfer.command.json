@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "limactl",
-    "copy",
-    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-data-perf-20261007-r1/package.tar.gz",
-    "afs-accept-a:/mnt/lima-afsadata/afs-delivery/dfs-r3-current-20261007-r1/stage/package.tar.gz"
-  ],
-  "timeout": 90
-}

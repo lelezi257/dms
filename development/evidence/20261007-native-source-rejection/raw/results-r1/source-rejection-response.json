@@ -1,5 +1,0 @@
-{
-  "error": "unknown field `source`, expected `id` or `workspace`",
-  "production_ready": false,
-  "status": "ERROR"
-}

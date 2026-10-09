@@ -1,9 +1,0 @@
-{
-  "fixture": "dfs-r3-current-7e6-recovery-20261007-r1",
-  "role": "c",
-  "root": "/mnt/lima-afscdata/afs-delivery/dfs-r3-current-7e6-recovery-20261007-r1",
-  "commands": [],
-  "status": "PATCHED_NOT_ADMITTED",
-  "config_sha256": "1b7bde971fb3a384013c390ca60eb5c408d0b40b5e9d2d43ede77c68395dcfd8",
-  "original_sha256": "6e51049fd234d5632b1d2bcd40f49e8aa42a276348b9687f2d233ec8f3b95754"
-}

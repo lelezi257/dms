@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "limactl",
-    "copy",
-    "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-6d-bhome-20261007-r1/ctl-etc.tar",
-    "afs-accept-ctl:/var/tmp/owner-remote-6d-ctl-etc.tar"
-  ],
-  "exit": 0
-}

@@ -1,1 +1,0 @@
-full profile requires frozen verified lock identity: lock state is not FROZEN; lock verification.status is not PASS; lock runner identity is missing; lock manifest identity is missing; lock source identity is missing; lock binary identity is missing; lock.environment_evidence is missing

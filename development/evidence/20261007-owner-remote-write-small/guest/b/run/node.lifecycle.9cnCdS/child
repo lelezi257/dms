@@ -1,7 +1,0 @@
-pid=239570
-exe=/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/prefix/bin/afs-node
-config=/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/etc/node.toml
-start_ticks=56518006
-boot_id=3adebcd0-cb31-4df0-b18a-e970786ab7fb
-lifecycle=/mnt/lima-afsbdata/afs-delivery/owner-remote-write-6d-bhome-20261007-r1/run/node.lifecycle.9cnCdS
-supervisor_pid=239554

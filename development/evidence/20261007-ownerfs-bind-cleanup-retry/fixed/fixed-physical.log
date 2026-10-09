@@ -1,7 +1,0 @@
-
-running 2 tests
-test node::native_workspace::tests::cleanup_retry_after_clone_detach_does_not_unmount_twice ... ok
-test node::native_workspace::tests::cleanup_retry_after_deleted_container_retains_busy_export ... ok
-
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 588 filtered out; finished in 0.11s
-

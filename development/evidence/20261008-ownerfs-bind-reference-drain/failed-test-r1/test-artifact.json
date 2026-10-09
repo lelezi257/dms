@@ -1,6 +1,0 @@
-{
-  "path": "/var/tmp/afs-e2e-release-20261006-r1/target/release/deps/afs-993fcb88fd9e56b2",
-  "sha256": "a1b4c6e7fd4c998c31cf88cc5215bd5c3d4e040c91977e52737b744cfc0383d4",
-  "bytes": 28019976,
-  "ldd": "\tlinux-vdso.so.1 (0x0000e4eede1ad000)\n\tlibibverbs.so.1 => /lib/aarch64-linux-gnu/libibverbs.so.1 (0x0000e4eedce30000)\n\tlibgcc_s.so.1 => /lib/aarch64-linux-gnu/libgcc_s.so.1 (0x0000e4eedcdf0000)\n\tlibm.so.6 => /lib/aarch64-linux-gnu/libm.so.6 (0x0000e4eedcd40000)\n\tlibc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000e4eedcb80000)\n\t/lib/ld-linux-aarch64.so.1 (0x0000e4eede170000)\n\tlibnl-route-3.so.200 => /lib/aarch64-linux-gnu/libnl-route-3.so.200 (0x0000e4eedcad0000)\n\tlibnl-3.so.200 => /lib/aarch64-linux-gnu/libnl-3.so.200 (0x0000e4eedca80000)\n"
-}

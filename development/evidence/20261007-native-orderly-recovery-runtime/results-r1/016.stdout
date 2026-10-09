@@ -1,7 +1,0 @@
-{
-  "request_id": "orderly-phase1-stop",
-  "response": {
-    "production_ready": false,
-    "status": "Stopped"
-  }
-}

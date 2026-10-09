@@ -1,6 +1,0 @@
-{
-  "status": "TOOL_ARGUMENT_TOO_LONG",
-  "error": "/bin/bash: Argument list too long",
-  "scope": "wrapper attempted to send base file via argv; no patch application or production restoration had started",
-  "resolution": "send exact base content through stdin; no environment changes"
-}

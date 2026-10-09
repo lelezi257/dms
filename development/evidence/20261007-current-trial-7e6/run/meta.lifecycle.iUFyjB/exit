@@ -1,8 +1,0 @@
-pid=90983
-exe=/var/tmp/afs-current-trial-7e6-20261007-r1/prefix/bin/afs-meta
-config=/var/tmp/afs-current-trial-7e6-20261007-r1/etc/meta.toml
-start_ticks=9874704
-boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
-lifecycle=/var/tmp/afs-current-trial-7e6-20261007-r1/run/meta.lifecycle.iUFyjB
-supervisor_pid=90967
-exit_code=0

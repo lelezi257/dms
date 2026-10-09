@@ -1,3 +1,0 @@
-64d85fc3933637ccd7fdf4eafded5e5c8cb2354e73b4c8d1a27b2b8d43f4c7e7  /mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-meta
-d28d17faa8bb71eb8c0a28241e8556396e440b204cf0242d2af8133700f6a494  /mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-node
-01f38d32f34994f89bea3c75f57eecc506db6157309e74f3fe5425f64775601e  /mnt/lima-afscdata/afs-delivery/round1-mainline-v77-archive-async/prefix/bin/afs-processctl

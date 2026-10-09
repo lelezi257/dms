@@ -1,9 +1,0 @@
-{
-  "argv": [
-    "limactl",
-    "copy",
-    "/var/tmp/afs-native-source-rejection-shell-guard.py",
-    "afs-g2-micro:/var/tmp/afs-native-source-rejection-shell-guard.py"
-  ],
-  "rc": 0
-}

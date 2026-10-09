@@ -1,6 +1,0 @@
-{
-  "unix_time": 1790825878.315938,
-  "guard_session": 86319,
-  "processes": "74219 caffeinate -i -s\n74614 caffeinate -i -t 3600\n",
-  "assertions": "2026-10-01 11:37:58 +0800 \nAssertion status system-wide:\n   BackgroundTask                 0\n   ApplePushServiceTask           0\n   UserIsActive                   0\n   PreventUserIdleDisplaySleep    0\n   SoftwareUpdateTask             0\n   PreventSystemSleep             0\n   PreventSystemSleepSecurityIndicator 0\n   ExternalMedia                  0\n   PreventUserIdleSystemSleep     1\n   NetworkClientActive            0\nListed by owning process:\n   pid 74614(caffeinate): [0x00056c5a00019c7f] 00:07:47 PreventUserIdleSystemSleep named: \"caffeinate command-line tool\"  \n\tDetails: caffeinate asserting for 3600 secs\n\tLocalized=THE CAFFEINATE TOOL IS PREVENTING SLEEP.\n\tTimeout will fire in 3132 secs Action=TimeoutActionRelease\n   pid 74219(caffeinate): [0x00056b2c00019c58] 00:12:49 PreventUserIdleSystemSleep named: \"caffeinate command-line tool\"  \n\tDetails: caffeinate asserting forever\n\tLocalized=THE CAFFEINATE TOOL IS PREVENTING SLEEP.\n   pid 74219(caffeinate): [0x00056b2c00079c59] 00:12:49 PreventSystemSleep named: \"caffeinate command-line tool\"  \n\tDetails: caffeinate asserting forever\n\tLocalized=THE CAFFEINATE TOOL IS PREVENTING SLEEP.\nNo kernel assertions.\n"
-}

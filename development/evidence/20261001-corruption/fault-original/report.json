@@ -1,7 +1,0 @@
-{
-  "error": "AssertionError()",
-  "level": "AFFECTED_INTEGRATION",
-  "run_id": "05f0c41c-32ac-4d45-a60b-20d0093fdf3c",
-  "scope": "raw failures preserved; no scenario exclusion or silent restoration",
-  "status": "FAIL"
-}

@@ -1,7 +1,0 @@
-gpg: keybox '/var/tmp/afs-runc-admission-20261007-r1/gnupg/pubring.kbx' created
-gpg: /var/tmp/afs-runc-admission-20261007-r1/gnupg/trustdb.gpg: trustdb created
-gpg: key 34401015D1D2D386: public key "Aleksa Sarai <cyphar@cyphar.com>" imported
-gpg: key 17DE5ECB75A1100E: public key "Kir Kolyshkin <kolyshkin@gmail.com>" imported
-gpg: key 49524C6F9F638F1A: public key "Akihiro Suda <suda.kyoto@gmail.com>" imported
-gpg: Total number processed: 3
-gpg:               imported: 3

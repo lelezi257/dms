@@ -1,3 +1,0 @@
-{"event": "posted", "pid": 2200, "thread": [2200, 2210, 0], "gdb_thread": 5, "operation": 1, "bytes": 4096, "data_wr_id": 1, "poisoned": false, "qp": 50, "monotonic": 445.955109222}
-{"event": "resumed", "monotonic": 445.968754135}
-{"event": "exit", "code": 0}

@@ -1,54 +1,0 @@
-Reading package lists...
-Building dependency tree...
-Reading state information...
-The following additional packages will be installed:
-  wireless-regdb
-The following NEW packages will be installed:
-  linux-modules-extra-6.8.0-142-generic wireless-regdb
-0 upgraded, 2 newly installed, 0 to remove and 50 not upgraded.
-Need to get 123 MB of archives.
-After this operation, 122 MB of additional disk space will be used.
-Get:1 http://ports.ubuntu.com/ubuntu-ports noble-updates/main arm64 wireless-regdb all 2026.05.30-0ubuntu1~24.04.1 [7714 B]
-Get:2 http://ports.ubuntu.com/ubuntu-ports noble-updates/main arm64 linux-modules-extra-6.8.0-142-generic arm64 6.8.0-142.142 [123 MB]
-Fetched 123 MB in 16s (7536 kB/s)
-Selecting previously unselected package wireless-regdb.
-(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 150504 files and directories currently installed.)
-Preparing to unpack .../wireless-regdb_2026.05.30-0ubuntu1~24.04.1_all.deb ...
-Unpacking wireless-regdb (2026.05.30-0ubuntu1~24.04.1) ...
-Selecting previously unselected package linux-modules-extra-6.8.0-142-generic.
-Preparing to unpack .../linux-modules-extra-6.8.0-142-generic_6.8.0-142.142_arm64.deb ...
-Unpacking linux-modules-extra-6.8.0-142-generic (6.8.0-142.142) ...
-Setting up wireless-regdb (2026.05.30-0ubuntu1~24.04.1) ...
-Setting up linux-modules-extra-6.8.0-142-generic (6.8.0-142.142) ...
-Processing triggers for man-db (2.12.0-4build2) ...
-Processing triggers for linux-image-6.8.0-142-generic (6.8.0-142.142) ...
-/etc/kernel/postinst.d/initramfs-tools:
-update-initramfs: Generating /boot/initrd.img-6.8.0-142-generic
-flash-kernel: deferring update (trigger activated)
-/etc/kernel/postinst.d/zz-flash-kernel:
-flash-kernel: deferring update (trigger activated)
-/etc/kernel/postinst.d/zz-update-grub:
-Sourcing file `/etc/default/grub'
-Sourcing file `/etc/default/grub.d/50-cloudimg-settings.cfg'
-Generating grub configuration file ...
-Found linux image: /boot/vmlinuz-6.8.0-142-generic
-Found initrd image: /boot/initrd.img-6.8.0-142-generic
-Found linux image: /boot/vmlinuz-6.8.0-106-generic
-Found initrd image: /boot/initrd.img-6.8.0-106-generic
-Warning: os-prober will not be executed to detect other bootable partitions.
-Systems on them will not be added to the GRUB boot configuration.
-Check GRUB_DISABLE_OS_PROBER documentation entry.
-Adding boot menu entry for UEFI Firmware Settings ...
-done
-Processing triggers for flash-kernel (3.107ubuntu13~24.04.6) ...
-System running in EFI mode, skipping.
-
-Running kernel seems to be up-to-date.
-
-No services need to be restarted.
-
-No containers need to be restarted.
-
-No user sessions are running outdated binaries.
-
-No VM guests are running outdated hypervisor (qemu) binaries on this host.

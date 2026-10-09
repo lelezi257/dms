@@ -1,9 +1,0 @@
-AFS_RDMA_GID index=1 address=::ffff:192.168.109.12 family=ipv4
-{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/mount/ownerfs","level":"INFO","ts":"2026-10-01T10:02:16.171723935Z","instance":"round1-a","service_name":"afs-node"}
-{"msg":"Mounting /mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/mount/dfs","level":"INFO","ts":"2026-10-01T10:02:16.17759033Z","instance":"round1-a","service_name":"afs-node"}
-{"msg":"node.ready","level":"INFO","ts":"2026-10-01T10:02:16.177610163Z","instance":"round1-a","service_name":"afs-node","dfs":true,"ownerfs":true,"uds":"/mnt/lima-afsadata/afs-delivery/round1-mainline-v77-rn/run/node.sock","rest":"192.168.109.12:19983","grpc":"0.0.0.0:19982"}
-{"msg":"node.meta_heartbeat_retry","level":"WARN","ts":"2026-10-01T10:02:36.2067798Z","instance":"round1-a","service_name":"afs-node","error":"0x01020001 Unavailable: transport error"}
-{"msg":"dfs.replication_task_retry","level":"WARN","ts":"2026-10-01T10:02:36.3456379Z","instance":"round1-a","service_name":"afs-node","error":"0x01030003 Unavailable: tcp connect error"}
-{"msg":"node.meta_heartbeat_retry","level":"WARN","ts":"2026-10-01T10:02:37.211617026Z","instance":"round1-a","service_name":"afs-node","error":"0x01020001 Unavailable: transport error"}
-{"msg":"dfs.replication_task_retry","level":"WARN","ts":"2026-10-01T10:02:37.348138576Z","instance":"round1-a","service_name":"afs-node","error":"0x01030003 Unavailable: tcp connect error"}
-{"msg":"services.stopped","level":"INFO","ts":"2026-10-01T10:02:37.36046916Z","instance":"round1-a","service_name":"afs-node"}

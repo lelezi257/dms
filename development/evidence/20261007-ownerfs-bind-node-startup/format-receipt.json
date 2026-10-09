@@ -1,7 +1,0 @@
-{
-  "status": "PASS",
-  "formatter": "ARM64 Linux rustfmt --edition2024 --emit stdout --config skip_children=true src/node.rs",
-  "host_action": "Apply Linux stdout after exact filename prefix removal; no Rust run on macOS",
-  "file": "src/node.rs",
-  "sha256": "dde9b50e50892309acb2f6036b967d184163a7b02ec43d1dc434aa5fa01fbac8"
-}

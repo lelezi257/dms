@@ -1,3 +1,0 @@
-	linux-vdso.so.1 (0x0000e10c0756e000)
-	libc.so.6 => /lib/aarch64-linux-gnu/libc.so.6 (0x0000e10c072f0000)
-	/lib/ld-linux-aarch64.so.1 (0x0000e10c07520000)

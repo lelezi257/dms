@@ -1,1 +1,0 @@
-{"msg":"meta.ready","level":"INFO","ts":"2026-10-06T19:26:58.843864965Z","instance":"meta-ctl","service_name":"afs-meta","rest":"127.0.0.1:24401","grpc":"127.0.0.1:24400"}

@@ -47,7 +47,7 @@ async fn reset_dedicated_database(endpoint: &str) {
 /// and noeviction. The test writes the fixed production snapshot key and leaves
 /// it for replay inspection.
 #[tokio::test]
-#[ignore = "requires a dedicated durable Redis; see development/validation.md"]
+#[ignore = "requires a dedicated durable Redis; see docs/testing/validation.md"]
 async fn store_replays_business_state_from_dedicated_redis() {
     let endpoint = dedicated_endpoint();
     reset_dedicated_database(&endpoint).await;
@@ -114,7 +114,7 @@ async fn loads_existing_business_state_after_redis_restart() {
 /// A Redis key expiration would silently remove Meta authority, so startup/load
 /// must reject a snapshot key with TTL instead of treating it as normal data.
 #[tokio::test]
-#[ignore = "requires a dedicated durable Redis; see development/validation.md"]
+#[ignore = "requires a dedicated durable Redis; see docs/testing/validation.md"]
 async fn rejects_snapshot_key_with_ttl() {
     let endpoint = dedicated_endpoint();
     reset_dedicated_database(&endpoint).await;

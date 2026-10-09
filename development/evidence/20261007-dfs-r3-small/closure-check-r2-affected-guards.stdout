@@ -1,1 +1,0 @@
-{"status": "PASS_AFFECTED_GUARDS_ONLY", "checks": ["valid_retained_binding", "foreign_launch", "wrong_pid", "wrong_retained_starttick", "changed_captured_starttick", "changed_captured_argv"], "count": 6}

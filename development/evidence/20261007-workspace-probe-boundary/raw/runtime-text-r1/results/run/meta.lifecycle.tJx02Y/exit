@@ -1,8 +1,0 @@
-pid=89150
-exe=/opt/afs-managed-workspace-probe-remediation-20261007-r1/prefix/bin/afs-meta
-config=/opt/afs-managed-workspace-probe-remediation-20261007-r1/etc/meta.toml
-start_ticks=9620726
-boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
-lifecycle=/opt/afs-managed-workspace-probe-remediation-20261007-r1/run/meta.lifecycle.tJx02Y
-supervisor_pid=89134
-exit_code=0

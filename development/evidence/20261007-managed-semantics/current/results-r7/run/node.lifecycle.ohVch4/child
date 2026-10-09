@@ -1,7 +1,0 @@
-pid=9504
-exe=/opt/afs-managed-workspace-20261007-r7/prefix/bin/afs-node
-config=/opt/afs-managed-workspace-20261007-r7/etc/node.toml
-start_ticks=4823293
-boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
-lifecycle=/opt/afs-managed-workspace-20261007-r7/run/node.lifecycle.ohVch4
-supervisor_pid=9488

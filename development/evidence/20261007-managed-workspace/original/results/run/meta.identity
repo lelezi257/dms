@@ -1,8 +1,0 @@
-pid=4105
-exe=/opt/afs-managed-workspace-20261007-r1/prefix/bin/afs-meta
-config=/opt/afs-managed-workspace-20261007-r1/etc/meta.toml
-start_ticks=4537319
-boot_id=57e1dc25-0d6c-4738-ba94-015bc45428dd
-lifecycle=/opt/afs-managed-workspace-20261007-r1/run/meta.lifecycle.3oCmDb
-supervisor_pid=4089
-cmdline=/opt/afs-managed-workspace-20261007-r1/prefix/bin/afs-meta --config /opt/afs-managed-workspace-20261007-r1/etc/meta.toml

@@ -1,7 +1,0 @@
-{
-  "request_id": "initial",
-  "response": {
-    "production_ready": false,
-    "state": "Idle"
-  }
-}

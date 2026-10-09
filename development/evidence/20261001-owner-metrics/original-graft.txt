@@ -1,1 +1,0 @@
-Applied timer regression and helper only to frozen original product

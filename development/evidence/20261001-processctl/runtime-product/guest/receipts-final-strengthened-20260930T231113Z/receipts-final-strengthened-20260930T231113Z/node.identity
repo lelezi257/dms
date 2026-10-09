@@ -1,8 +1,0 @@
-pid=714650
-exe=/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node
-config=/mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml
-start_ticks=6508069
-boot_id=36a572e0-859b-4a94-adc7-789210a83fc8
-lifecycle=/mnt/lima-afsadata/afs-delivery/processctl-v50/run/node.lifecycle.6DMgkO
-supervisor_pid=714634
-cmdline=/mnt/lima-afsadata/afs-delivery/processctl-v50/prefix/bin/afs-node --config /mnt/lima-afsadata/afs-delivery/processctl-v50/etc/node.toml

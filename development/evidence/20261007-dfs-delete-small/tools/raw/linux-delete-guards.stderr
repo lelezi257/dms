@@ -1,9 +1,0 @@
-test_delete_manifest_shape_and_helper_identity_are_checked (test_dfs_manyread_small.DfsManyReadSmallGuardTests.test_delete_manifest_shape_and_helper_identity_are_checked) ... ok
-test_delete_manifest_rejects_corrupt_content_failed_unlink_cleanup_and_traversal (test_dfs_manyread_small.DfsManyReadSmallGuardTests.test_delete_manifest_rejects_corrupt_content_failed_unlink_cleanup_and_traversal) ... ok
-test_deleted_path_checker_requires_actual_lstat_enoent (test_dfs_manyread_small.DfsManyReadSmallGuardTests.test_deleted_path_checker_requires_actual_lstat_enoent) ... ok
-test_delete_writer_existing_output_sentinel_is_not_overwritten (test_dfs_manyread_small.DfsManyReadSmallGuardTests.test_delete_writer_existing_output_sentinel_is_not_overwritten) ... ok
-
-----------------------------------------------------------------------
-Ran 4 tests in 0.011s
-
-OK

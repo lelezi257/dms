@@ -1,4 +1,0 @@
-   Compiling afs-protocol v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71/common/protocol)
-   Compiling afs-transport v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71/common/transport)
-   Compiling afs v0.1.0 (/home/lzc.guest/afs-build/work/owner-rdma-v71)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 20.28s

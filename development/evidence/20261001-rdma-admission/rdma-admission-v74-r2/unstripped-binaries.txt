@@ -1,2 +1,0 @@
-365318433494e17e74901ed8b21419b132d22ef1ab02d68b16a21a425f361e03  /home/lzc.guest/afs-build/target/debug/afs-node
-f90c44230586bbceda579d1fe60cb9cc467853f9bf5c1bc1328fe205fd30f54a  /home/lzc.guest/afs-build/target/debug/afs-meta

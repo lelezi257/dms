@@ -1,0 +1,104 @@
+{
+  "task": "G2.21",
+  "status": "WITHDRAWN_UNMEASURED_OBSERVER_MISMATCH",
+  "source_base": "d787922ea93c4e8a9285417176606957fd006af5",
+  "candidate_node_sha256": "9579e75ba3c61df215994a37f2d194f515a72bcc33e721824b54f031d3300a67",
+  "candidate_compiler_input_map": "39827ab0c20402a3bd0589f5d735e4ab40d8da87efcbd412b6546974f1ea4a93",
+  "final_compiler_input_map": "c323c437a520045765a23fd1cee586ee3898508ed019626647f5e6b9aa77ff51",
+  "final_product_change": "NONE;64KiB restored. Only expanded test retained.",
+  "runtime_candidate": "NOT_RUN",
+  "reader_phases": 0,
+  "performance": "NOT_MEASURED;no speedup;qualified3FS PENDING",
+  "linux_validation": {
+    "baseline_extended_regression": 1,
+    "candidate_chunk_tests": 9,
+    "candidate_dfs_read_tests": 13,
+    "candidate_fmt_build": "PASS",
+    "strict_clippy": "FAIL two unchanged peer.rs dead_code",
+    "clippy_with_only_known_dead_code_allowance": "PASS supplemental",
+    "restored_chunk_tests": 9,
+    "restored_dfs_read_tests": 13,
+    "restored_fmt": "PASS"
+  },
+  "failure": {
+    "first": "legacy replica observer counted6rawReadyDurable receipts, expected3; not physical count",
+    "secondary": "drain observer matched own argv containing io tool; no evidence of actual test driver residual",
+    "six_wait_expectation": "not reached; onlybaseline4services started, all4wait0"
+  },
+  "catalog_facts": {
+    "raw_history": "v11=3,v26=6,v35=9 for observedchunk",
+    "distinct_node_devices": 3,
+    "observation": "stopped;leasesexpired;liveeligible0",
+    "production": "serving_read_copy can project prior node epochs when device/catalog match; health counts distinctnodes",
+    "logical_map": "sameFileVersion/LayoutRoot and16chunk structures/offsets",
+    "not_restored": "MetaWAL/copyIds/sessions/tasks advanced; noMeta rollback",
+    "wal_sha256": "0de209374407eb61f8a0f5b5c7a7f6d745ba7fcf1de12d656394b39015144a62"
+  },
+  "closure": {
+    "actual_child_wait_zero": 4,
+    "original_binary_inode_run_logs_tools_helpers_config_tls": "PASS fourroles",
+    "physical_chunks_full_sha_identity": 48,
+    "boot_mount_protected_inventory": "PASS",
+    "logs": {
+      "ctl": [
+        {
+          "path": "tested-logs/meta.log",
+          "bytes": 296,
+          "ERRO": 0,
+          "WARN": 0
+        }
+      ],
+      "a": [
+        {
+          "path": "tested-logs/node.log",
+          "bytes": 609,
+          "ERRO": 0,
+          "WARN": 0
+        }
+      ],
+      "b": [
+        {
+          "path": "tested-logs/node.log",
+          "bytes": 878,
+          "ERRO": 0,
+          "WARN": 0
+        }
+      ],
+      "c": [
+        {
+          "path": "tested-logs/node.log",
+          "bytes": 609,
+          "ERRO": 0,
+          "WARN": 0
+        }
+      ]
+    }
+  },
+  "preservation": {
+    "linux_restore": {
+      "status": "PASS_ACTUAL_LINUX_RESTORATION",
+      "raw_files": 481,
+      "raw_bytes": 6234181,
+      "guest_files": {
+        "ctl": 17,
+        "a": 18,
+        "b": 18,
+        "c": 18
+      },
+      "baseline_and_candidate_host_ELF_restored": true,
+      "original_inode_not_claimed_from_archive": true
+    },
+    "archive": {
+      "path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-read-scan-20261009-r1/raw-preserved.tar",
+      "sha256": "973ccafe711987d26393c44e24fe25e736b61e1220f3774fefae297ab0db244f",
+      "bytes": 7178240,
+      "raw_count": 481,
+      "raw_bytes": 6234181
+    },
+    "guest_logical_bytes_removed": 141860408,
+    "build_own_duplicate_logical_bytes_removed": 104967872,
+    "not_free_space_delta_claim": true
+  },
+  "next": "one bounded maintained replica-observer correction to report raw receipts separately from valid distinctnode/device durable copies; meaningful regressions, no product rerun in this slice/no3FS expansion",
+  "stage_counts": "G1historical8/8closed;G2original12/0/15unchanged"
+}

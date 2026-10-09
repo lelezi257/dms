@@ -1023,16 +1023,20 @@ mod replica_replay_tests {
     fn pinned_reader_verifies_partial_ranges_and_rejects_damage_outside_them() {
         let temp = tempfile::tempdir().unwrap();
         let store = LocalChunkStore::open(temp.path(), "node-a").unwrap();
-        let bytes: Vec<_> = (0..131_073).map(|index| (index % 251) as u8).collect();
+        let bytes: Vec<_> = (0..524_289).map(|index| (index % 251) as u8).collect();
         let staged = StagedChunk::new(OperationId::new("range"), bytes.clone());
         store.put(staged.clone()).unwrap();
         let reader = store.open_verified(&staged.chunk.id).unwrap();
         let mut out = [9; 19];
-        assert_eq!(reader.read_at(65_531, &mut out).unwrap(), 19);
-        assert_eq!(&out, &bytes[65_531..65_550]);
+        // Cover both the old 64KiB and candidate 256KiB scan boundaries,
+        // including a final short scan outside either requested range.
+        for offset in [65_531, 262_139] {
+            assert_eq!(reader.read_at(offset, &mut out).unwrap(), 19);
+            assert_eq!(&out, &bytes[offset as usize..offset as usize + 19]);
+        }
         let path = temp.path().join("chunks").join(&staged.chunk.id.0);
         let mut damaged = bytes;
-        damaged[131_072] ^= 1;
+        damaged[524_288] ^= 1;
         fs::write(path, damaged).unwrap();
         out.fill(9);
         assert_eq!(

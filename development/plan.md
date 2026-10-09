@@ -1,4 +1,4 @@
-**当前出口（2026-10-09，G2.14有限CPU诊断已收口）：** [一次16轮原64MiB文件诊断](evidence/20261009-owner-remote-cpu-window/README.md)，b62/650、B真实bind ON/C远端/ctl local-file；843样本/lost0，内容/远端字节/权限及3产品wait0+1profilerwait0/原身份恢复限定通过。网络/TLS/复制分散，未证实主导第一方热点；无源码改动/性能改善/正式Moose新结论，不再采样。此前远端正式吞吐FAIL/p95PASS、本地双FAIL保持。Linux归档/实际恢复及仅本轮重复ELF/raw回收完成；下一回到DFS一写多读，先选已有证据支持的一项产品成本，不重启DFS写/3FS资格或A/ctl维护。G1历史8/8、原G2 12/0/15不变。
+**当前出口（2026-10-09，G2.21扫描假设未测撤回）：** [本轮证据](evidence/20261009-dfs-read-scan/README.md)。64→256KiB候选Linux22tests/fmt/build通过，原严格Clippy两dead_code失败保留；旧副本观察器按rawReady计数6而非物理节点导致读前停止，零读/candidate未启动，无性能改善。只读WAL记录3→6→9仍三node/device，停止后lease到期liveeligible0；文件version/layout/16chunk与48物理SHA不变，但MetaWAL/receipt/session/task前进，非目录回滚。四实际wait0、原ELF/helper/run/log/保护库存恢复通过；生产64KiB还原，只保留扩展回归，恢复后22tests/fmt通过。主机归档/实际Linux恢复及仅本轮重复工件回收完成。下一仅纠正维护观察器对raw与生产有效独立副本的分类，不扩3FS资格/DFS写或A/ctl维护。G1历史8/8、原G2 12/0/15和既有Owner性能FAIL不变。
 
 以下日期快照保留原版本、原判据与原结论；当前入口以上述结果为准。
 

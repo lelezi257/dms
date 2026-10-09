@@ -1,0 +1,11 @@
+{
+  "external_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-read-scan-maintained-20261009-r2",
+  "index_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-read-scan-maintained-20261009-r2/raw-index.json",
+  "index_sha256": "26d0795592805da1cf9cd88b04171f3586453cc276d6930f71a686679cd32e05",
+  "archive_path": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/dfs-read-scan-maintained-20261009-r2/raw-preserved.tar",
+  "archive_sha256": "6aa6b21c8f519b9ffa66a4dbd894182804d1ae607ab34134b978c4de227d089e",
+  "archive_bytes": 11151360,
+  "raw_files": 959,
+  "raw_bytes": 9470447,
+  "recover": "outer actual Linux extraction verified959 files; eight nested guest archives actually restored34+104 records; immutable prior scripts/candidate patch andELF remain outside Git, with exactSHA contract references; canonical tool restored from fixed e6f commit; no repeated full driver/source snapshots in Git"
+}

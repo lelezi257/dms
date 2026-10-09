@@ -1,4 +1,4 @@
-**当前出口（2026-10-09，G2.21扫描假设未测撤回）：** [本轮证据](evidence/20261009-dfs-read-scan/README.md)。64→256KiB候选Linux22tests/fmt/build通过，原严格Clippy两dead_code失败保留；旧副本观察器按rawReady计数6而非物理节点导致读前停止，零读/candidate未启动，无性能改善。只读WAL记录3→6→9仍三node/device，停止后lease到期liveeligible0；文件version/layout/16chunk与48物理SHA不变，但MetaWAL/receipt/session/task前进，非目录回滚。四实际wait0、原ELF/helper/run/log/保护库存恢复通过；生产64KiB还原，只保留扩展回归，恢复后22tests/fmt通过。主机归档/实际Linux恢复及仅本轮重复工件回收完成。下一仅纠正维护观察器对raw与生产有效独立副本的分类，不扩3FS资格/DFS写或A/ctl维护。G1历史8/8、原G2 12/0/15和既有Owner性能FAIL不变。
+**当前出口（2026-10-09，G2.21维护观察器接线与当前B/C测量收口）：** [本轮证据](evidence/20261009-dfs-read-maintained/README.md)。维护观察器早已正确，前轮误用旧存档；原15guards精确SHA复用，新接线5Linux guards通过。当前Meta650/Nodesb62一次64MiB/R3 B/C各1预热5正式读，吞吐46.324/46.686MiB/s，独立预设p95 24.804/24.787ms；内容/EOF、读前liveR3及48物理身份、四wait0/原身份恢复限定PASS。汇总器identity字段误读使pair FAIL，候选未启/改善未测，生产64KiB保持；准备symlink失败与原KeyError均保留，无重跑正式读/修VM。959raw及138guest实际Linux恢复后，仅回收本轮232596160B重复ELF（逻辑字节）和两归档链接；无新产品改动/最终性能达标。下一Owner远端一项产品成本，不再重试扫描微调；G1历史8/8、原G2 12/0/15、Owner性能FAIL和用户后置专题不变。
 
 以下日期快照保留原版本、原判据与原结论；当前入口以上述结果为准。
 

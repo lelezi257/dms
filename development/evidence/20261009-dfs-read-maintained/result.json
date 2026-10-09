@@ -1,0 +1,134 @@
+{
+  "actual_wait0": 4,
+  "candidate": "NOT_ACTIVATED",
+  "canonical15_guards": "REUSED_UNCHANGED",
+  "failure": "original summary schema KeyError(reader_identity) retained; candidate phase never ran; no repeated formal read",
+  "function": "LIMITED_PASS_B62_BC_EXISTING_R3",
+  "logs": {
+    "a": {
+      "ERRO": 0,
+      "WARN": 0,
+      "bytes": 878
+    },
+    "b": {
+      "ERRO": 0,
+      "WARN": 4,
+      "bytes": 1430
+    },
+    "c": {
+      "ERRO": 0,
+      "WARN": 4,
+      "bytes": 1430
+    },
+    "ctl": {
+      "ERRO": 0,
+      "WARN": 0,
+      "bytes": 296
+    }
+  },
+  "measurement": "COMPLETE_BASELINE_ONLY",
+  "metrics": {
+    "b": {
+      "independent_read_samples": 320,
+      "latency_ms": {
+        "p50": 20.755817,
+        "p95": 24.803879,
+        "p99": 26.722222
+      },
+      "median_mib_s": 46.324357718317444,
+      "round_mib_s": [
+        46.324357718317444,
+        48.76330164008767,
+        45.80882895305291,
+        45.07814077003067,
+        47.45443133917576
+      ]
+    },
+    "c": {
+      "independent_read_samples": 320,
+      "latency_ms": {
+        "p50": 20.795221,
+        "p95": 24.786591,
+        "p99": 26.767171
+      },
+      "median_mib_s": 46.68646202321807,
+      "round_mib_s": [
+        46.68646202321807,
+        48.226572464356344,
+        45.90222368051037,
+        45.27882790660096,
+        47.64960718408363
+      ]
+    }
+  },
+  "new_wiring_guards": 5,
+  "next": "OwnerFs remote core product cost; no more scan pair retries, DFSwrite/3FS qualification remain deferred",
+  "observer_identity": "f03 constants are historical observer fixture metadata; actual currentMeta650/Nodesb62 independently pinned by contract/capture",
+  "paired_performance": "NOT_MEASURED",
+  "physical_files_preserved": 48,
+  "product_change": "NONE; production64KiB remains",
+  "qualified_3fs": "PENDING",
+  "restored_stage_records": 104,
+  "status": "PASS_LIMITED_SAVED_BASELINE_READ_AND_CLOSURE",
+  "source_main_anchor": "a520ac83853a10573381b47c2332d4e419e19941",
+  "product_source": "53e33587ab4dbce92c4a62ace608fb2137acbd9b",
+  "binary_identity": {
+    "afs_meta_sha256": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
+    "afs_node_sha256": "b62ade56fb2b06e3110b9c762c2393c5f1ef5c23b0a64123f2fa7702f11bf50b",
+    "compiler_input_map": "47de5b82f0e9d25becfed092bc721254eba0564fcb3cbd270d51f61a6387ee08",
+    "io_sha256": "88105651f1ef6dce49b8dc9e22f467448f9a9ae62140a1b92b78abf7c0c1d462",
+    "product_source_commit": "53e33587ab4dbce92c4a62ace608fb2137acbd9b"
+  },
+  "contract_sha256": "615e6032aa3d2c37dcf8d8742522c37e8d17d3a89b50c4bc5b1f0684c223bb68",
+  "canonical_observer_sha256": "692a92f3ee050ebe15322ed2d0e54ece63c6baf355c6e8bbafca398f90c37cd5",
+  "canonical_tests_sha256": "4ad6e86cffab2ba0c1106e9944d81be78587565865b5fd2d319319345d22f524",
+  "historical_coverage": "../20261008-dfs-r3-recovery-qualified/tool-test-result.json: exact observer/tests SHA,15 Linux tests reused",
+  "new_guard_result": "five Linux wiring tests PASS, not product acceptance",
+  "run_status": "pair orchestration FAIL; baseline-only function/measurement audited LIMITED_PASS; candidate NOT_ACTIVATED",
+  "attempts": [
+    {
+      "id": "dfs-read-scan-maintained-20261009-r1",
+      "state": "PREPARATION_FAIL",
+      "error": "Lima preserved host ELF source symlink; safe allocator refused",
+      "services": 0,
+      "reader_phases": 0,
+      "original_identities_restored": 4
+    },
+    {
+      "id": "dfs-read-scan-maintained-20261009-r2",
+      "state": "BASELINE_MEASURED_CANDIDATE_NOT_RUN",
+      "error": "summary has identity, not reader_identity; original KeyError retained",
+      "services": 4,
+      "reader_phases": 1,
+      "formal_rounds_each": 5,
+      "actual_wait0": 4
+    }
+  ],
+  "restoration": {
+    "outer": {
+      "status": "PASS_ACTUAL_LINUX_OUTER_RESTORATION",
+      "files": 959,
+      "raw_bytes": 9470447,
+      "archive_bytes": 11151360,
+      "archive_sha256": "6aa6b21c8f519b9ffa66a4dbd894182804d1ae607ab34134b978c4de227d089e",
+      "nested_restoration": "R1 34 stage records and R2 104 records verified separately"
+    },
+    "nested_records": 138,
+    "linux_audit_sha256": "a1b96e605265bef12898a4a9d8b5f60220c07e0ef2ce75de025a13f03a453d62",
+    "r1_restoration_sha256": "d95333fa148d239ecf91fb0a827478788c4d5c4dae86b1b978635d0fa0d155c0",
+    "normal_guest_restoration": "original binary inode/run/log/helper/config/TLS/boot/mount/protected inventory and48 physical files full SHA/mode/mtime/uid/gid",
+    "meta": "WAL/session/receipt/task may advance normally; no rollback/no new post-read live-lease proof"
+  },
+  "cleanup": {
+    "logical_elf_bytes_by_run": {
+      "dfs-read-scan-maintained-20261009-r1": 91176072,
+      "dfs-read-scan-maintained-20261009-r2": 141420088
+    },
+    "total_logical_elf_bytes": 232596160,
+    "also_removed": "two archived owned dangling candidate links from R1",
+    "scope": "only own recoverable guest copies, after actual Linux restoration; not filesystem free-space delta; original data/history/failure logs remain"
+  },
+  "g1": "historical8/8 CLOSED",
+  "g2": "original12 limitedcomplete/0bindinprogress/15pending; no aggregate increment",
+  "remaining": "candidate speedup NOT_MEASURED; final3FS PENDING; Owner remote throughputFAIL/p95PASS and localdoubleFAIL; R2 upstream migration unfinished; user-deferred DFSwrite/3FSqualification/A-ctl maintenance unchanged"
+}

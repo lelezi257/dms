@@ -1,0 +1,27 @@
+{
+  "command": [
+    "limactl",
+    "shell",
+    "--workdir=/",
+    "afs-build",
+    "sudo",
+    "python3",
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "/workspace/dms/source/development/acceptance/probes",
+    "-p",
+    "test_moose_direct_read_fixture.py"
+  ],
+  "exit_code": 0,
+  "receipt": "tool exec 54a8b4 this session; saved without repeating unchanged tests",
+  "source_sha256": {
+    "moose_direct_read_fixture.py": "ca9b2941f40eab64d33117b1236ae9fb13a0d384df31669db418efee7243b12b",
+    "test_moose_direct_read_fixture.py": "3344f486635dc76464249d0c6477771b6fb3e060ecc20c604597c8eb425736ea"
+  },
+  "stderr": ".........\n----------------------------------------------------------------------\nRan 9 tests in 0.002s\n\nOK\n",
+  "stdout": "",
+  "tests": 9
+}

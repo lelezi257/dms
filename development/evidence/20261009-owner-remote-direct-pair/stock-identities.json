@@ -1,0 +1,33 @@
+{
+  "version": "4.59.2-1; build2106",
+  "version_command": "limactl shell --workdir=/ afs-accept-ctl sudo /mnt/lima-afsctlstate/afs-delivery/owner-remote-direct-read-20261009-r1/tools/mfsmaster -v",
+  "version_receipt": "tool b52c75, exit0",
+  "staging": {
+    "ctl": {
+      "bytes": 4119248,
+      "destination": "/mnt/lima-afsctlstate/afs-delivery/owner-remote-direct-read-20261009-r1/tools/mfsmaster",
+      "destination_sha256": "9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70",
+      "destination_uid": 0,
+      "original_identity_unchanged": true,
+      "source": "/opt/afs-moose-round3-v85/sbin/mfsmaster",
+      "source_inode": 266802,
+      "source_sha256": "9febf4e7a9ae5285c4e792024f98d8a5531ae325f19268e103693981be509b70",
+      "source_uid": 501,
+      "status": "PASS_ISOLATED_FIXED_STOCK_STAGING"
+    },
+    "b": {
+      "bytes": 2409944,
+      "destination": "/mnt/lima-afsbdata/afs-delivery/owner-remote-direct-read-20261009-r1/tools/mfschunkserver",
+      "destination_sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303",
+      "destination_uid": 0,
+      "original_identity_unchanged": true,
+      "source": "/opt/afs-moose-round3-v85/sbin/mfschunkserver",
+      "source_inode": 277273,
+      "source_sha256": "422a36b7e31a6aa0bfbef08efe083d9d55003aca0a9a7bd0121b730c33f97303",
+      "source_uid": 501,
+      "status": "PASS_ISOLATED_FIXED_STOCK_STAGING"
+    }
+  },
+  "mount_sha256": "5752f91e2d174cc8a0a53df7b3713b3bed31fde5fe72a6f38cd86237ae3ebc37",
+  "third_party_changes": false
+}

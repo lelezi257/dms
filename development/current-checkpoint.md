@@ -1,4 +1,6 @@
-**当前出口（2026-10-09，Owner远端当前组合回归）：** 已发布d47包的Meta650/Node d14、ctl/B/C实际fs=all：B底层ext4 workspace bind ON与C远端FUSE的双向fresh-open读写、扩缩容、创建/rename/delete、权限和errno限定PASS，三actualwait0；原保护库存、64MiB数据与原配置/ELF/helper inode恢复。仅关闭当前组合功能回归，无产品源码改动/新性能成绩，不重标历史测量；正式Moose1.2/.8与DFS/3FS仍PENDING，G1历史8/8和原G2 12/0/15不变。 [版本、证据和范围](evidence/20261009-workspace-bind-remote-d47/README.md)；d47 ON包发布/独立安装/正常恢复分项保持完成。下一Owner远端Moose对照，旧文件所有权准入的部署选择仍待答复；不重复只测Owner，DFS写保持暂缓。
+**当前出口（2026-10-09，G2.14正式小读对照）：** d47当前Meta650/Node d14、Owner-only/B真实workspace bind ON/C远端、64MiB/C1/1MiB一次1预热5交替对：Owner/Moose中位389.863/426.481MiB/s（0.914140×，吞吐FAIL），独立pread p95 5.395/10.012ms（0.538794×，时延PASS），双项合取仍FAIL。内容/远端字节/六actualwait0及原库存恢复通过；仅关闭本选定测量子项，无产品改善或整个G2.14达标。官方固定SHA隔离部署已自行完成，原错误求助撤回；前置alias/EACCES零正式测量失败保留，新uid501/0600基线文件不改旧文件权限。9 Linux工具检查、94保存数据核验及2005raw实际恢复通过，6临时Meta回收90.46MiB；不计产品完成数。G1历史8/8、原G2 12/0/15及已发布ON包保持原身份。下一针对已量化远端吞吐缺口做一项产品源码优化，不刷分/扩资格；DFS写继续用户暂缓。 [本项版本、全部样本与证据](evidence/20261009-owner-remote-direct-pair/README.md)。
+
+以下日期快照保留原版本、原判据与原结论；当前入口以上述结果为准。
 
 **环境维护（2026-10-08）：** [A四份旧ELF已完整归档并实际Linux恢复后移除](evidence/20261008-a-stopped-binary-archive/README.md)，实际可用1.50→2.55GiB；七memory Meta/FDB及原挂载/27非二进制文件身份保留。未改当前d14产品/候选/配置或运行测试；DFS原阻塞记录不改，暂缓决定不自动撤销，继续Owner远端。G1/G2验收计数不变。
 

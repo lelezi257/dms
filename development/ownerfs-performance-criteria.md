@@ -42,6 +42,10 @@ Every run records throughput plus p50, p95 and p99 for the measured operation-la
 
 **当前出口（2026-10-08，G2.15）：** 远端写一次839→d14对照189.875→199.831MiB/s（+5.24%）、独立pwrite p95 7.050→6.951ms（-1.40%），达到测前保留线，Owner-only TCP公开API入站256KiB帧改动保留；p99+5.85%及轮次波动完整留数，不称稳定广泛提升。功能限定PASS／测量COMPLETE／正式Moose1.2/.8仍PENDING。 复用原64MiB同inode，B/C512MiB、ctl256MiB预算贯穿准入/运行/退出，采样峰值B264,790,016B、盘余21,269,839,872B，容量PASS；五actualwait0/原mount及保护进程不变。160输入与已过四测试/构建候选完全一致，Linux身份/fmt及537保存证据核验、1690raw+27guest实际恢复PASS；严格Clippy既有失败和19,493B/5ERRO/60WARN保留。无第三方/环境修补/新包；旧FAIL_BUDGET不改。G1历史8/8关闭、原G2仍12/0/15，DFS写按用户暂缓。下一Owner远端核心的一项剩余产品成本，复用有效基线、不重跑本项或扩资格矩阵。 [本轮版本与证据](evidence/20261008-owner-remote-write-server-pair/README.md)。
 
+## Current selected remote DIRECT case — 2026-10-09
+
+Current published Meta650/Node d14,Owner-only/B bind ON/C remote,64MiB/C1: throughput389.863/426.481MiB/s=0.914140x **FAIL**; independent pooled p95 5.395/10.012ms=0.538794x **PASS**. Both are required, so selected-case performance is **FAIL**, not whole-G2.14 completion. Five formal alternating pairs,320 actual intervals per side,p95 preset,all raw samples and negative rounds retained. Official fixed-SHA isolation completed without modifying old installation or weakening permissions. This replaces the current 'await deployment decision' status, not historical conclusions. [Contract, version, scope, all data and closure](evidence/20261009-owner-remote-direct-pair/README.md). No product optimization or new package this round; next address one measured throughput cost.
+
 ## Existing Evidence Audit
 
 | G2 item | Existing evidence | New-criterion status |

@@ -1,4 +1,4 @@
-**当前出口（2026-10-09，G2.09一次Moose对照已收口）：** mainf57/产品53e、Meta650/Node b62；原B/ext4/local-file/OFF数据，64MiB/C1/1MiB，一预热五交替正式对照。功能限定PASS、测量COMPLETE；吞吐5706.058/19695.507MiB/s=0.289714×、独立p95 0.226087/0.035667ms=6.338829×，两项FAIL，未达1.2/.8。双方物理全热；客户端Owner0/Moose64MiB为测前默认策略差异，明确披露。五actualwait0、原数据/配置/ELF/挂载恢复及Linux保存数据审计通过。[完整范围和证据](evidence/20261009-owner-local-read-moose-b62/README.md)。无新产品改动/包，不重跑本项或扩本地矩阵；返回bind/远端主线，既有远端READ吞吐FAIL/p95PASS、R2未完成及用户暂缓专题不变，G1历史8/8和原G2 12/0/15不变。 用户授权后，C官方匹配perf两包安装及Linux完整性/软件事件检查已完成，启动身份/挂载/AFS进程未变；[环境证据](evidence/20261009-perf-tools-c/README.md)。原阻塞记录保留，下一仅一个当前远端READ有限CPU诊断窗口，不计产品通过/改善。
+**当前出口（2026-10-09，G2.14有限CPU诊断已收口）：** [一次16轮原64MiB文件诊断](evidence/20261009-owner-remote-cpu-window/README.md)，b62/650、B真实bind ON/C远端/ctl local-file；843样本/lost0，内容/远端字节/权限及3产品wait0+1profilerwait0/原身份恢复限定通过。网络/TLS/复制分散，未证实主导第一方热点；无源码改动/性能改善/正式Moose新结论，不再采样。此前远端正式吞吐FAIL/p95PASS、本地双FAIL保持。Linux归档/实际恢复及仅本轮重复ELF/raw回收完成；下一回到DFS一写多读，先选已有证据支持的一项产品成本，不重启DFS写/3FS资格或A/ctl维护。G1历史8/8、原G2 12/0/15不变。
 
 以下日期快照保留原版本、原判据与原结论；当前入口以上述结果为准。
 

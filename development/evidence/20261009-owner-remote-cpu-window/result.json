@@ -1,0 +1,246 @@
+{
+  "task": "G2.14",
+  "status": "COMPLETE_CPU_DIAGNOSTIC",
+  "function": "LIMITED_PASS",
+  "measurement": "COMPLETE_DIAGNOSTIC_ONLY",
+  "performance": "NOT_EVALUATED",
+  "product_change": "NONE",
+  "samples": 843,
+  "lost": 0,
+  "reads": 16,
+  "read_bytes": 1073741824,
+  "read_intervals": 1024,
+  "window_seconds": 15.055597499,
+  "node_cpu_seconds": 1.86,
+  "node_cpu_over_window": 0.12354209124702904,
+  "probe_total_wall_seconds": 3.022950919,
+  "probe_median_mib_s": 342.444316328226,
+  "p50_ns": 2387873,
+  "p95_ns": 5546373,
+  "p99_ns": 6860288,
+  "top_leaf": [
+    {
+      "percent": 11.63,
+      "samples": 98,
+      "kind": "k",
+      "symbol": "net_rx_action",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 9.13,
+      "samples": 77,
+      "kind": ".",
+      "symbol": "ring_core_0_17_14__aes_gcm_dec_kernel",
+      "dso": "afs-node"
+    },
+    {
+      "percent": 5.34,
+      "samples": 45,
+      "kind": ".",
+      "symbol": "0x00000000000a1b80",
+      "dso": "libc.so.6"
+    },
+    {
+      "percent": 4.39,
+      "samples": 37,
+      "kind": "k",
+      "symbol": "vp_notify",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 3.2,
+      "samples": 27,
+      "kind": "k",
+      "symbol": "memmove",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 2.14,
+      "samples": 18,
+      "kind": "k",
+      "symbol": "handle_softirqs",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 2.02,
+      "samples": 17,
+      "kind": "k",
+      "symbol": "__arch_copy_to_user",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 2.02,
+      "samples": 17,
+      "kind": "k",
+      "symbol": "try_to_wake_up",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 1.9,
+      "samples": 16,
+      "kind": "k",
+      "symbol": "do_csum",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 1.78,
+      "samples": 15,
+      "kind": "k",
+      "symbol": "el0_svc",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 1.66,
+      "samples": 14,
+      "kind": "k",
+      "symbol": "internal_get_user_pages_fast",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 1.42,
+      "samples": 12,
+      "kind": ".",
+      "symbol": "0x0000000000000508",
+      "dso": "[vdso]"
+    },
+    {
+      "percent": 1.3,
+      "samples": 11,
+      "kind": "k",
+      "symbol": "eventfd_write",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 1.07,
+      "samples": 9,
+      "kind": "k",
+      "symbol": "arch_counter_get_cntvct",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 1.07,
+      "samples": 9,
+      "kind": ".",
+      "symbol": "recv",
+      "dso": "libc.so.6"
+    },
+    {
+      "percent": 0.95,
+      "samples": 8,
+      "kind": "k",
+      "symbol": "memset",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 0.83,
+      "samples": 7,
+      "kind": "k",
+      "symbol": "queued_spin_lock_slowpath",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 0.71,
+      "samples": 6,
+      "kind": "k",
+      "symbol": "__fget_light",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 0.71,
+      "samples": 6,
+      "kind": "k",
+      "symbol": "__pi_clear_page",
+      "dso": "[kernel.kallsyms]"
+    },
+    {
+      "percent": 0.71,
+      "samples": 6,
+      "kind": "k",
+      "symbol": "__wake_up_sync_key",
+      "dso": "[kernel.kallsyms]"
+    }
+  ],
+  "closure": "PASS_THREE_ACTUAL_WAIT0_PLUS_PROFILER_WAIT0",
+  "limits": "Profiled/instrumented CPU window includes between-read control, hash/oracle, counters and metadata work; not pure READ wall, CPU percentage is not wall percentage; no Moose comparison or speedup claim. No repeat sampling.",
+  "hotspot_verdict": "INCONCLUSIVE_NO_DOMINANT_FIRST_PARTY_HOTSPOT",
+  "source_head_at_run": "5d83dc11f762bbfddc121297d934f48cc99e9cab",
+  "product_source": "53e33587ab4dbce92c4a62ace608fb2137acbd9b",
+  "contract_sha256": "ef6f194ef0461f907f3d328896b80b931d77ef539fd21e4c58c3e9bf29b016fc",
+  "binary_pins": {
+    "candidate_meta_650": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
+    "candidate_node_b62": "b62ade56fb2b06e3110b9c762c2393c5f1ef5c23b0a64123f2fa7702f11bf50b",
+    "io_tool": "c87a5fd84384871a69379b572ab512b69b1f0c8a6632aca4a44c72ac3d91e3ee",
+    "old_meta_before_activation": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+    "original_node_d14_before_activation": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4"
+  },
+  "preservation": {
+    "ctl": {
+      "status": "PASS_ARCHIVED_AND_LINUX_EXTRACTED",
+      "sha256": "22fd0cfbdd7d6211ec8d805edff4453a115c9c5e66deadc599d51ec3dc5bdb59",
+      "bytes": 15912960,
+      "free_bytes": 1938075648,
+      "members": 24,
+      "local_archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-cpu-window-20261009-r1/owner-remote-cpu-window-20261009-r1-ctl-preserved-r2.tar"
+    },
+    "b": {
+      "status": "PASS_ARCHIVED_AND_LINUX_EXTRACTED",
+      "sha256": "f656128df53bb7aadd24da15c15fd9d0a3230a52ced5a2a0ac0f1266dd531dd0",
+      "bytes": 25200640,
+      "free_bytes": 21220466688,
+      "members": 23,
+      "local_archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-cpu-window-20261009-r1/owner-remote-cpu-window-20261009-r1-b-preserved-r2.tar"
+    },
+    "c": {
+      "status": "PASS_ARCHIVED_AND_LINUX_EXTRACTED",
+      "sha256": "cf137e78be96531660bba38933af3d436fb1c2326acaa29797e273106775dcb7",
+      "bytes": 32563200,
+      "free_bytes": 36840411136,
+      "members": 36,
+      "local_archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-cpu-window-20261009-r1/owner-remote-cpu-window-20261009-r1-c-preserved-r2.tar"
+    }
+  },
+  "removed_duplicate_bytes": 162973518,
+  "postcheck": {
+    "ctl": {
+      "status": "PASS_STOPPED_RESTORED",
+      "binary_sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+      "counts": {
+        "ERROR": 0,
+        "ERRO": 0,
+        "WARN": 0,
+        "TRACE": 0
+      },
+      "free_bytes": 1953886208
+    },
+    "b": {
+      "status": "PASS_STOPPED_RESTORED",
+      "binary_sha256": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+      "counts": {
+        "ERROR": 0,
+        "ERRO": 0,
+        "WARN": 1,
+        "TRACE": 0
+      },
+      "free_bytes": 21245591552
+    },
+    "c": {
+      "status": "PASS_STOPPED_RESTORED",
+      "binary_sha256": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+      "counts": {
+        "ERROR": 0,
+        "ERRO": 1,
+        "WARN": 2,
+        "TRACE": 0
+      },
+      "free_bytes": 36872867840
+    }
+  },
+  "preparation_failures": [
+    "Original old-template B-only perf pin rejected before services.",
+    "Fixed v1 old-Meta full SHA typo rejected at ctl admission; no activation.",
+    "Fixed v2 limactl copied local symlink rather than ELF; before any product service; original closure PASS.",
+    "Two Linux default-guard harness __file__/path mistakes; corrected guard PASS.",
+    "First archive audit used data-filter directory-mode expectation; failed audit retained; new archive fully extracted/verified."
+  ],
+  "raw_root": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/owner-remote-cpu-window-20261009-r1"
+}

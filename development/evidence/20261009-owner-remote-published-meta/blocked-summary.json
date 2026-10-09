@@ -1,0 +1,139 @@
+{
+  "action": "Stopped affected lane; no rerun, environment repair, new package or optimization; finite delivered version stays frozen.",
+  "bytes": {
+    "additional_reserved": 134217728,
+    "allocated": 149102592,
+    "backing_free": 1915756544,
+    "ceiling": 268435456,
+    "over": 14884864,
+    "projected": 283320320
+  },
+  "checks": [
+    {
+      "key": "boot_id",
+      "role": "ctl",
+      "unchanged": true
+    },
+    {
+      "key": "mountinfo",
+      "role": "ctl",
+      "unchanged": true
+    },
+    {
+      "key": "protected_processes",
+      "role": "ctl",
+      "unchanged": true
+    },
+    {
+      "key": "binaries",
+      "role": "ctl",
+      "unchanged": true
+    },
+    {
+      "key": "configs",
+      "role": "ctl",
+      "unchanged": true
+    },
+    {
+      "key": "physical_workspace",
+      "role": "ctl",
+      "unchanged": true
+    },
+    {
+      "key": "boot_id",
+      "role": "b",
+      "unchanged": true
+    },
+    {
+      "key": "mountinfo",
+      "role": "b",
+      "unchanged": true
+    },
+    {
+      "key": "protected_processes",
+      "role": "b",
+      "unchanged": true
+    },
+    {
+      "key": "binaries",
+      "role": "b",
+      "unchanged": true
+    },
+    {
+      "key": "configs",
+      "role": "b",
+      "unchanged": true
+    },
+    {
+      "key": "physical_workspace",
+      "role": "b",
+      "unchanged": true
+    },
+    {
+      "key": "boot_id",
+      "role": "c",
+      "unchanged": true
+    },
+    {
+      "key": "mountinfo",
+      "role": "c",
+      "unchanged": true
+    },
+    {
+      "key": "protected_processes",
+      "role": "c",
+      "unchanged": true
+    },
+    {
+      "key": "binaries",
+      "role": "c",
+      "unchanged": true
+    },
+    {
+      "key": "configs",
+      "role": "c",
+      "unchanged": true
+    },
+    {
+      "key": "physical_workspace",
+      "role": "c",
+      "unchanged": true
+    }
+  ],
+  "inventory": [
+    {
+      "fixture_exists": true,
+      "free_bytes": 1915756544,
+      "missing_tools": [],
+      "owned_mounts": 0,
+      "owned_processes": 0,
+      "role": "ctl",
+      "status": "INVENTORIED",
+      "suite_count": 1
+    },
+    {
+      "fixture_exists": true,
+      "free_bytes": 21194231808,
+      "missing_tools": [],
+      "owned_mounts": 0,
+      "owned_processes": 0,
+      "role": "b",
+      "status": "INVENTORIED",
+      "suite_count": 1
+    },
+    {
+      "fixture_exists": true,
+      "free_bytes": 36817371136,
+      "missing_tools": [],
+      "owned_mounts": 0,
+      "owned_processes": 0,
+      "role": "c",
+      "status": "INVENTORIED",
+      "suite_count": 1
+    }
+  ],
+  "original_binaries_configs_mounts_processes_unchanged": true,
+  "product_started": false,
+  "status": "BLOCKED_PRESTART_BUDGET",
+  "test_invoked": false
+}

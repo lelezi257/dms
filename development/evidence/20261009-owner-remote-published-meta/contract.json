@@ -1,0 +1,33 @@
+{
+  "candidate": {
+    "input_map_sha256": "dc06adcc9f8ddb1270b1ac9911755c01345b2698925aa8ee8e37238d9abd6651",
+    "node_bytes": 25219504,
+    "node_sha256": "217993272a77a830b0bd491d71e07cd598ba71779d6dfda8ab18ec4cb7716672",
+    "source": "ba30cffdb1aba4c5207d426d580ba8849dc00940+working-tree",
+    "status": "PINNED"
+  },
+  "compiler_inputs_sha256": "3f40769b6b3ebff62c47e5061c1b27288d191617a35990038d0d3738feb3d912",
+  "dependencies": {
+    "evidence/afs-delivery/owner-remote-direct-read-20261008-r1/run.py": "0c4073bc0ae140a4da74408202935f7e4de049cc49a58d5ef770978bfaad6ff0",
+    "evidence/afs-delivery/owner-remote-dispatch-wake-20261009-r1/run-pair.py": "e39eea1d2215d2d9565b8126d695452106f7502afc0d4a71001e1451bbe89fc7",
+    "evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/performance/paired_remote_read.py": "875fa5ff560dcaa9bfd8a060c230b02a732dfd62a4931f0f9ac19d3825d1e8d8",
+    "evidence/afs-delivery/owner-remote-published-meta-20261009-r1/run.py": "428fadf11245ccea1d64783844e4136f6a7ccd023d07c4fb2ce54b85fb2676ca",
+    "evidence/afs-delivery/owner-remote-read-worker-scratch-20261009-r1/run-pair.py": "9f70b8e1e38c7c080cec065e89ee97d10da2bd01a830bd59d90565e5bd6e12ea",
+    "evidence/afs-delivery/owner-remote-standard-20261009-r1/run.py": "c130d6f31be4ef8e9f6bb43d045a00d742c296cd47efb85af41e153236815d3e",
+    "evidence/afs-delivery/owner-remote-statfs-runtime-20261009-r1/run.py": "cf59d3f566c9c594deb162585d4b26cf23e9b815a1eed2810ff69499cf860448",
+    "evidence/afs-delivery/owner-remote-write-server-pair-20261008-r1/run-pair.py": "56b020465f4cc0b42e3988e67ef58bbda73af4cc452404ad396db894abb35a03"
+  },
+  "limits": {
+    "bc_budget": 536870912,
+    "bc_free": 4294967296,
+    "ctl_budget": 268435456,
+    "ctl_free": 536870912,
+    "log_cap": 67108864
+  },
+  "meta_sha256": "cda97aa819c7784f1f9a6ef86bff9958d117fdb4b0fb63b20a96f0b2b19eaa9e",
+  "package_sha256": "260d5009f343dd52e938e5659a6e9108be7cdbeb8c77124ff1696c4fdf1cf2b5",
+  "performance": "NOT_RUN",
+  "run": "owner-remote-published-meta-20261009-r1",
+  "scope": "one published new-Meta bind ON + remote statfs/core functional run",
+  "standard": "NOT_RUN; prior four-script smoke scoped reuse only"
+}

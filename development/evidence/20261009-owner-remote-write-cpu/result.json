@@ -1,0 +1,308 @@
+{
+  "status": "PASS_BOUNDED_DIAGNOSTIC",
+  "function": "LIMITED_PASS",
+  "measurement": "COMPLETE_DIAGNOSTIC_ONLY",
+  "performance": "PENDING",
+  "product_change": "NONE",
+  "operation": {
+    "barrier": "fdatasync",
+    "barrier_ns": 16294448,
+    "block_bytes": 1048576,
+    "cache_prepare_attempts": 0,
+    "cache_requested": "repeat",
+    "client_cpu_ns": 1442832,
+    "concurrency": 1,
+    "content_ok": true,
+    "file_bytes": 67108864,
+    "file_object": {
+      "device": 44,
+      "inode": 4
+    },
+    "io_bytes": 67108864,
+    "latency_interval": "pwrite+count-check",
+    "latency_order": "sorted",
+    "latency_samples_ns": [
+      4294688,
+      4381523,
+      4423857,
+      4511817,
+      4518483,
+      4536067,
+      4548650,
+      4581901,
+      4584484,
+      4614235,
+      4676361,
+      4677778,
+      4684861,
+      4688944,
+      4725486,
+      4735111,
+      4767778,
+      4818446,
+      4833321,
+      4852905,
+      4862405,
+      4932990,
+      4933906,
+      4952781,
+      4977323,
+      4982240,
+      5003907,
+      5026157,
+      5037657,
+      5069491,
+      5124367,
+      5127034,
+      5127659,
+      5149575,
+      5165535,
+      5245077,
+      5272077,
+      5281994,
+      5361912,
+      5414788,
+      5480081,
+      5633833,
+      5654792,
+      5698875,
+      5705001,
+      5764293,
+      5796877,
+      5863003,
+      6080590,
+      6170466,
+      6186300,
+      6214466,
+      6227634,
+      6344468,
+      6399969,
+      6451303,
+      6472346,
+      6555054,
+      6797184,
+      6805017,
+      6840767,
+      6960769,
+      7449652,
+      9015550
+    ],
+    "operation": "seq-write",
+    "operations": 64,
+    "p50_ns": 5127659,
+    "p95_ns": 6840767,
+    "p99_ns": 9015550,
+    "pattern_byte": 97,
+    "residency_observed": true,
+    "resident_after_bytes": 0,
+    "resident_before_bytes": 0,
+    "seed": 257,
+    "wall_ns": 366058020
+  },
+  "nearest_rank_quantiles": {
+    "p50_ns": 5127034,
+    "p95_ns": 6840767,
+    "p99_ns": 9015550
+  },
+  "actual_wait0": 3,
+  "budget_samples": 18,
+  "home_handler_fraction_of_client_write_sum": 0.0318376890257801,
+  "barrier_fraction_of_wall": 0.044513293275202655,
+  "limits": [
+    "one diagnostic sample, changed probe pauses outside timer: no improvement or formal comparator claim",
+    "C process CPU snapshots include helper/metrics/ss overhead and scheduling; B is a wider orchestration/idle upper bound",
+    "100Hz process ticks are coarse; per-thread schedstat windows also differ slightly and may overlap",
+    "handler timer excludes decode/checksum/reactor/TLS; residual is not pure wire latency",
+    "128 RPCs and aggregate bytes do not prove individual request sizes or why requests split",
+    "TCP RTT/delivery_rate are snapshots, not write operation percentiles or throughput",
+    "no profiler attribution distinguishes checksum/protobuf/TLS; do not optimize a named layer on these numbers alone"
+  ],
+  "roles": {
+    "b": {
+      "pid": 41585,
+      "write": {
+        "method": "OwnerFiles.Write",
+        "side": "server",
+        "count": 128.0,
+        "total_seconds": 0.01065489699999999,
+        "mean_seconds": 8.324138281249992e-05,
+        "buckets": {
+          "0.00005": 61.0,
+          "0.0001": 77.0,
+          "0.0002": 126.0,
+          "0.0004": 128.0,
+          "0.0008": 128.0,
+          "0.0016": 128.0,
+          "0.0032": 128.0,
+          "0.0064": 128.0,
+          "0.0128": 128.0,
+          "+Inf": 128.0
+        }
+      },
+      "write_bytes": 67108864.0,
+      "read_bytes": 0.0,
+      "read_rpc_count": 0.0,
+      "fsync": {
+        "method": "OwnerFiles.Fsync",
+        "side": "server",
+        "count": 1.0,
+        "total_seconds": 0.015926727,
+        "mean_seconds": 0.015926727,
+        "buckets": {
+          "0.00005": 0.0,
+          "0.0001": 0.0,
+          "0.0002": 0.0,
+          "0.0004": 0.0,
+          "0.0008": 0.0,
+          "0.0016": 0.0,
+          "0.0032": 0.0,
+          "0.0064": 0.0,
+          "0.0128": 0.0,
+          "+Inf": 1.0
+        }
+      },
+      "process_cpu_seconds": 0.15,
+      "clock_ticks": 100,
+      "snapshot_span_seconds": 0.684073432,
+      "thread_run_sum_ns": 146455482,
+      "thread_run_delay_sum_ns": 5090166,
+      "sockets": [
+        {
+          "bytes_sent": 14109,
+          "bytes_acked": 14109,
+          "bytes_received": 67259408,
+          "data_segs_out": 266,
+          "data_segs_in": 46942
+        }
+      ],
+      "top_threads": [
+        {
+          "tid": "41773",
+          "name": "tokio-rt-worker",
+          "cpu_ticks_delta": 7,
+          "run_ns": 73761009,
+          "run_delay_ns": 2311455,
+          "context_switch_delta": {
+            "nonvoluntary_ctxt_switches": 4,
+            "voluntary_ctxt_switches": 4052
+          }
+        },
+        {
+          "tid": "41595",
+          "name": "tokio-rt-worker",
+          "cpu_ticks_delta": 6,
+          "run_ns": 62787771,
+          "run_delay_ns": 1329377,
+          "context_switch_delta": {
+            "nonvoluntary_ctxt_switches": 1,
+            "voluntary_ctxt_switches": 3975
+          }
+        },
+        {
+          "tid": "41591",
+          "name": "tokio-rt-worker",
+          "cpu_ticks_delta": 1,
+          "run_ns": 6218623,
+          "run_delay_ns": 159751,
+          "context_switch_delta": {
+            "nonvoluntary_ctxt_switches": 0,
+            "voluntary_ctxt_switches": 78
+          }
+        }
+      ]
+    },
+    "c": {
+      "pid": 30654,
+      "write": {
+        "method": "write",
+        "side": "client",
+        "count": 128.0,
+        "total_seconds": 0.33466301500000023,
+        "mean_seconds": 0.002614554804687502,
+        "buckets": {
+          "0.00005": 0.0,
+          "0.0001": 0.0,
+          "0.0002": 4.0,
+          "0.0004": 63.0,
+          "0.0008": 64.0,
+          "0.0016": 64.0,
+          "0.0032": 64.0,
+          "0.0064": 124.0,
+          "0.0128": 128.0,
+          "+Inf": 128.0
+        }
+      },
+      "write_bytes": 67108864.0,
+      "read_bytes": 0.0,
+      "read_rpc_count": 0.0,
+      "fsync": {
+        "method": "fsync",
+        "side": "client",
+        "count": 1.0,
+        "total_seconds": 0.016257490000000003,
+        "mean_seconds": 0.016257490000000003,
+        "buckets": {
+          "0.00005": 0.0,
+          "0.0001": 0.0,
+          "0.0002": 0.0,
+          "0.0004": 0.0,
+          "0.0008": 0.0,
+          "0.0016": 0.0,
+          "0.0032": 0.0,
+          "0.0064": 0.0,
+          "0.0128": 0.0,
+          "+Inf": 1.0
+        }
+      },
+      "process_cpu_seconds": 0.09,
+      "clock_ticks": 100,
+      "snapshot_span_seconds": 0.441845471,
+      "thread_run_sum_ns": 84117453,
+      "thread_run_delay_sum_ns": 19612354,
+      "sockets": [
+        {
+          "bytes_sent": 67259408,
+          "bytes_acked": 67259408,
+          "bytes_received": 14109,
+          "data_segs_out": 46942,
+          "data_segs_in": 266
+        }
+      ],
+      "top_threads": [
+        {
+          "tid": "30661",
+          "name": "tokio-rt-worker",
+          "cpu_ticks_delta": 3,
+          "run_ns": 20202455,
+          "run_delay_ns": 825370,
+          "context_switch_delta": {
+            "nonvoluntary_ctxt_switches": 6,
+            "voluntary_ctxt_switches": 480
+          }
+        },
+        {
+          "tid": "30660",
+          "name": "tokio-rt-worker",
+          "cpu_ticks_delta": 1,
+          "run_ns": 18101215,
+          "run_delay_ns": 866946,
+          "context_switch_delta": {
+            "nonvoluntary_ctxt_switches": 5,
+            "voluntary_ctxt_switches": 520
+          }
+        },
+        {
+          "tid": "30682",
+          "name": "afs-fuse-4",
+          "cpu_ticks_delta": 1,
+          "run_ns": 10113165,
+          "run_delay_ns": 3488411,
+          "context_switch_delta": {
+            "nonvoluntary_ctxt_switches": 17,
+            "voluntary_ctxt_switches": 241
+          }
+        }
+      ]
+    }
+  }
+}

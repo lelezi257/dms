@@ -1,4 +1,4 @@
-**当前出口（2026-10-09，G2.15单问题试改收口）：** checksum移入既有阻塞线程的一次写对照177.477→177.590MiB/s（+0.06%），独立p95 7.524→7.294ms（-3.06%）；未过预设合取保留线，产品逻辑撤回，仅保留坏checksum/长度拒绝的真实RPC回归。功能限定PASS／测量COMPLETE／优化REJECTED／正式Moose写双目标及G2.15待验。Linux候选8tests、恢复后4RPCtests及fmt/check/libClippy通过；五actualwait0、原数据/权限/原挂载和保护库存恢复，归档实际恢复后回收93.1MiB本轮暂存，无环境阻塞/新包/G1重开/G2计数变化。下一仅一次远端写CPU/传输成本定位，再选实际源码问题，不重试本方向；DFS写/A-ctl扩容仍暂缓。 [本轮版本、负面结果及证据](evidence/20261009-owner-remote-write-checksum-worker/README.md)。
+**当前出口（2026-10-09，G2.15有限写诊断）：** Meta650/Node d14、B真实bind ON/C远端64MiB/C1：纯写区间128RPC/64MiB、READ增量0；客户端WRITE累计334.663ms、Home处理器10.655ms（3.184%），fdatasync16.294ms（wall4.451%）。功能限定PASS／诊断测量完成／性能仍PENDING；无产品改动、改善或新包。B/C Node CPU150/90ms是含采样开销的上界，不能把残差叫纯网络或归因TLS。三actualwait0及原inode/内容/权限/挂载/保护库存恢复，Linux实际恢复后清6临时ELF45.44MiB；首审计/ELF重建工具失败保留，产品未重跑。128RPC边界源码核对已收口、未证实拆分原因；下一一次现有Linux CPU采样后选择有依据的产品问题；不重复本诊断/已拒绝方向，DFS写/A-ctl仍暂缓，G1/G2原计数不变。 [版本、原始间隔和证据](evidence/20261009-owner-remote-write-cpu/README.md)。
 
 以下日期快照保留原版本、原判据与原结论；当前入口以上述结果为准。
 

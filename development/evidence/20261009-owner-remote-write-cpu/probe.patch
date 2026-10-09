@@ -1,0 +1,18 @@
+--- a/development/acceptance/probes/ownerfs_native_closeout_io.c
++++ b/development/acceptance/probes/ownerfs_native_closeout_io.c
+@@ -115,6 +115,7 @@
+         }
+         require(close(fd) == 0, "inspect close");
+     }
++    fputs("AFS_DIAG_BEFORE\n", stderr); fflush(stderr); require(getchar() == 'x', "diagnostic before handshake");
+     uint64_t begin = now(CLOCK_MONOTONIC), begin_cpu = now(CLOCK_PROCESS_CPUTIME_ID);
+     fd = open(argv[1], flags, 0600); if (fd < 0) fail("open");
+     pthread_t pool[8];
+@@ -127,6 +128,7 @@
+     uint64_t barrier_ns = now(CLOCK_MONOTONIC) - barrier_begin;
+     require(close(fd) == 0, "close");
+     uint64_t cpu = now(CLOCK_PROCESS_CPUTIME_ID) - begin_cpu, elapsed = now(CLOCK_MONOTONIC) - begin;
++    fputs("AFS_DIAG_AFTER\n", stderr); fflush(stderr); require(getchar() == '\n' && getchar() == 'x', "diagnostic after handshake");
+     fd = open(argv[1], O_RDONLY); if (fd < 0) fail("verify open");
+     struct stat stat; require(fstat(fd, &stat) == 0 && (uint64_t)stat.st_size == file_bytes, "final size");
+     if (writing) {

@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "evidence/afs-delivery/owner-remote-dispatch-wake-20261009-r1/run-pair.py": "e39eea1d2215d2d9565b8126d695452106f7502afc0d4a71001e1451bbe89fc7",
+    "evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/performance/paired_remote_read.py": "875fa5ff560dcaa9bfd8a060c230b02a732dfd62a4931f0f9ac19d3825d1e8d8",
+    "evidence/afs-delivery/owner-remote-owned-write-20261008-r1/performance/owner_remote_owned_write.py": "2c2fb84966e1e193f60915c506fda10c69bfeba9dc331ca78f1d93fbe85b9d76",
+    "evidence/afs-delivery/owner-remote-write-checksum-worker-20261009-r1/run-pair.py": "a98102636f6d5264d41716fe9a6386bdd5f263e2d65624160ec1671fa4267dd4",
+    "evidence/afs-delivery/owner-remote-write-cpu-20261009-r1/run.py": "d6791464dea564a7961e93742d65f78ef5430049b52b1685a015c33ba4ecf4f8",
+    "evidence/afs-delivery/owner-remote-write-server-pair-20261008-r1/run-pair.py": "56b020465f4cc0b42e3988e67ef58bbda73af4cc452404ad396db894abb35a03"
+  },
+  "main": "78b08de0f0624d14ceed7872d79f9b6c508e3aca",
+  "meta": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
+  "node": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+  "old_meta": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+  "original_probe": "c87a5fd84384871a69379b572ab512b69b1f0c8a6632aca4a44c72ac3d91e3ee",
+  "run": "owner-remote-write-cpu-20261009-r1"
+}

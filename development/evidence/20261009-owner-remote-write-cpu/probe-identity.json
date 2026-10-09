@@ -1,0 +1,7 @@
+{
+  "binary_sha256": "161ee0cee2e61fc41efb245a93fc59c158cd3fa028c6635a393eaef944dacb04",
+  "diagnostic_source_sha256": "e095c7b2721caff5e8936eb79a68acd86b14fd5f6d10b31fa1d6740fae0b88dc",
+  "original_source_sha256": "912c859daf26092ea737172a68c516e982238eb6bc29d192b0e98d4ece1101ce",
+  "patch_sha256": "e634f7310e065d0e1ef0fdd02dc20efa1f365c6cbdcef067c57bd5b38279f8ca",
+  "scope": "two untimed pipe pauses only; original probe unchanged"
+}

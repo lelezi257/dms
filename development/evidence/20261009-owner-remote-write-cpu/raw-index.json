@@ -1,0 +1,54 @@
+{
+  "archive.json": {
+    "path": "evidence/archives/20261009-owner-remote-write-cpu/records.tar.gz",
+    "sha256": "a28c78697b134a6374071fdfa661c22023c629a9768a2283e0dab5450a060a4d",
+    "bytes": 196894,
+    "raw_files": 614
+  },
+  "archive-recovery.json": {
+    "status": "PASS_ACTUAL_LINUX_RECOVERY",
+    "raw_files": 614,
+    "guest_files": 24,
+    "references": 9,
+    "diagnostic_probe_rebuilt_identically": true,
+    "meta_recovered_from_package": true
+  },
+  "closeout-archive-recovery.json": {
+    "status": "PASS_ACTUAL_LINUX_RECOVERY",
+    "files": 31,
+    "sha256": "d569aef46ca3e8f0266ff5516f218cdaf6405eefd7b1717a1c2d5c7d840bb813"
+  },
+  "closeout_archive": {
+    "path": "evidence/archives/20261009-owner-remote-write-cpu/closeout.tar.gz",
+    "sha256": "d569aef46ca3e8f0266ff5516f218cdaf6405eefd7b1717a1c2d5c7d840bb813",
+    "bytes": 26838,
+    "files": 31
+  },
+  "external_run": "evidence/afs-delivery/owner-remote-write-cpu-20261009-r1",
+  "recovery_map": "primary archive-index contains all 614 file hashes and 9 immutable dependencies; closeout manifest contains31 new/changed records; exact probe recovered by Git78b + probe.patch and identical Linux cc rebuild; Meta from published package",
+  "retained_failures": [
+    "analysis-first.stderr: attempted write to read-only shared source mount; analysis corrected to stdout only",
+    "analysis-second/third.stderr: saved actual-wait field shape corrected, no product rerun",
+    "closeout.stderr and first recovery command: ELF rebuild source basename changed STT_FILE; preserve probe.c basename; next actual restore passed"
+  ],
+  "subsequent_read_only_records": {
+    "evidence/afs-delivery/owner-remote-write-cpu-20261009-r1/request-boundary-lookup.md": "e13a15ee5f7f2f727a77f95dcf17e278ffe75c554f63b6378429c34219c3f1ba",
+    "evidence/afs-delivery/owner-remote-write-cpu-20261009-r1/checkpoint.json": "35e42573a03faa33735177d57326f35276217f486469ea90c2c8ef7d80b07cbe",
+    "evidence/afs-delivery/owner-remote-write-cpu-20261009-r1/perf-b-version.json": "bc65787e1f5a9336a4c80bfedc4e17e99265336eabca6a2f27abec69bce5b3fc",
+    "evidence/afs-delivery/owner-remote-write-cpu-20261009-r1/perf-b-inventory.json": "7f38168a090dade22f5597aabe9b4a1595bab3564a19244875c78c35a607e4a9",
+    "evidence/afs-delivery/owner-remote-write-cpu-20261009-r1/perf-b-direct-preflight.json": "3647475ea351db9db9645c6764c2d49c395f6ccbeb5af042ff12561b1d06d050",
+    "evidence/afs-delivery/owner-remote-write-cpu-20261009-r1/perf-c-version.json": "eb571088516ca3769181f33d97e53c99885060bc5ee3401a1f1b028bed1beb7a",
+    "evidence/afs-delivery/owner-remote-write-cpu-20261009-r1/perf-c-inventory.json": "1e320c50682324cd6bbd97f7861089f967e5aaa724224edc176341830254e5d7",
+    "evidence/afs-delivery/owner-remote-write-cpu-20261009-r1/perf-c-direct-preflight.json": "f249e196218d3c97d62a36afe59b6aa119ff899e5e4a174dcf38b71094023e2e"
+  },
+  "followup_archive": {
+    "path": "evidence/archives/20261009-owner-remote-write-cpu/read-only-followups.tar.gz",
+    "sha256": "3e86ff040a262a2120cd117942cfe4eb4abb37e85affe36f457f98f7d0235331",
+    "bytes": 2547,
+    "files": 8,
+    "actual_linux_recovery": {
+      "status": "PASS_ACTUAL_LINUX_RECOVERY",
+      "files": 8
+    }
+  }
+}

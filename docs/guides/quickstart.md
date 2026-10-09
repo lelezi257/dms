@@ -18,7 +18,7 @@ scripts/deploy/build-package.sh \
   --bin-dir target/release \
   --output /tmp/afs-dist \
   --source-commit "$(git rev-parse HEAD)" \
-  --features "ownerfs,dfs,rdma"
+  --features "ownerfs,dfs"
 ```
 
 On a target Linux guest:
@@ -43,8 +43,10 @@ Run commands from the clone root on Linux:
 
 ```sh
 cd <clone-root>
-cargo build --locked --workspace --bins --examples
+cargo build --release --locked --bin afs-node --bin afs-meta
 ```
+
+The ordinary build produces product binaries only. The [integration handoff](../../development/integration-closeout.md) gives the separate acceptance-only probe command and the fixed current runtime evidence.
 
 ## DFS R=1 FUSE Smoke
 

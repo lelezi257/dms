@@ -32,7 +32,7 @@ Current priority is:
 - G2: required usage is OwnerFs workspace bind **ON** with correct remote FUSE access and an explicit ON trial. Prioritize finite bind functions/delivery, remote performance, DFS one-writer/many-readers, then ordinary local FUSE. Reuse scoped standard and eight bind core >=0.90 ext4 passes; tools/documents are supporting work. Ordinary Owner read/write still requires >=1.2x MooseFS throughput and <=0.8x independent operation latency; DFS keeps three-synchronous-copy matched 3FS parity.
 - G3: long soak, broad fault matrices, etcd memory/resource work and Redis persistence are deferred.
 
-OwnerFs workspace bind mount has separate function and performance gates. Ordinary defaults remain OFF; the published b80 ON trial closes the selected finite scenario, with its explicit support limits and historical eight-case performance scope.
+OwnerFs workspace bind mount has separate function and performance gates. Ordinary defaults remain OFF; the current a103 ON trial provides the selected finite scenario, with explicit support limits and separately scoped historical eight-case performance evidence.
 
 ## Development
 
@@ -49,4 +49,6 @@ Use the guides for local commands:
 
 Historical default-OFF Linux ARM64 trial: [historical7e6 package instructions](docs/guides/trial-7e6.md) and [7e6 reproducible archive / installed recovery](development/evidence/20261007-current-trial-7e6/README.md). The [fixed prerelease](https://github.com/lelezi257/dms/releases/tag/afs-trial-7e6e00a) is published; its four remote asset digests are confirmed by the publication receipt there. The [6d checklist](docs/guides/trial-6d.md) remains historical. Complete G2 performance/ON gates remain open.
 
-Current default-OFF Linux ARM64 trial: [f03 instructions](docs/guides/trial.md), [fixed prerelease and downloads](https://github.com/lelezi257/dms/releases/tag/afs-trial-f03dc2b), [fresh reproducible package/install/recovery and publication evidence](development/evidence/20261008-current-trial-f03/README.md). Both workspace switches remain OFF. Current f03 results keep their scope; historical standards retain their versions, and full G2 performance remains open.
+Historical f03 default-OFF trial: [fixed prerelease and its packaged guide](https://github.com/lelezi257/dms/releases/tag/afs-trial-f03dc2b), [original package/install/recovery evidence](development/evidence/20261008-current-trial-f03/README.md). Its results retain their original version and OFF scope. The current a103 trial and explicit ON guide are linked above.
+
+[Finite integration handoff](development/integration-closeout.md) records the frozen build/package identities, source migration scope and unfinished capabilities; GitCode integration has not yet been performed.

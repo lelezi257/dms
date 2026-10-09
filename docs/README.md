@@ -4,6 +4,7 @@
 
 - [Three-stage trial and acceptance goals](../development/trial-release-goals.md)
 - [Current source checkpoint](../development/current-checkpoint.md)
+- [Finite integration handoff and build inputs](../development/integration-closeout.md)
 - [Positioning](positioning.md)
 - [Architecture](architecture.md)
 - [Delivery Acceptance](acceptance.md)

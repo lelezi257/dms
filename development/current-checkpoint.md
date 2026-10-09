@@ -1,6 +1,6 @@
 **当前出口（2026-10-09，G2.27阶段性交付）：** [a103固定候选包](evidence/20261009-workspace-bind-a103-trial/README.md)两次Linux打包字节一致；无编译器VM实际安装、真实Home bind ON、UID501读写/UID502拒绝、Owner64KiB与DFS64MiB全服务正常停止重启读回、五actualwait0通过。新Meta cda/Node217安装组合已实跑，既有Node217远端证据仍标注Meta650原组合。包14,492,878B，SHA260d5009；[固定试用包已发布](https://github.com/lelezi257/dms/releases/tag/afs-bind-a103a2f)，四附件SHA/tag已核对。
 
-**决策／下一：** 冻结此可编译、可安装、可运行的阶段性版本，交付与下载索引已完成，进入集成交接，不追加性能优化。普通Owner/DFS性能、完整远端POSIX、新Meta远端组合（[启动前用例预算阻塞，零启动](evidence/20261009-owner-remote-published-meta/README.md)）、复杂可靠性、扩展功能与R2官方fuser迁移明确未完成；G1历史8/8关闭、G2原12/0/15不变。
+**决策／下一：** 冻结此可编译、可安装、可运行的阶段性版本，交付与下载索引已完成，进入集成交接，不追加性能优化。普通Owner/DFS性能、完整远端POSIX、新Meta远端组合（[启动前用例预算阻塞，零启动](evidence/20261009-owner-remote-published-meta/README.md)）、复杂可靠性、扩展功能与R2官方fuser迁移明确未完成；G1历史8/8关闭、G2原12/0/15不变。 [阶段性集成交接与构建入口](integration-closeout.md)。
 
 以下为历史时点记录，原版本、范围和结论保留；旧下一步由上述当前入口替代。
 

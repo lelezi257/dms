@@ -1,0 +1,20 @@
+{
+  "archive": {
+    "archive": "/Users/lzc/workspace/code/agentruntime/rust-distributed-memory-store/evidence/afs-delivery/workspace-bind-on-trial-a103-20261009-r1/closure-archive.tar.gz",
+    "bytes": 15650,
+    "sha256": "25e7b3b7c3e7d7091129e37ac7bc2d21b9efaa634946057cd221c4ca15286498",
+    "files": 48,
+    "unique_members": 41,
+    "duplicate_aliases": 7
+  },
+  "index_sha256": "097989d5349ab107c0edcdc2bf66fcbe5f13c9c5743d2cdde593aacbcc05e0af",
+  "actual_linux_restoration": {
+    "status": "PASS_ACTUAL_LINUX_RAW_AND_PACKAGE_RESTORATION",
+    "raw_files": 48,
+    "unique_members": 41,
+    "package_files": 16,
+    "archive_sha256": "25e7b3b7c3e7d7091129e37ac7bc2d21b9efaa634946057cd221c4ca15286498",
+    "package_sha256": "260d5009f343dd52e938e5659a6e9108be7cdbeb8c77124ff1696c4fdf1cf2b5",
+    "temporary_extraction_removed_on_exit": true
+  }
+}

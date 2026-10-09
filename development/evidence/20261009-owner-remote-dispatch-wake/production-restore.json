@@ -1,0 +1,7 @@
+{
+  "status": "PASS_RESTORED_PRODUCT_LOGIC",
+  "all_other_compiler_inputs_unchanged": 159,
+  "only_delta": "one cfg(test) regression in fuse.rs",
+  "original_node_retained": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+  "rejected_candidate_node": "18e0d6ccd66d38400119afe158a3a0459035eda60b9036095554724e31e515f9"
+}

@@ -2257,6 +2257,58 @@ mod dispatch_tests {
     }
 
     #[test]
+    fn full_fuse_queue_releases_blocked_producer_without_ready_successor() {
+        let dispatch = Arc::new(FuseDispatch::new(2));
+        let (started_tx, started_rx) = mpsc::channel();
+        let (first_release_tx, first_release_rx) = mpsc::channel();
+        let (second_release_tx, second_release_rx) = mpsc::channel();
+        let (finished_tx, finished_rx) = mpsc::channel();
+        for (key, release_rx) in [(31, first_release_rx), (32, second_release_rx)] {
+            let started_tx = started_tx.clone();
+            let finished_tx = finished_tx.clone();
+            dispatch.submit_keyed(key, move || {
+                started_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                finished_tx.send(()).unwrap();
+            });
+        }
+        for _ in 0..2 {
+            started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        }
+        // Only key 31 has queued successors. Completing key 32 must wake the
+        // capacity producer even though it makes no worker job ready.
+        for _ in 2..dispatch.capacity {
+            let finished_tx = finished_tx.clone();
+            dispatch.submit_keyed(31, move || finished_tx.send(()).unwrap());
+        }
+        let (submitting_tx, submitting_rx) = mpsc::channel();
+        let (admitted_tx, admitted_rx) = mpsc::channel();
+        let producer_dispatch = dispatch.clone();
+        let producer = std::thread::spawn(move || {
+            submitting_tx.send(()).unwrap();
+            producer_dispatch.submit_keyed(33, move || finished_tx.send(()).unwrap());
+            admitted_tx.send(()).unwrap();
+        });
+        submitting_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        let early_admission = admitted_rx.recv_timeout(Duration::from_millis(100));
+        second_release_tx.send(()).unwrap();
+        let capacity_admission = admitted_rx.recv_timeout(Duration::from_secs(1));
+        // Release all callbacks before asserting, including on a missed wake.
+        first_release_tx.send(()).unwrap();
+        for _ in 0..=dispatch.capacity {
+            finished_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        }
+        producer.join().unwrap();
+        dispatch.close_and_drain();
+        assert!(early_admission.is_err(), "full queue admitted another job");
+        assert!(
+            capacity_admission.is_ok(),
+            "capacity-only completion lost a wake"
+        );
+        assert_eq!(dispatch.shared.0.lock().unwrap().jobs, 0);
+    }
+
+    #[test]
     fn independent_fuse_jobs_overlap_before_either_finishes() {
         let dispatch = FuseDispatch::new(2);
         let (started_tx, started_rx) = mpsc::channel();

@@ -1,0 +1,60 @@
+{
+  "initial": {
+    "baseline_node": "d14e3182260e0f7ab51c82c4f18b9e2deab6446cd2980a6787fa43c22e9361b4",
+    "block": 1048576,
+    "bytes": 67108864,
+    "cache": "physical ext4 fully hot before/after each; client residency unobserved",
+    "candidate": {
+      "afs_node_sha256": "18e0d6ccd66d38400119afe158a3a0459035eda60b9036095554724e31e515f9",
+      "changed_from_published": [
+        "src/node/fuse.rs"
+      ],
+      "compiler_input_map": "66b44b22add803a292d0c4d96510bbc80aa4b54bb8b3403ecb1555de45c8c03a",
+      "compiler_inputs": 160,
+      "node_bytes": 25122336,
+      "patch_sha256": "14c5c116c776abba2e8fc1466e0fe2d8168d378c7f45f0eae786caac4e0de3a5",
+      "source_base": "1fcf89cbcad248ad00ca7ad2b05fec8c0a08c395",
+      "source_identity": "1fcf89cbcad248ad00ca7ad2b05fec8c0a08c395+patch:14c5c116c776abba2e8fc1466e0fe2d8168d378c7f45f0eae786caac4e0de3a5",
+      "status": "PASS_LINUX_CANDIDATE"
+    },
+    "capacity": {
+      "b": 536870912,
+      "c": 536870912,
+      "ctl": 268435456,
+      "floors": "ctl512MiB B/C4GiB",
+      "log_cap": 67108864
+    },
+    "concurrency": 1,
+    "dependencies": {
+      "evidence/afs-delivery/owner-remote-direct-read-20261008-r1/run.py": "0c4073bc0ae140a4da74408202935f7e4de049cc49a58d5ef770978bfaad6ff0",
+      "evidence/afs-delivery/owner-remote-dispatch-wake-20261009-r1/run-pair.py": "e39eea1d2215d2d9565b8126d695452106f7502afc0d4a71001e1451bbe89fc7",
+      "evidence/afs-delivery/owner-remote-inline-dispatch-20261008-r1/performance/paired_remote_read.py": "875fa5ff560dcaa9bfd8a060c230b02a732dfd62a4931f0f9ac19d3825d1e8d8",
+      "evidence/afs-delivery/owner-remote-read-frames-20261008-r1/io": "c87a5fd84384871a69379b572ab512b69b1f0c8a6632aca4a44c72ac3d91e3ee",
+      "evidence/afs-delivery/owner-remote-write-server-pair-20261008-r1/run-pair.py": "56b020465f4cc0b42e3988e67ef58bbda73af4cc452404ad396db894abb35a03"
+    },
+    "formal_Moose": "NOT_RUN; prior result not inherited",
+    "formal_per_phase": 5,
+    "interface": "uid/gid501, no supplementary groups, fresh O_RDONLY pread/close, direct FUSE",
+    "latency": "actual pread+count check, excludes oracle; nearest-rank pooled320; decision p95 preset",
+    "meta": "650bd9714da0293c61b6aff80ce86aede1152a233edb1506ed2d97d5b53f3e58",
+    "order": "baseline then candidate; one pair, no retries",
+    "profile": "Owner-only; B real workspace bind ON; C remote FUSE; ctl local-file",
+    "retention": {
+      "both_required": true,
+      "p95_max": 1.0,
+      "throughput_min": 1.05
+    },
+    "source_base": "1fcf89cbcad248ad00ca7ad2b05fec8c0a08c395",
+    "task": "G2.14",
+    "throughput": "64MiB / probe full wall including open/thread scheduling/read/oracle/close",
+    "warmup": 1
+  },
+  "before_missing_candidate_phase": {
+    "additional_meta_restart": "Restored originals on first failure; candidate restarts same Meta650/local-file state. One warmup per phase unchanged; no baseline rerun. Total six actual exits if complete.",
+    "baseline_reused": "evidence/afs-delivery/owner-remote-dispatch-wake-20261009-r1/baseline-summary.json",
+    "baseline_sha256": "a5f1ae3f52f902f894f507370e96ef99b78d286745730d5066d449b5408b3551",
+    "candidate_formal_runs": 1,
+    "reason": "No LISTEN socket; prior bound localhost monitoring connections in TIME_WAIT caused false preflight denial. No candidate read occurred. Only admission socket now sets SO_REUSEADDR; actual runtime owns the listener and existing identity/mount/process checks remain.",
+    "thresholds_unchanged": true
+  }
+}

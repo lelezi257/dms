@@ -50,9 +50,9 @@ Current published Meta650/Node d14,Owner-only/B bind ON/C remote,64MiB/C1: throu
 
 ## Current local product-retention pair — 2026-10-09
 
-G2.09 base9fe4+patch/Node b62 reuses initialized local inline READ working storage only. One frozen B64MiB/C1 baseline d14→candidate pair: median1509.863775→1762.704160MiB/s (+16.75%), independent pooled p953.735040→0.824708ms,320 intervals per phase. Both prospective retention thresholds (>=1.05 throughput,<=1.0 p95) pass; limited function/measurement and source optimization close. Fixed phase order and a slow baseline first formal round are retained limitations. **This is not a MooseFS comparison**; new-candidate formal1.2/.8 status is PENDING, historical f03 comparison remains FAIL. No criterion is relaxed and no new comparator or matrix run is triggered. [Exact version, data and limits](evidence/20261009-owner-local-read-scratch/README.md).
+G2.09 base9fe4+patch/Node b62 reuses initialized local inline READ working storage only. One frozen B64MiB/C1 baseline d14→candidate pair: median1509.863775→1762.704160MiB/s (+16.75%), independent pooled p953.735040→0.824708ms,320 intervals per phase. Both prospective retention thresholds (>=1.05 throughput,<=1.0 p95) pass; limited function/measurement and source optimization close. Fixed phase order and a slow baseline first formal round are retained limitations. **The retention pair is not a MooseFS comparison**. Its then-pending comparator is now closed by one separately frozen b62/Moose default-policy case: throughput0.289714x and independently measured pooledp956.338829x, both FAIL. Full content/EOF/short reads and five normal waits pass. Physical payloads are hot; observed client residency differs0/64MiB. [Current case and all raw evidence](evidence/20261009-owner-local-read-moose-b62/README.md). This does not rewrite the historical f03 failure or compare different runs as before/after improvement; no further local matrix or tuning follows. [Exact version, data and limits](evidence/20261009-owner-local-read-scratch/README.md).
 
-## Existing Evidence Audit
+## Historical Evidence Audit (original version snapshots)
 
 | G2 item | Existing evidence | New-criterion status |
 | --- | --- | --- |
@@ -68,7 +68,7 @@ Current f03 local create+fdatasync write also retains independent raw latency an
 
 Stage G1 remains closed at historical 8/8. Current-version regressions, ordinary OwnerFs performance under this rule, and missing latency evidence belong to G2.
 
-## Current Backend-hot / Default-buffered-client Read
+## Historical f03 Backend-hot / Default-buffered-client Read
 
 New prospectively frozen G2.09 case, not a relaxation or retrospective change to old client-hot/reread contracts. Both FUSE/POSIX/O_RDONLY applications use identical full client and physical-payload preload, with physical64MiB residency and stable identity required before/after each timer. Internal default client policies remain Owner OFF/private-local eligibility and Moose AUTO; observed client0/64MiB is reported, not claimed identical.
 

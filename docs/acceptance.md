@@ -1,4 +1,4 @@
-**当前出口（2026-10-09，G2.14）：** 本轮只关闭一次Owner排队READ工作缓冲候选的有限测量与否决：bind ON/B固定b62与Meta650，仅C换ea225，64MiB/C1一次各1+5，吞吐406.196257→406.470567MiB/s（+0.0675%）未过测前5%保留线，独立p95 5.403029→5.257613ms；内容/权限/错误/四actualwait0及原身份恢复通过，生产恢复53e/map47de，不重试或重包。[本轮版本、负面数据和恢复](../development/evidence/20261009-owner-remote-read-worker-scratch/README.md)。当前正式Moose READ仍为原d14独立对照吞吐0.914140×FAIL／p950.538794×PASS，两项合取FAIL；本轮没有Moose比较，不能拼接或追溯升级原结论。[原正式比较](../development/evidence/20261009-owner-remote-direct-pair/README.md)。G1历史8/8关闭、原G2 12/0/15和d47 ON已发布交付保持原身份；WRITE强ACK/3FS资格专题、A/ctl及DFS写按用户暂缓；R2官方API缺口不阻塞独立任务。
+**当前出口（2026-10-09，G2.09一次Moose对照已收口）：** mainf57/产品53e、Meta650/Node b62；原B/ext4/local-file/OFF数据，64MiB/C1/1MiB，一预热五交替正式对照。功能限定PASS、测量COMPLETE；吞吐5706.058/19695.507MiB/s=0.289714×、独立p95 0.226087/0.035667ms=6.338829×，两项FAIL，未达1.2/.8。双方物理全热；客户端Owner0/Moose64MiB为测前默认策略差异，明确披露。五actualwait0、原数据/配置/ELF/挂载恢复及Linux保存数据审计通过。[完整范围和证据](../development/evidence/20261009-owner-local-read-moose-b62/README.md)。无新产品改动/包，不重跑本项或扩本地矩阵；返回bind/远端主线，既有远端READ吞吐FAIL/p95PASS、R2未完成及用户暂缓专题不变，G1历史8/8和原G2 12/0/15不变。
 
 以下日期快照保留原版本、原判据与原结论；当前入口以上述结果为准。
 

@@ -1,4 +1,4 @@
-**当前出口（2026-10-09，G2.14）：** 53e基底排队Owner READ工作缓冲候选Linux27受影响tests、fmt/release构建通过；strict Clippy仅原peer.rs两处dead_code失败，保留原输出，补充仅允许dead_code检查通过。一次B bind ON/固定Home与Meta650、C64MiB/C1各1预热5正式对照：内容/权限/错误/四实际wait0与原身份恢复限定PASS，逐次320样本/侧测量COMPLETE；吞吐+0.0675%未过测前1.05保留线，候选REJECTED，生产161输入恢复53e/map47de，未重复原23基底tests。[版本、合同、负面数据及恢复](evidence/20261009-owner-remote-read-worker-scratch/README.md)。正式Moose READ已完成限定比较、吞吐FAIL/p95PASS，不再写成部署准入阻塞；本轮无新Moose成绩。原[d47 ON已发布包](https://github.com/lelezi257/dms/releases/tag/afs-bind-d47eec2)及组合安装/恢复保持原身份；新试改未入包，不重复安装全集。G1历史8/8、原G2 12/0/15不变，完整G2仍待验收；WRITE强ACK/3FS资格及DFS写暂缓。
+**当前出口（2026-10-09，G2.09一次Moose对照已收口）：** mainf57/产品53e、Meta650/Node b62；原B/ext4/local-file/OFF数据，64MiB/C1/1MiB，一预热五交替正式对照。功能限定PASS、测量COMPLETE；吞吐5706.058/19695.507MiB/s=0.289714×、独立p95 0.226087/0.035667ms=6.338829×，两项FAIL，未达1.2/.8。双方物理全热；客户端Owner0/Moose64MiB为测前默认策略差异，明确披露。五actualwait0、原数据/配置/ELF/挂载恢复及Linux保存数据审计通过。[完整范围和证据](evidence/20261009-owner-local-read-moose-b62/README.md)。无新产品改动/包，不重跑本项或扩本地矩阵；返回bind/远端主线，既有远端READ吞吐FAIL/p95PASS、R2未完成及用户暂缓专题不变，G1历史8/8和原G2 12/0/15不变。
 
 以下日期记录保留原版本与结论。
 

@@ -1,0 +1,13 @@
+--- executed/run.py
++++ corrected-not-rerun/run.py
+@@ -43,7 +43,9 @@
+  assert sum(v['allocated_bytes'] for v in values.values())<=896*2**20;save(tag+'-budget.json',values)
+ 
+ def replicas(tag):
+- m.x.D=D;m.x.replicas()
++ m.x.D=D;previous=h.CMD;h.CMD=previous/tag;h.CMD.mkdir(exist_ok=True)
++ try:m.x.replicas()
++ finally:h.CMD=previous
+  for p in ['replica-meta.json','replica-node-a.json','replica-node-b.json','replica-node-c.json','replica-proof.json']:(D/p).rename(D/(tag+'-'+p))
+  logical=m.q.compact_meta_map(json.loads((D/(tag+'-replica-meta.json')).read_text()));original=json.loads((OLD/'performance/baseline-logical-map.json').read_text());assert logical==original
+  for role in ('a','b','c'):

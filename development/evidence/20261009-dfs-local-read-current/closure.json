@@ -1,0 +1,186 @@
+{
+  "ctl": {
+    "original_binary": {
+      "path": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-meta",
+      "sha256": "15648a8753bfe240fce15c24b673057dea6b97e04f82abee6eb6c5a348d086e2",
+      "device": 64785,
+      "inode": 281832,
+      "size": 15887528
+    },
+    "post_closure_original_identity_equal": true,
+    "restoration_sha256": "08555a26267986d0da667cd2070dd28c38d6c77872a9798169c0059fac6123c8",
+    "closed": {
+      "status": "PASS",
+      "source_commit": "d47eec28360ba60e92d95c9f0775c8ecce53ef2e",
+      "actual_wait": {
+        "child": {
+          "pid": "1717531",
+          "exe": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-meta",
+          "config": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/etc/meta.toml",
+          "start_ticks": "74464453",
+          "boot_id": "18c9c087-49d6-458f-817b-0f84c0effd7a",
+          "lifecycle": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/run/meta.lifecycle.34ghUi",
+          "supervisor_pid": "1717515"
+        },
+        "ready": {
+          "supervisor_pid": "1717515"
+        },
+        "exit": {
+          "pid": "1717531",
+          "exe": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-meta",
+          "config": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/etc/meta.toml",
+          "start_ticks": "74464453",
+          "boot_id": "18c9c087-49d6-458f-817b-0f84c0effd7a",
+          "lifecycle": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/run/meta.lifecycle.34ghUi",
+          "supervisor_pid": "1717515",
+          "exit_code": "0"
+        },
+        "path": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/run/meta.lifecycle.34ghUi"
+      },
+      "pids_gone": [
+        1717531,
+        1717515
+      ]
+    },
+    "closed_raw_sha256": "44af8645d4e8ab391e21da0a61967e96c1e1624dec4cb8df2a761ba6ae1dba28",
+    "protected_process_count": 3
+  },
+  "a": {
+    "original_binary": {
+      "path": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-node",
+      "sha256": "b3335fb29212802798e81a0bf8bd8f1c1421d5a0dcf605e8a7e3b59969050a86",
+      "device": 64785,
+      "inode": 1600874,
+      "size": 25138880
+    },
+    "post_closure_original_identity_equal": true,
+    "restoration_sha256": "6c546d1b5be521e4bc2fe41131c4e16abce98018361db1fbde7363e5723c8d59",
+    "closed": {
+      "status": "PASS",
+      "source_commit": "d47eec28360ba60e92d95c9f0775c8ecce53ef2e",
+      "actual_wait": {
+        "child": {
+          "pid": "869664",
+          "exe": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-node",
+          "config": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/etc/node.toml",
+          "start_ticks": "74498706",
+          "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+          "lifecycle": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/run/node.lifecycle.UJMnBT",
+          "supervisor_pid": "869648"
+        },
+        "ready": {
+          "supervisor_pid": "869648"
+        },
+        "exit": {
+          "pid": "869664",
+          "exe": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-node",
+          "config": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/etc/node.toml",
+          "start_ticks": "74498706",
+          "boot_id": "36a572e0-859b-4a94-adc7-789210a83fc8",
+          "lifecycle": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/run/node.lifecycle.UJMnBT",
+          "supervisor_pid": "869648",
+          "exit_code": "0"
+        },
+        "path": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/run/node.lifecycle.UJMnBT"
+      },
+      "pids_gone": [
+        869664,
+        869648
+      ]
+    },
+    "closed_raw_sha256": "8899ff7d68f056e24074b7cdf816c71b9cf95e5c5ab46dd608c29fdef3e19f76",
+    "protected_process_count": 9
+  },
+  "b": {
+    "original_binary": {
+      "path": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-node",
+      "sha256": "c8bb82afef20f88918521eaeda4dadcc03a99862828835f767fc43bcd14cccfb",
+      "device": 64785,
+      "inode": 1326082,
+      "size": 25208368
+    },
+    "post_closure_original_identity_equal": true,
+    "restoration_sha256": "762d1ade209d5d7ff7bc5467990ad9007eab0edc979752542097e9a17fc57384",
+    "closed": {
+      "status": "PASS",
+      "source_commit": "d47eec28360ba60e92d95c9f0775c8ecce53ef2e",
+      "actual_wait": {
+        "child": {
+          "pid": "46211",
+          "exe": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-node",
+          "config": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/etc/node.toml",
+          "start_ticks": "11195876",
+          "boot_id": "15a59ff4-fb37-41f6-8686-e083bd2110ce",
+          "lifecycle": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/run/node.lifecycle.kAcC8K",
+          "supervisor_pid": "46195"
+        },
+        "ready": {
+          "supervisor_pid": "46195"
+        },
+        "exit": {
+          "pid": "46211",
+          "exe": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-node",
+          "config": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/etc/node.toml",
+          "start_ticks": "11195876",
+          "boot_id": "15a59ff4-fb37-41f6-8686-e083bd2110ce",
+          "lifecycle": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/run/node.lifecycle.kAcC8K",
+          "supervisor_pid": "46195",
+          "exit_code": "0"
+        },
+        "path": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/run/node.lifecycle.kAcC8K"
+      },
+      "pids_gone": [
+        46211,
+        46195
+      ]
+    },
+    "closed_raw_sha256": "640fbe38e05f9f74e61e9e17ca8903408e0b44e22bfc09e691da27c4e343140c",
+    "protected_process_count": 0
+  },
+  "c": {
+    "original_binary": {
+      "path": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-node",
+      "sha256": "c8bb82afef20f88918521eaeda4dadcc03a99862828835f767fc43bcd14cccfb",
+      "device": 64785,
+      "inode": 268510,
+      "size": 25208368
+    },
+    "post_closure_original_identity_equal": true,
+    "restoration_sha256": "3b75c77b7dc6ff67b3b935adedbcd4c62999670993a0f35710104e89c9abdfef",
+    "closed": {
+      "status": "PASS",
+      "source_commit": "d47eec28360ba60e92d95c9f0775c8ecce53ef2e",
+      "actual_wait": {
+        "child": {
+          "pid": "35346",
+          "exe": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-node",
+          "config": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/etc/node.toml",
+          "start_ticks": "11162874",
+          "boot_id": "469bd4a4-d98a-4288-bac4-de6b700b9ff4",
+          "lifecycle": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/run/node.lifecycle.tOsgvQ",
+          "supervisor_pid": "35330"
+        },
+        "ready": {
+          "supervisor_pid": "35330"
+        },
+        "exit": {
+          "pid": "35346",
+          "exe": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/prefix/bin/afs-node",
+          "config": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/etc/node.toml",
+          "start_ticks": "11162874",
+          "boot_id": "469bd4a4-d98a-4288-bac4-de6b700b9ff4",
+          "lifecycle": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/run/node.lifecycle.tOsgvQ",
+          "supervisor_pid": "35330",
+          "exit_code": "0"
+        },
+        "path": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/run/node.lifecycle.tOsgvQ"
+      },
+      "pids_gone": [
+        35346,
+        35330
+      ]
+    },
+    "closed_raw_sha256": "36eb49d6da524a91edcfd11f6ee89c7168a9374386bca130ef0aa905d3292040",
+    "protected_process_count": 0
+  }
+}

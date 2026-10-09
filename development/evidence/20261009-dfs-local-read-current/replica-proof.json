@@ -1,0 +1,35 @@
+{
+  "status": "PASS_PERSISTED_ONLY",
+  "physical_copies": 48,
+  "chunks": 16,
+  "file_version_and_layout_unchanged": true,
+  "original_receipts_retained": 48,
+  "historical_rows_per_chunk": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    6,
+    3,
+    3,
+    3
+  ],
+  "live_serving_authority": "NOT_CLAIMED_AFTER_SHUTDOWN",
+  "old_observer_failure": "r1-closeout-failure.json: historical receipt rows were counted as physical replicas; no product rerun",
+  "raw_reports": {
+    "before-read-replica-meta.json": "2bb8366fd2c300babe6129cb7c0adb0e5c7999b764c690977d2f8edcfbe06d57",
+    "before-read-replica-proof.json": "f9f5d87da0c6537bcb04c49298c89c4432b1492ffa69781d1a6a676c0df8069d",
+    "post-closure-replica-ctl.json": "e3cc67890b08f531fc9572eb3f0916ec305a4848de94c301399481e13157fd88",
+    "post-closure-replica-a.json": "9d1c80db085dc81b9104570641c46dee7a605e932542fccf693942a640618d15",
+    "post-closure-replica-b.json": "26a481cb77d9ab31607cec3ce881953babe66f2166149620e8b661f406c91ad5",
+    "post-closure-replica-c.json": "9d7a6fed11145758f4de0471eb9deb529bb956885e2877079eb2faed1e5e2679"
+  }
+}

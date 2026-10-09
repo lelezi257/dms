@@ -1,0 +1,195 @@
+{
+  "sampled_budgets": {
+    "ctl": {
+      "admission": {
+        "allocated_bytes": 99860480,
+        "free_bytes": 1967153152,
+        "ceiling_bytes": 134217728,
+        "floor_bytes": 536870912,
+        "excluded": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling",
+        "additional_bytes": 20002672,
+        "projected_bytes": 119863152
+      },
+      "before_read": {
+        "allocated_bytes": 116785152,
+        "free_bytes": 1950228480,
+        "ceiling_bytes": 134217728,
+        "floor_bytes": 536870912,
+        "excluded": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      },
+      "post_closure": {
+        "allocated_bytes": 117354496,
+        "free_bytes": 1949659136,
+        "ceiling_bytes": 134217728,
+        "floor_bytes": 536870912,
+        "excluded": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling",
+        "additional_bytes": 4194304,
+        "projected_bytes": 121548800
+      },
+      "closed_budget": {
+        "allocated_bytes": 117354496,
+        "free_bytes": 1949659136,
+        "ceiling_bytes": 134217728,
+        "floor_bytes": 536870912,
+        "excluded": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      }
+    },
+    "a": {
+      "admission": {
+        "allocated_bytes": 164446208,
+        "free_bytes": 2732748800,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 1073741824,
+        "excluded": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling",
+        "additional_bytes": 29315720,
+        "projected_bytes": 193761928
+      },
+      "before_read": {
+        "allocated_bytes": 189677568,
+        "free_bytes": 2707517440,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 1073741824,
+        "excluded": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      },
+      "post_closure": {
+        "allocated_bytes": 189829120,
+        "free_bytes": 2707365888,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 1073741824,
+        "excluded": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling",
+        "additional_bytes": 4194304,
+        "projected_bytes": 194023424
+      },
+      "closed_budget": {
+        "allocated_bytes": 189829120,
+        "free_bytes": 2707365888,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 1073741824,
+        "excluded": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      }
+    },
+    "b": {
+      "admission": {
+        "allocated_bytes": 164835328,
+        "free_bytes": 21248827392,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling",
+        "additional_bytes": 29315720,
+        "projected_bytes": 194151048
+      },
+      "before_read": {
+        "allocated_bytes": 190046208,
+        "free_bytes": 21223616512,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      },
+      "post_closure": {
+        "allocated_bytes": 190050304,
+        "free_bytes": 21223612416,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling",
+        "additional_bytes": 4194304,
+        "projected_bytes": 194244608
+      },
+      "closed_budget": {
+        "allocated_bytes": 190050304,
+        "free_bytes": 21223612416,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      }
+    },
+    "c": {
+      "admission": {
+        "allocated_bytes": 164835328,
+        "free_bytes": 36873621504,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling",
+        "additional_bytes": 29315720,
+        "projected_bytes": 194151048
+      },
+      "before_read": {
+        "allocated_bytes": 190046208,
+        "free_bytes": 36848410624,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      },
+      "post_closure": {
+        "allocated_bytes": 190050304,
+        "free_bytes": 36848406528,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling",
+        "additional_bytes": 4194304,
+        "projected_bytes": 194244608
+      },
+      "closed_budget": {
+        "allocated_bytes": 190050304,
+        "free_bytes": 36848406528,
+        "ceiling_bytes": 268435456,
+        "floor_bytes": 4294967296,
+        "excluded": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/mount",
+        "scope": "one role only; parent must enforce its predeclared aggregate ceiling"
+      }
+    }
+  },
+  "instant_after_read_budget": "NOT_CAPTURED: original recording-name assertion; do not claim continuous peak",
+  "logs": [
+    {
+      "role": "ctl",
+      "path": "/mnt/lima-afsctlstate/afs-delivery/dfs-read-version-cache-20261008-r1/logs/meta.log",
+      "bytes": 296,
+      "sha256": "96888ea95b26ecd18df804e14c28baaf8e8428d2571c353d14ef696d5c30072f",
+      "ERRO": 0,
+      "WARN": 0,
+      "TRACE": 0
+    },
+    {
+      "role": "a",
+      "path": "/mnt/lima-afsadata/afs-delivery/dfs-read-version-cache-20261008-r1/logs/node.log",
+      "bytes": 1429,
+      "sha256": "7c2839248645a5c6152b3a86c0bcc995f29b25792b8f869fa691960060320222",
+      "ERRO": 0,
+      "WARN": 4,
+      "TRACE": 0
+    },
+    {
+      "role": "b",
+      "path": "/mnt/lima-afsbdata/afs-delivery/dfs-read-version-cache-20261008-r1/logs/node.log",
+      "bytes": 878,
+      "sha256": "d6c2377fcb789bb1ee13cbee40dd7aae4fc3166d88dfc245c4a6336d87275379",
+      "ERRO": 0,
+      "WARN": 0,
+      "TRACE": 0
+    },
+    {
+      "role": "c",
+      "path": "/mnt/lima-afscdata/afs-delivery/dfs-read-version-cache-20261008-r1/logs/node.log",
+      "bytes": 609,
+      "sha256": "9b0aa62c067084887e70ba912f3e2d8f7a75f82637d0ad8ed7ed7455759411e2",
+      "ERRO": 0,
+      "WARN": 0,
+      "TRACE": 0
+    }
+  ]
+}
